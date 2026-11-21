@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
   AnimatedZooAnimal,
   getAnimalWeight,
 } from '../components/AnimatedZooAnimal';
+import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import {
   DraggablePiece,
   DropAttempt,
@@ -39,7 +39,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS } from '../theme';
+import { COLORS, Difficulty } from '../theme';
 
 interface PicnicGuest {
   animal: ExhibitAnimalKind;
@@ -63,7 +63,61 @@ const PICNIC_GUESTS: PicnicGuest[] = [
   { animal: 'frog', name: 'Frog', favoriteTreat: 'fish', badgeColor: '#BBE4B7' },
 ];
 
-const TREATS_PER_STAR = 5;
+const WHIT_FAVORITES: PicnicTreatId[] = ['banana', 'watermelon', 'berries', 'cupcake'];
+
+interface PicnicOrder {
+  whitCraving: PicnicTreatId | null;
+  guestCraving: PicnicTreatId | null;
+}
+
+function getGoalCount(difficulty: Difficulty): number {
+  if (difficulty === 1) return 5;
+  if (difficulty === 2) return 6;
+  return 7;
+}
+
+function pickRandomTreat(exclude: PicnicTreatId[] = [], preferred?: PicnicTreatId[]): PicnicTreatId {
+  const pool = (preferred && preferred.length > 0 ? preferred : PICNIC_TREATS.map((t) => t.id)).filter(
+    (id) => !exclude.includes(id)
+  );
+  const finalPool = pool.length > 0 ? pool : PICNIC_TREATS.map((t) => t.id).filter((id) => !exclude.includes(id));
+  return finalPool[Math.floor(Math.random() * finalPool.length)] || 'banana';
+}
+
+function buildNextOrder(
+  difficulty: Difficulty,
+  guest: PicnicGuest,
+  stepIndex: number,
+  prevTreat?: PicnicTreatId
+): PicnicOrder {
+  const allIds = PICNIC_TREATS.map((t) => t.id);
+
+  if (difficulty === 3) {
+    // Gentle Hard mode: both Whit and his visiting friend each crave a different snack!
+    const whitTreat = pickRandomTreat(prevTreat ? [prevTreat] : [], WHIT_FAVORITES);
+    const guestPreferred: PicnicTreatId[] =
+      guest.favoriteTreat !== whitTreat
+        ? [guest.favoriteTreat, ...allIds.filter((id) => id !== whitTreat && id !== guest.favoriteTreat)]
+        : allIds.filter((id) => id !== whitTreat);
+    const guestTreat =
+      Math.random() < 0.65 && guest.favoriteTreat !== whitTreat
+        ? guest.favoriteTreat
+        : pickRandomTreat([whitTreat], guestPreferred);
+    return { whitCraving: whitTreat, guestCraving: guestTreat };
+  }
+
+  // Easy & Med: one clearly highlighted hungry friend at a time!
+  const feedWhitTurn = stepIndex % 2 === 0;
+  if (feedWhitTurn) {
+    const treat = pickRandomTreat(prevTreat ? [prevTreat] : [], WHIT_FAVORITES);
+    return { whitCraving: treat, guestCraving: null };
+  }
+  const guestTreat =
+    guest.favoriteTreat !== prevTreat && Math.random() < 0.7
+      ? guest.favoriteTreat
+      : pickRandomTreat(prevTreat ? [prevTreat] : []);
+  return { whitCraving: null, guestCraving: guestTreat };
+}
 
 /** Warm hand-painted cream & terracotta gingham storybook picnic blanket */
 const PicnicBlanketSvg: React.FC<{ width: number; height: number }> = ({
@@ -88,12 +142,12 @@ const PicnicBlanketSvg: React.FC<{ width: number; height: number }> = ({
     <Path d="M 102 25 L 78 124 L 112 126 L 130 25 Z" fill="rgba(223, 114, 72, 0.2)" />
     <Path d="M 188 25 L 182 128 L 218 128 L 214 25 Z" fill="rgba(223, 114, 72, 0.2)" />
     <Path d="M 276 25 L 288 126 L 322 124 L 304 25 Z" fill="rgba(223, 114, 72, 0.2)" />
-    {/* Warm cream fringe dots along bottom edge */}
+    {/* Warm cream highlight along back edge */}
     <Rect x="54" y="22" width="312" height="5" rx="2.5" fill="rgba(255, 252, 240, 0.65)" />
   </Svg>
 );
 
-/** Floating coral hearts & stars rising happily after a yummy bite */
+/** Floating coral hearts rising happily after a yummy bite */
 const FloatingYumHearts: React.FC<{ burstKey: number; size: number }> = ({
   burstKey,
   size,
@@ -152,25 +206,28 @@ const FloatingYumHearts: React.FC<{ burstKey: number; size: number }> = ({
   );
 };
 
-/** Soft pulsing thought bubble showing a hungry friend's favorite treat (zero reading!) */
-const CravingBubble: React.FC<{ treat: PicnicTreatId; size: number }> = ({
-  treat,
-  size,
-}) => {
+/** Glowing thought bubble showing the exact snack a hungry friend is craving (zero reading!) */
+const CravingBubble: React.FC<{
+  treat: PicnicTreatId;
+  size: number;
+  wiggleTick: number;
+  side: 'left' | 'right';
+}> = ({ treat, size, wiggleTick, side }) => {
   const bob = useRef(new Animated.Value(0)).current;
+  const wiggle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(bob, {
           toValue: 1,
-          duration: 1400,
+          duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(bob, {
           toValue: 0,
-          duration: 1400,
+          duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -180,9 +237,24 @@ const CravingBubble: React.FC<{ treat: PicnicTreatId; size: number }> = ({
     return () => loop.stop();
   }, [bob]);
 
+  useEffect(() => {
+    if (!wiggleTick) return;
+    wiggle.setValue(0);
+    Animated.sequence([
+      Animated.timing(wiggle, { toValue: -1, duration: 75, useNativeDriver: true }),
+      Animated.timing(wiggle, { toValue: 1, duration: 85, useNativeDriver: true }),
+      Animated.timing(wiggle, { toValue: -0.6, duration: 80, useNativeDriver: true }),
+      Animated.timing(wiggle, { toValue: 0, duration: 80, useNativeDriver: true }),
+    ]).start();
+  }, [wiggleTick, wiggle]);
+
   const translateY = bob.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -5],
+    outputRange: [0, -6],
+  });
+  const rotate = wiggle.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-10deg', '0deg', '10deg'],
   });
 
   return (
@@ -194,104 +266,245 @@ const CravingBubble: React.FC<{ treat: PicnicTreatId; size: number }> = ({
           width: size,
           height: size,
           borderRadius: size / 2,
-          transform: [{ translateY }],
+          transform: [{ translateY }, { rotate }],
         },
       ]}
     >
       <PicnicTreatSvg treat={treat} size={Math.round(size * 0.72)} />
-      <View style={styles.cravingDotLg} />
-      <View style={styles.cravingDotSm} />
+      <View
+        style={[
+          styles.cravingDotLg,
+          side === 'right' ? { left: 8, right: undefined } : null,
+        ]}
+      />
+      <View
+        style={[
+          styles.cravingDotSm,
+          side === 'right' ? { left: 3, right: undefined } : null,
+        ]}
+      />
     </Animated.View>
   );
 };
 
 /**
- * Whit's Jungle Picnic (Free Tier Open-Ended Toybox):
- * Zero rules, zero failing, infinite pretend play!
- * - Drag or tap 6 storybook treats to feed Whit and any of 8 visiting zoo friends
- * - Silly chomping reactions, floating hearts, favorite-snack cheer dances & animal voices
- * - Every 5 treats shared drops +1 glowing star into Whit's Star Jar without interrupting play!
+ * Feed Whit — Gamified Jungle Picnic (Free Tier Selectable Game):
+ * - Gentle, toddler-friendly snack-order matching game on a sunlit jungle picnic blanket!
+ * - Whit and visiting zoo friends show a glowing picture bubble of the snack they're craving.
+ * - Drag the matching snack to the hungry friend OR simply tap it in the basket!
+ * - Gentle Easy | Med | Hard difficulty (never punishing; soft golden hint if needed).
+ * - Completing the picnic fills the star bar, drops +1 Star into Whit's Star Jar, and celebrates!
  */
 export const JunglePicnicGame: React.FC = () => {
-  const { addStar, collectSticker } = useApp();
+  const { addStar, collectSticker, goHome } = useApp();
   const { isTablet, isTabletLandscape, width } = useResponsive();
 
+  const [difficulty, setDifficulty] = useState<Difficulty>(2);
   const [guestIdx, setGuestIdx] = useState(0);
-  const [treatsFedInCycle, setTreatsFedInCycle] = useState(0);
+  const [ordersCompleted, setOrdersCompleted] = useState(0);
+  const [order, setOrder] = useState<PicnicOrder>(() =>
+    buildNextOrder(2, PICNIC_GUESTS[0], 0)
+  );
   const [whitMood, setWhitMood] = useState<WhitMood>('wave');
   const [guestState, setGuestState] = useState<'idle' | 'calling' | 'celebrate'>('idle');
   const [hoverTarget, setHoverTarget] = useState<'whit' | 'guest' | null>(null);
   const [whitBurstKey, setWhitBurstKey] = useState<number | null>(null);
   const [guestBurstKey, setGuestBurstKey] = useState<number | null>(null);
-  const [starBannerKey, setStarBannerKey] = useState<number | null>(null);
-  const [tapFeedCounter, setTapFeedCounter] = useState(0);
+  const [wiggleTick, setWiggleTick] = useState(0);
+  const [hintActive, setHintActive] = useState(false);
+  const [won, setWon] = useState(false);
 
   const whitRef = useRef<MeasurableNode>(null);
   const guestRef = useRef<MeasurableNode>(null);
   const whitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextOrderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const guest = PICNIC_GUESTS[guestIdx % PICNIC_GUESTS.length];
-  const hitPadding = isTablet ? 74 : 56;
+  const goalCount = getGoalCount(difficulty);
+  const hitPadding = isTablet ? 80 : 60;
+
+  // On Easy, show 4 treats (always containing the active craving); on Med/Hard show all 6 treats
+  const visibleTreats = useMemo<PicnicTreatMeta[]>(() => {
+    if (difficulty > 1) return PICNIC_TREATS;
+    const needed = [order.whitCraving, order.guestCraving].filter(Boolean) as PicnicTreatId[];
+    const selected: PicnicTreatMeta[] = [];
+    for (const id of needed) {
+      const found = PICNIC_TREATS.find((t) => t.id === id);
+      if (found && !selected.some((s) => s.id === found.id)) {
+        selected.push(found);
+      }
+    }
+    for (const t of PICNIC_TREATS) {
+      if (selected.length >= 4) break;
+      if (!selected.some((s) => s.id === t.id)) {
+        selected.push(t);
+      }
+    }
+    return PICNIC_TREATS.filter((t) => selected.some((s) => s.id === t.id));
+  }, [difficulty, order.whitCraving, order.guestCraving]);
+
+  // Softly highlight the needed treat after 5.5s so young toddlers never get stuck
+  useEffect(() => {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    setHintActive(false);
+    if (won) return;
+    hintTimerRef.current = setTimeout(() => {
+      setHintActive(true);
+    }, 5500);
+    return () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    };
+  }, [order, won]);
 
   useEffect(() => {
     return () => {
       if (whitTimerRef.current) clearTimeout(whitTimerRef.current);
       if (guestTimerRef.current) clearTimeout(guestTimerRef.current);
+      if (nextOrderTimerRef.current) clearTimeout(nextOrderTimerRef.current);
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     };
   }, []);
 
-  const feedTarget = useCallback(
+  const startFreshGame = useCallback(
+    (nextDiff: Difficulty, nextGuestIdx: number) => {
+      if (whitTimerRef.current) clearTimeout(whitTimerRef.current);
+      if (guestTimerRef.current) clearTimeout(guestTimerRef.current);
+      if (nextOrderTimerRef.current) clearTimeout(nextOrderTimerRef.current);
+
+      const safeGuestIdx = nextGuestIdx % PICNIC_GUESTS.length;
+      const nextGuest = PICNIC_GUESTS[safeGuestIdx];
+      setDifficulty(nextDiff);
+      setGuestIdx(safeGuestIdx);
+      setOrdersCompleted(0);
+      setOrder(buildNextOrder(nextDiff, nextGuest, 0));
+      setWhitMood('wave');
+      setGuestState('idle');
+      setHoverTarget(null);
+      setHintActive(false);
+      setWon(false);
+    },
+    []
+  );
+
+  const completeMatchedFeed = useCallback(
     (target: 'whit' | 'guest', treat: PicnicTreatMeta) => {
+      if (won) return;
       soundEngine.unlock();
       soundEngine.playMunch();
+      setHintActive(false);
 
       const recipientAnimal = target === 'whit' ? 'gorilla' : guest.animal;
-      const isFavorite = treat.lovedBy.includes(recipientAnimal);
-      const isPartyCupcake = treat.id === 'cupcake';
-
       collectSticker(recipientAnimal);
 
-      if (target === 'whit' || isPartyCupcake) {
+      if (target === 'whit') {
         setWhitMood('cheer');
         setWhitBurstKey(Date.now());
         if (whitTimerRef.current) clearTimeout(whitTimerRef.current);
-        whitTimerRef.current = setTimeout(() => setWhitMood('wave'), 1150);
-      }
-
-      if (target === 'guest' || isPartyCupcake) {
+        whitTimerRef.current = setTimeout(() => setWhitMood('wave'), 1050);
+      } else {
         setGuestState('celebrate');
         setGuestBurstKey(Date.now() + 1);
         if (guestTimerRef.current) clearTimeout(guestTimerRef.current);
-        guestTimerRef.current = setTimeout(() => setGuestState('idle'), 1150);
+        guestTimerRef.current = setTimeout(() => setGuestState('idle'), 1050);
       }
 
       setTimeout(() => {
-        if (isFavorite || isPartyCupcake) {
-          soundEngine.playYumSparkle();
-        }
+        soundEngine.playYumSparkle();
         soundEngine.playAnimalSound(recipientAnimal);
-      }, 240);
+      }, 210);
 
-      setTreatsFedInCycle((prev) => {
-        const next = prev + 1;
-        if (next >= TREATS_PER_STAR) {
-          setTimeout(() => {
-            soundEngine.playWin();
-            addStar(1);
-            setStarBannerKey(Date.now());
-            setWhitMood('cheer');
-            setGuestState('celebrate');
-          }, 340);
-          setTimeout(() => {
-            setTreatsFedInCycle(0);
-          }, 1200);
-          return TREATS_PER_STAR;
-        }
-        return next;
-      });
+      const nextCompleted = ordersCompleted + 1;
+      setOrdersCompleted(nextCompleted);
+
+      // Clear the fulfilled craving immediately so it feels crisp and responsive
+      const remainingOrder: PicnicOrder =
+        target === 'whit'
+          ? { whitCraving: null, guestCraving: order.guestCraving }
+          : { whitCraving: order.whitCraving, guestCraving: null };
+      setOrder(remainingOrder);
+
+      if (nextCompleted >= goalCount) {
+        if (nextOrderTimerRef.current) clearTimeout(nextOrderTimerRef.current);
+        nextOrderTimerRef.current = setTimeout(() => {
+          soundEngine.playWin();
+          addStar(1);
+          setWhitMood('cheer');
+          setGuestState('celebrate');
+          setWon(true);
+        }, 560);
+        return;
+      }
+
+      // If all active cravings in this turn are satisfied, serve up the next yummy craving!
+      if (!remainingOrder.whitCraving && !remainingOrder.guestCraving) {
+        if (nextOrderTimerRef.current) clearTimeout(nextOrderTimerRef.current);
+        nextOrderTimerRef.current = setTimeout(() => {
+          // Rotate to a fresh smiling zoo friend every 2 snacks to keep it exciting!
+          const shouldRotateGuest = nextCompleted % 2 === 0;
+          const nextGIdx = shouldRotateGuest
+            ? (guestIdx + 1) % PICNIC_GUESTS.length
+            : guestIdx;
+          const nextGuestObj = PICNIC_GUESTS[nextGIdx];
+          if (shouldRotateGuest) {
+            setGuestIdx(nextGIdx);
+          }
+          setOrder(buildNextOrder(difficulty, nextGuestObj, nextCompleted, treat.id));
+        }, 640);
+      }
     },
-    [guest.animal, collectSticker, addStar]
+    [won, guest.animal, collectSticker, ordersCompleted, order.guestCraving, order.whitCraving, goalCount, addStar, guestIdx, difficulty]
+  );
+
+  /** Gentle, zero-punishment nibble when a child feeds a non-craved snack */
+  const playGentleNudge = useCallback((target: 'whit' | 'guest') => {
+    soundEngine.unlock();
+    soundEngine.playGentleBounce();
+    setWiggleTick((t) => t + 1);
+    setHintActive(true);
+    if (target === 'whit') {
+      setWhitMood('encourage');
+      if (whitTimerRef.current) clearTimeout(whitTimerRef.current);
+      whitTimerRef.current = setTimeout(() => setWhitMood('wave'), 700);
+    } else {
+      setGuestState('calling');
+      if (guestTimerRef.current) clearTimeout(guestTimerRef.current);
+      guestTimerRef.current = setTimeout(() => setGuestState('idle'), 700);
+    }
+  }, []);
+
+  const handleAttemptFeed = useCallback(
+    (target: 'whit' | 'guest', treat: PicnicTreatMeta) => {
+      if (won) return;
+
+      // Exact match to the targeted friend!
+      if (target === 'whit' && order.whitCraving === treat.id) {
+        completeMatchedFeed('whit', treat);
+        return;
+      }
+      if (target === 'guest' && order.guestCraving === treat.id) {
+        completeMatchedFeed('guest', treat);
+        return;
+      }
+
+      // Extra-forgiving Easy & Med helper: if the child picked the exact craved treat
+      // but dropped it on the friend sitting right next to them, share it happily!
+      if (difficulty <= 2) {
+        if (order.whitCraving === treat.id) {
+          completeMatchedFeed('whit', treat);
+          return;
+        }
+        if (order.guestCraving === treat.id) {
+          completeMatchedFeed('guest', treat);
+          return;
+        }
+      }
+
+      // Gentle friendly reminder wiggle (never harsh!)
+      playGentleNudge(target);
+    },
+    [won, order.whitCraving, order.guestCraving, difficulty, completeMatchedFeed, playGentleNudge]
   );
 
   const handleDragMove = useCallback(
@@ -355,35 +568,32 @@ export const JunglePicnicGame: React.FC = () => {
           ));
 
       if (hitWhit) {
-        feedTarget('whit', treat);
-        return false; // return treat neatly back to the infinite picnic basket!
+        handleAttemptFeed('whit', treat);
+        return false;
       }
       if (hitGuest) {
-        feedTarget('guest', treat);
+        handleAttemptFeed('guest', treat);
         return false;
       }
       return false;
     },
-    [hitPadding, feedTarget]
+    [hitPadding, handleAttemptFeed]
   );
 
-  // 1-tap treat support so 2-year-olds who tap instead of drag get instant picnic delight!
+  // 1-tap treat feeding so young toddlers who tap instead of drag can always succeed!
   const handleTapTreat = useCallback(
     (treat: PicnicTreatMeta) => {
-      const guestLoves = treat.lovedBy.includes(guest.animal);
-      const whitLoves = treat.lovedBy.includes('gorilla');
-      let target: 'whit' | 'guest';
-      if (guestLoves && !whitLoves) {
-        target = 'guest';
-      } else if (whitLoves && !guestLoves) {
-        target = 'whit';
+      if (won) return;
+      if (order.whitCraving === treat.id) {
+        completeMatchedFeed('whit', treat);
+      } else if (order.guestCraving === treat.id) {
+        completeMatchedFeed('guest', treat);
       } else {
-        target = tapFeedCounter % 2 === 0 ? 'whit' : 'guest';
+        const hungryTarget = order.whitCraving ? 'whit' : 'guest';
+        playGentleNudge(hungryTarget);
       }
-      setTapFeedCounter((c) => c + 1);
-      feedTarget(target, treat);
     },
-    [guest.animal, tapFeedCounter, feedTarget]
+    [won, order.whitCraving, order.guestCraving, completeMatchedFeed, playGentleNudge]
   );
 
   const handleSelectGuest = (idx: number) => {
@@ -407,7 +617,10 @@ export const JunglePicnicGame: React.FC = () => {
     : Math.min(370, width - 20);
   const blanketH = isTablet ? 136 : 104;
   const treatSize = isTablet ? 74 : 56;
-  const cravingSize = isTablet ? 52 : 42;
+  const cravingSize = isTablet ? 60 : 48;
+
+  const whitHungry = Boolean(order.whitCraving);
+  const guestHungry = Boolean(order.guestCraving);
 
   return (
     <View style={styles.container}>
@@ -420,10 +633,12 @@ export const JunglePicnicGame: React.FC = () => {
         />
       </View>
 
-      {/* Top Bar: Home + 5-Treat Yum Star Progress + Mute (no difficulty needed in open-ended mode!) */}
+      {/* Top Bar: Home + Picnic Order Stars + Easy/Med/Hard + Audio */}
       <GameHeader
-        totalSteps={TREATS_PER_STAR}
-        completedSteps={treatsFedInCycle}
+        totalSteps={goalCount}
+        completedSteps={ordersCompleted}
+        difficulty={difficulty}
+        onDifficultyChange={(d) => startFreshGame(d, guestIdx)}
       />
 
       <View
@@ -455,15 +670,23 @@ export const JunglePicnicGame: React.FC = () => {
                 }}
                 style={[
                   styles.friendSpot,
+                  whitHungry && styles.friendSpotHungry,
                   hoverTarget === 'whit' && styles.friendSpotHover,
                 ]}
               >
-                <View style={styles.cravingAnchorLeft}>
-                  <CravingBubble treat="banana" size={cravingSize} />
-                </View>
+                {order.whitCraving && (
+                  <View style={styles.cravingAnchorLeft}>
+                    <CravingBubble
+                      treat={order.whitCraving}
+                      size={cravingSize}
+                      wiggleTick={wiggleTick}
+                      side="left"
+                    />
+                  </View>
+                )}
 
                 <WhitMascot
-                  mood={whitMood}
+                  mood={hoverTarget === 'whit' ? 'happy' : whitMood}
                   size={whitSize}
                   interactive
                   cycleAccessoryOnTap
@@ -489,18 +712,31 @@ export const JunglePicnicGame: React.FC = () => {
                 }}
                 style={[
                   styles.friendSpot,
+                  guestHungry && styles.friendSpotHungry,
                   hoverTarget === 'guest' && styles.friendSpotHover,
                 ]}
               >
-                <View style={styles.cravingAnchorRight}>
-                  <CravingBubble
-                    treat={guest.favoriteTreat}
-                    size={cravingSize}
-                  />
-                </View>
+                {order.guestCraving && (
+                  <View style={styles.cravingAnchorRight}>
+                    <CravingBubble
+                      treat={order.guestCraving}
+                      size={cravingSize}
+                      wiggleTick={wiggleTick}
+                      side="right"
+                    />
+                  </View>
+                )}
 
                 <AnimatedZooAnimal
-                  state={hoverTarget === 'guest' ? 'calling' : guestState}
+                  state={
+                    hoverTarget === 'guest'
+                      ? 'calling'
+                      : guestState !== 'idle'
+                      ? guestState
+                      : guestHungry
+                      ? 'calling'
+                      : 'idle'
+                  }
                   size={guestSize}
                   seed={guestIdx + 3}
                   weight={getAnimalWeight(guest.animal)}
@@ -510,7 +746,11 @@ export const JunglePicnicGame: React.FC = () => {
                     setGuestBurstKey(Date.now());
                   }}
                 >
-                  <ZooExhibitAnimalSvg animal={guest.animal} size={guestSize} />
+                  <ZooExhibitAnimalSvg
+                    animal={guest.animal}
+                    size={guestSize}
+                    highlighted={guestHungry}
+                  />
                 </AnimatedZooAnimal>
 
                 {guestBurstKey && (
@@ -529,16 +769,9 @@ export const JunglePicnicGame: React.FC = () => {
                 )}
               </View>
             </View>
-
-            {/* Celebratory +1 Star Jar chime banner every 5 snacks */}
-            {starBannerKey && (
-              <View style={styles.starToastWrap} pointerEvents="none">
-                <SnapBurst key={starBannerKey} size={isTablet ? 200 : 160} />
-              </View>
-            )}
           </View>
 
-          {/* Scrollable Visiting Friends Ribbon */}
+          {/* Scrollable Visiting Friends Ribbon (lets kids invite any friend anytime!) */}
           <View
             style={[
               styles.guestPickerShell,
@@ -584,7 +817,7 @@ export const JunglePicnicGame: React.FC = () => {
           </View>
         </View>
 
-        {/* Soft Watercolor Picnic Basket Treat Dock (Drag OR Tap to feed!) */}
+        {/* Soft Watercolor Picnic Basket Treat Dock (Drag OR Tap the matching snack!) */}
         <View
           style={[
             styles.basketDock,
@@ -595,7 +828,7 @@ export const JunglePicnicGame: React.FC = () => {
           <View style={styles.basketGloss} pointerEvents="none" />
           <View style={styles.basketHeaderRow}>
             <Text style={[styles.basketTitle, isTablet && { fontSize: 14 }]}>
-              Drag or tap a treat to feed!
+              Match the snack bubble — drag or tap!
             </Text>
           </View>
           <View
@@ -605,41 +838,53 @@ export const JunglePicnicGame: React.FC = () => {
               isTabletLandscape && styles.treatsGridLandscape,
             ]}
           >
-            {PICNIC_TREATS.map((treat) => (
-              <View
-                key={treat.id}
-                style={[
-                  styles.treatSlot,
-                  {
-                    width: treatSize + (isTablet ? 16 : 12),
-                    height: treatSize + (isTablet ? 16 : 12),
-                  },
-                ]}
-              >
-                <DraggablePiece
-                  dragScale={1.16}
-                  onDragMove={handleDragMove}
-                  onDrop={(attempt) => handleDropTreat(treat, attempt)}
-                  onTap={() => handleTapTreat(treat)}
+            {visibleTreats.map((treat) => {
+              const isHinted =
+                hintActive &&
+                (order.whitCraving === treat.id || order.guestCraving === treat.id);
+              return (
+                <View
+                  key={treat.id}
+                  style={[
+                    styles.treatSlot,
+                    {
+                      width: treatSize + (isTablet ? 16 : 12),
+                      height: treatSize + (isTablet ? 16 : 12),
+                    },
+                  ]}
                 >
-                  <View
-                    style={[
-                      styles.treatPill,
-                      {
-                        width: treatSize + 8,
-                        height: treatSize + 8,
-                        borderRadius: (treatSize + 8) / 2,
-                      },
-                    ]}
+                  <DraggablePiece
+                    dragScale={1.16}
+                    onDragMove={handleDragMove}
+                    onDrop={(attempt) => handleDropTreat(treat, attempt)}
+                    onTap={() => handleTapTreat(treat)}
                   >
-                    <PicnicTreatSvg treat={treat.id} size={treatSize} />
-                  </View>
-                </DraggablePiece>
-              </View>
-            ))}
+                    <View
+                      style={[
+                        styles.treatPill,
+                        {
+                          width: treatSize + 8,
+                          height: treatSize + 8,
+                          borderRadius: (treatSize + 8) / 2,
+                        },
+                        isHinted && styles.treatPillHint,
+                      ]}
+                    >
+                      <PicnicTreatSvg treat={treat.id} size={treatSize} />
+                    </View>
+                  </DraggablePiece>
+                </View>
+              );
+            })}
           </View>
         </View>
       </View>
+
+      <CelebrationOverlay
+        visible={won}
+        onPlayAgain={() => startFreshGame(difficulty, guestIdx + 1)}
+        onHome={goHome}
+      />
     </View>
   );
 };
@@ -675,7 +920,7 @@ const styles = StyleSheet.create({
   meadowStage: {
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingTop: 28,
+    paddingTop: 34,
     paddingBottom: 18,
     position: 'relative',
     overflow: 'visible',
@@ -703,53 +948,58 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'visible',
   },
+  friendSpotHungry: {
+    backgroundColor: 'rgba(255, 245, 190, 0.28)',
+  },
   friendSpotHover: {
-    backgroundColor: 'rgba(255, 240, 160, 0.36)',
+    backgroundColor: 'rgba(255, 236, 140, 0.5)',
     transform: [{ scale: 1.05 }],
   },
   cravingAnchorLeft: {
     position: 'absolute',
-    top: -16,
-    left: -6,
+    top: -22,
+    left: -8,
     zIndex: 15,
   },
   cravingAnchorRight: {
     position: 'absolute',
-    top: -18,
-    right: -4,
+    top: -22,
+    right: -6,
     zIndex: 15,
   },
   cravingBubble: {
-    backgroundColor: 'rgba(255, 252, 242, 0.94)',
-    borderWidth: 2,
-    borderColor: 'rgba(138, 92, 48, 0.32)',
+    backgroundColor: '#FFFDF5',
+    borderWidth: 3,
+    borderColor: '#E8A530',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#5C3D20',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowColor: '#8C5B18',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    elevation: 5,
   },
   cravingDotLg: {
     position: 'absolute',
-    bottom: -6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 252, 242, 0.94)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(138, 92, 48, 0.28)',
+    bottom: -7,
+    right: 8,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#FFFDF5',
+    borderWidth: 2,
+    borderColor: '#E8A530',
   },
   cravingDotSm: {
     position: 'absolute',
-    bottom: -12,
-    right: 2,
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: 'rgba(255, 252, 242, 0.94)',
+    bottom: -14,
+    right: 3,
+    width: 5.5,
+    height: 5.5,
+    borderRadius: 2.75,
+    backgroundColor: '#FFFDF5',
+    borderWidth: 1.5,
+    borderColor: '#E8A530',
   },
   heartsFloat: {
     position: 'absolute',
@@ -761,13 +1011,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 20,
-  },
-  starToastWrap: {
-    position: 'absolute',
-    top: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 30,
   },
   guestPickerShell: {
     maxWidth: '96%',
@@ -805,7 +1048,7 @@ const styles = StyleSheet.create({
   basketDock: {
     width: '96%',
     maxWidth: 520,
-    backgroundColor: 'rgba(246, 221, 174, 0.9)',
+    backgroundColor: 'rgba(246, 221, 174, 0.92)',
     borderRadius: 36,
     borderWidth: 2,
     borderColor: 'rgba(156, 108, 60, 0.36)',
@@ -851,7 +1094,7 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '800',
     color: COLORS.woodDark,
-    opacity: 0.84,
+    opacity: 0.88,
   },
   treatsGrid: {
     flexDirection: 'row',
@@ -873,7 +1116,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   treatPill: {
-    backgroundColor: 'rgba(255, 252, 244, 0.92)',
+    backgroundColor: 'rgba(255, 252, 244, 0.94)',
     borderWidth: 2,
     borderColor: 'rgba(156, 108, 60, 0.28)',
     alignItems: 'center',
@@ -883,5 +1126,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 6,
     elevation: 4,
+  },
+  treatPillHint: {
+    backgroundColor: '#FFF7CE',
+    borderColor: '#E8A530',
+    borderWidth: 3.5,
+    shadowColor: '#E8A530',
+    shadowOpacity: 0.42,
+    shadowRadius: 10,
+    transform: [{ scale: 1.07 }],
   },
 });

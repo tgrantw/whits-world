@@ -104,6 +104,17 @@ export const GAMES: GameMeta[] = [
     leafTint: '#4DAAD8',
   },
   {
+    id: 'jungle-picnic',
+    title: 'Feed Whit',
+    subtitle: 'Picnic snack match!',
+    isFree: true,
+    plaqueBg: '#F6CFA3',
+    plaqueInner: '#FFF8ED',
+    plaqueBorder: '#A9612C',
+    accent: '#C96D2E',
+    leafTint: '#E8A530',
+  },
+  {
     id: 'ball-pass',
     title: 'Jungle Ball Pass',
     subtitle: 'Kick & score goals!',

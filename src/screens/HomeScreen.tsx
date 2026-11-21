@@ -595,6 +595,20 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
           </View>
         </View>
       );
+    case 'jungle-picnic':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'flex-end', gap: 3 }]}>
+          <View style={{ marginBottom: s(6) }}>
+            <PicnicTreatSvg treat="banana" size={s(30)} />
+          </View>
+          <AnimatedZooAnimal size={s(54)} seed={14} weight="heavy">
+            <ZooExhibitAnimalSvg animal="gorilla" size={s(54)} />
+          </AnimatedZooAnimal>
+          <View style={{ marginBottom: s(6) }}>
+            <PicnicTreatSvg treat="cupcake" size={s(28)} />
+          </View>
+        </View>
+      );
   }
 };
 
@@ -640,7 +654,7 @@ export const HomeScreen: React.FC = () => {
     }
   }, [canFullscreen]);
 
-  const previewScale = isTabletLandscape ? 1.06 : isTablet ? 1.1 : 0.96;
+  const previewScale = isTabletLandscape ? 0.94 : isTablet ? 1.1 : 0.96;
   const mascotSize = isTabletLandscape ? 186 : isTablet ? 184 : 148;
   const signW = isTabletLandscape ? 278 : isTablet ? 310 : 268;
   const signH = isTabletLandscape ? 76 : isTablet ? 84 : 72;
@@ -678,7 +692,7 @@ export const HomeScreen: React.FC = () => {
                   isTablet && { fontSize: 15.5 },
                 ]}
               >
-                Unlock All 9 Zoo Games ({UNLOCK_PRICE_DISPLAY})
+                Unlock All 10 Zoo Games ({UNLOCK_PRICE_DISPLAY})
               </Text>
               <Text
                 style={[
@@ -711,7 +725,7 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.unlockedFooterPill}>
           <CrownIcon size={19} color="#FFD23F" />
           <Text style={styles.unlockedFooterText}>
-            All 9 Zoo Games Unlocked • Parent Corner
+            All 10 Zoo Games Unlocked • Parent Corner
           </Text>
         </View>
       </TactileButton>
@@ -960,28 +974,12 @@ export const HomeScreen: React.FC = () => {
 
             <AnimatedSignpost width={signW} height={signH} fontSize={31} />
 
-            {/* Free Open-Ended Toybox CTA right beneath Whit */}
-            <TactileButton
-              onPress={() => openGame('jungle-picnic', true)}
-              accessibilityLabel="Feed Whit — Open Jungle Picnic"
-              style={styles.picnicPillWrap}
-            >
-              <View style={[styles.picnicPill, styles.picnicPillTablet]}>
-                <PicnicTreatSvg treat="banana" size={30} />
-                <View style={styles.picnicCopyCol}>
-                  <Text style={styles.picnicTitle}>Feed Whit!</Text>
-                  <Text style={styles.picnicSub}>Jungle Picnic · Free</Text>
-                </View>
-                <PicnicTreatSvg treat="cupcake" size={28} />
-              </View>
-            </TactileButton>
-
             <View style={styles.landscapeUnlockSlot}>
               {renderUnlockBanner()}
             </View>
           </View>
 
-          {/* Right Zoo Exhibits Grid: 4x2 Centered Storybook Wooden Plaques */}
+          {/* Right Zoo Exhibits Grid: Centered Storybook Wooden Plaques */}
           <View style={styles.landscapeGridCol}>
             {renderGameGrid()}
           </View>
@@ -1024,22 +1022,6 @@ export const HomeScreen: React.FC = () => {
               height={signH}
               fontSize={isTablet ? 31 : undefined}
             />
-            <TactileButton
-              onPress={() => openGame('jungle-picnic', true)}
-              accessibilityLabel="Feed Whit — Open Jungle Picnic"
-              style={styles.picnicPillWrap}
-            >
-              <View style={[styles.picnicPill, isTablet && styles.picnicPillTablet]}>
-                <PicnicTreatSvg treat="banana" size={isTablet ? 30 : 26} />
-                <View style={styles.picnicCopyCol}>
-                  <Text style={[styles.picnicTitle, isTablet && { fontSize: 16 }]}>
-                    Feed Whit!
-                  </Text>
-                  <Text style={styles.picnicSub}>Jungle Picnic · Free</Text>
-                </View>
-                <PicnicTreatSvg treat="cupcake" size={isTablet ? 28 : 24} />
-              </View>
-            </TactileButton>
           </View>
 
           {renderGameGrid()}
@@ -1289,8 +1271,8 @@ const styles = StyleSheet.create({
     minWidth: 196,
   },
   cardColumnTabletLandscape: {
-    width: '30.8%',
-    minWidth: 186,
+    width: '23.2%',
+    minWidth: 152,
   },
   plaqueOuter: {
     width: '100%',
@@ -1345,9 +1327,9 @@ const styles = StyleSheet.create({
     marginBottom: 9,
   },
   plaqueInnerLandscape: {
-    height: 100,
-    borderRadius: 20,
-    marginBottom: 7,
+    height: 92,
+    borderRadius: 18,
+    marginBottom: 6,
   },
   lockBadge: {
     position: 'absolute',

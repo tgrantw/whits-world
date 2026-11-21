@@ -226,7 +226,7 @@ export const PaywallModal: React.FC = () => {
               <View style={styles.heroCopy}>
                 <Text style={[styles.title, isTablet && styles.titleTablet]}>
                   {isUnlocked
-                    ? 'All 9 Zoo Games Unlocked!'
+                    ? 'All 10 Zoo Games Unlocked!'
                     : 'Unlock All of Whit’s World'}
                 </Text>
                 <Text style={styles.priceSubtitle}>
@@ -304,7 +304,7 @@ export const PaywallModal: React.FC = () => {
                 <TactileButton
                   onPress={handlePurchaseUnlockAll}
                   disabled={isPurchasing}
-                  accessibilityLabel={`Unlock All 9 Games — ${UNLOCK_PRICE_DISPLAY}`}
+                  accessibilityLabel={`Unlock All 10 Games — ${UNLOCK_PRICE_DISPLAY}`}
                 >
                   <View
                     style={[
@@ -318,7 +318,7 @@ export const PaywallModal: React.FC = () => {
                       <View style={styles.buyBtnInner}>
                         <CrownIcon size={20} color="#FFE578" />
                         <Text style={styles.buyBtnText}>
-                          Unlock All 9 Games — {UNLOCK_PRICE_DISPLAY}
+                          Unlock All 10 Games — {UNLOCK_PRICE_DISPLAY}
                         </Text>
                       </View>
                     )}
