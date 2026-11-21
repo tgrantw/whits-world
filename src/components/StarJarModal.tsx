@@ -521,60 +521,66 @@ export const StarJarModal: React.FC = () => {
               <StarIcon size={18} color={COLORS.sunGold} />
               <Text style={styles.titlePillText}>Whit’s Toybox</Text>
             </View>
-            <Pressable
+            <TactileButton
               onPress={closeStarJar}
-              accessibilityRole="button"
               accessibilityLabel="Close Whit's Star Jar"
-              style={styles.closeBtn}
             >
-              <Text style={styles.closeText}>✕</Text>
-            </Pressable>
+              <View style={styles.closeBtn}>
+                <Text style={styles.closeText}>✕</Text>
+              </View>
+            </TactileButton>
           </View>
 
           {/* Two-Tab Segmented Switch: Dress-Up vs Living Zoo Sticker Album */}
           <View style={styles.tabTrack}>
-            <Pressable
+            <TactileButton
               onPress={() => {
                 soundEngine.playPop();
                 setActiveTab('dressup');
               }}
-              accessibilityRole="button"
               accessibilityLabel="Whit's Hats and Star Jar tab"
-              style={[
-                styles.tabBtn,
-                activeTab === 'dressup' && styles.tabBtnActive,
-              ]}
+              style={{ flex: 1 }}
             >
-              <Text
+              <View
                 style={[
-                  styles.tabText,
-                  activeTab === 'dressup' && styles.tabTextActive,
+                  styles.tabBtn,
+                  activeTab === 'dressup' && styles.tabBtnActive,
                 ]}
               >
-                ★ Star Jar & Hats
-              </Text>
-            </Pressable>
-            <Pressable
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === 'dressup' && styles.tabTextActive,
+                  ]}
+                >
+                  ★ Star Jar & Hats
+                </Text>
+              </View>
+            </TactileButton>
+            <TactileButton
               onPress={() => {
                 soundEngine.playPop();
                 setActiveTab('stickers');
               }}
-              accessibilityRole="button"
               accessibilityLabel="Zoo Sticker Album tab"
-              style={[
-                styles.tabBtn,
-                activeTab === 'stickers' && styles.tabBtnActive,
-              ]}
+              style={{ flex: 1 }}
             >
-              <Text
+              <View
                 style={[
-                  styles.tabText,
-                  activeTab === 'stickers' && styles.tabTextActive,
+                  styles.tabBtn,
+                  activeTab === 'stickers' && styles.tabBtnActive,
                 ]}
               >
-                Zoo Stickers ({collectedCount}/{TOTAL_STICKER_COUNT})
-              </Text>
-            </Pressable>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === 'stickers' && styles.tabTextActive,
+                  ]}
+                >
+                  Zoo Stickers ({collectedCount}/{TOTAL_STICKER_COUNT})
+                </Text>
+              </View>
+            </TactileButton>
           </View>
 
           <ScrollView

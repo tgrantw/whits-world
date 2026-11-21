@@ -15,6 +15,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { COLORS, UNLOCK_PRICE_DISPLAY, UNLOCK_PRODUCT_ID } from '../theme';
 import { CrownIcon, JungleBushCoverSvg, StarIcon } from './JungleArt';
+import { TactileButton } from './TactileButton';
 import { WhitMascot } from './WhitMascot';
 import { ZooExhibitAnimalSvg } from './ZooExhibitAnimals';
 
@@ -201,14 +202,14 @@ export const PaywallModal: React.FC = () => {
                 </View>
               )}
             </View>
-            <Pressable
+            <TactileButton
               onPress={closePaywall}
-              accessibilityRole="button"
               accessibilityLabel="Close parent paywall"
-              style={styles.closeBtn}
             >
-              <Text style={styles.closeText}>✕</Text>
-            </Pressable>
+              <View style={styles.closeBtn}>
+                <Text style={styles.closeText}>✕</Text>
+              </View>
+            </TactileButton>
           </View>
 
           <ScrollView
@@ -300,38 +301,41 @@ export const PaywallModal: React.FC = () => {
 
             {!isUnlocked ? (
               <View style={styles.ctaWrap}>
-                <Pressable
+                <TactileButton
                   onPress={handlePurchaseUnlockAll}
                   disabled={isPurchasing}
-                  style={({ pressed }) => [
-                    styles.buyBtn,
-                    pressed && styles.buyBtnPressed,
-                    isPurchasing && { opacity: 0.7 },
-                  ]}
+                  accessibilityLabel={`Unlock All 9 Games — ${UNLOCK_PRICE_DISPLAY}`}
                 >
-                  {isPurchasing ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <View style={styles.buyBtnInner}>
-                      <CrownIcon size={20} color="#FFE578" />
-                      <Text style={styles.buyBtnText}>
-                        Unlock All 9 Games — {UNLOCK_PRICE_DISPLAY}
-                      </Text>
-                    </View>
-                  )}
-                </Pressable>
+                  <View
+                    style={[
+                      styles.buyBtn,
+                      isPurchasing && { opacity: 0.7 },
+                    ]}
+                  >
+                    {isPurchasing ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <View style={styles.buyBtnInner}>
+                        <CrownIcon size={20} color="#FFE578" />
+                        <Text style={styles.buyBtnText}>
+                          Unlock All 9 Games — {UNLOCK_PRICE_DISPLAY}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TactileButton>
                 <View style={styles.footerMetaRow}>
                   <Text style={styles.ctaMicroCopy}>
                     Pay once · Never billed again
                   </Text>
                   <Text style={styles.footerDot}>•</Text>
-                  <Pressable
+                  <TactileButton
                     onPress={handleRestorePurchases}
                     disabled={isPurchasing}
-                    style={({ pressed }) => pressed && { opacity: 0.7 }}
+                    accessibilityLabel="Restore Purchases"
                   >
                     <Text style={styles.restoreText}>Restore Purchases</Text>
-                  </Pressable>
+                  </TactileButton>
                 </View>
               </View>
             ) : (
@@ -341,16 +345,15 @@ export const PaywallModal: React.FC = () => {
                     ✓ Full Jungle Adventure Active
                   </Text>
                 </View>
-                <Pressable
+                <TactileButton
                   onPress={handleRestorePurchases}
                   disabled={isPurchasing}
-                  style={({ pressed }) => [
-                    styles.restoreBtn,
-                    pressed && { opacity: 0.7 },
-                  ]}
+                  accessibilityLabel="Restore Purchases"
                 >
-                  <Text style={styles.restoreText}>Restore Purchases</Text>
-                </Pressable>
+                  <View style={styles.restoreBtn}>
+                    <Text style={styles.restoreText}>Restore Purchases</Text>
+                  </View>
+                </TactileButton>
               </View>
             )}
           </View>

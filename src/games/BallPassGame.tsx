@@ -548,60 +548,219 @@ export const BallPassGame: React.FC = () => {
     setMascotMood('happy');
   }, [isTablet]);
 
-  // Unified Swipe/Flick OR Tap input across the full clearing!
+  // Unified Drag/Aim, Flick/Swipe, Slingshot, OR Tap input across the full clearing!
+  // Uses direct non-passive DOM touchstart/touchmove + window listeners on Web so iPad Safari
+  // NEVER steals drags for page scrolling or cancels mid-swipe.
   const gestureStartRef = useRef<{ x: number; y: number } | null>(null);
+  const webDragRef = useRef<{
+    mode: 'touch' | 'pointer';
+    id: number;
+    start: { x: number; y: number };
+    last: { x: number; y: number };
+  } | null>(null);
+  const lastTouchEndRef = useRef<number>(0);
+  const winCleanupRef = useRef<(() => void) | null>(null);
+  const kickBallRef = useRef(kickBallToward);
+  kickBallRef.current = kickBallToward;
   const fieldNodeRef = useRef<React.ComponentRef<typeof View> | null>(null);
 
-  const getLocalCoords = (clientX: number, clientY: number) => {
-    if (Platform.OS === 'web' && fieldNodeRef.current) {
-      const el = fieldNodeRef.current as unknown as {
-        getBoundingClientRect?: () => DOMRect;
-      };
-      const rect = el.getBoundingClientRect?.();
+  const getFieldDomEl = useCallback(() => {
+    if (Platform.OS !== 'web' || !fieldNodeRef.current) return null;
+    const raw = fieldNodeRef.current as unknown as {
+      addEventListener?: HTMLElement['addEventListener'];
+      removeEventListener?: HTMLElement['removeEventListener'];
+      getBoundingClientRect?: () => DOMRect;
+      getNode?: () => HTMLElement;
+    };
+    if (typeof raw.getBoundingClientRect === 'function') return raw;
+    if (typeof raw.getNode === 'function') return raw.getNode();
+    return null;
+  }, []);
+
+  const getLocalCoords = useCallback(
+    (clientX: number, clientY: number) => {
+      const el = getFieldDomEl();
+      const rect = el?.getBoundingClientRect?.();
       if (rect) {
         return { x: clientX - rect.left, y: clientY - rect.top };
       }
+      return { x: clientX, y: clientY };
+    },
+    [getFieldDomEl]
+  );
+
+  const resolveAimTarget = useCallback(
+    (start: { x: number; y: number }, curr: { x: number; y: number }) => {
+      const p = physRef.current;
+      const f = fieldRef.current;
+      const swipeDx = curr.x - start.x;
+      const swipeDy = curr.y - start.y;
+      const dist = Math.hypot(swipeDx, swipeDy);
+
+      let tx = curr.x;
+      let ty = curr.y;
+
+      if (dist > 18) {
+        if (swipeDy < -10) {
+          // Upward drag or flick: aim along drag vector from the ball
+          tx = p.x + swipeDx * 1.8;
+          ty = p.y + swipeDy * 1.8;
+        } else if (swipeDy > 22) {
+          // Slingshot pull-back downward: launch upward in opposite direction
+          tx = p.x - swipeDx * 1.8;
+          ty = p.y - swipeDy * 1.8;
+        } else {
+          tx = curr.x;
+          ty = Math.min(curr.y, p.y - 60);
+        }
+      }
+
+      return {
+        x: Math.max(16, Math.min(f.w - 16, tx)),
+        y: Math.max(16, Math.min(f.h - 16, ty)),
+      };
+    },
+    []
+  );
+
+  const cleanupWinListeners = useCallback(() => {
+    if (winCleanupRef.current) {
+      winCleanupRef.current();
+      winCleanupRef.current = null;
     }
-    return { x: clientX, y: clientY };
-  };
+  }, []);
+
+  useEffect(() => () => cleanupWinListeners(), [cleanupWinListeners]);
+
+  const beginWebAim = useCallback(
+    (mode: 'touch' | 'pointer', id: number, clientX: number, clientY: number) => {
+      soundEngine.unlock();
+      const start = getLocalCoords(clientX, clientY);
+      webDragRef.current = { mode, id, start, last: start };
+      setAimPreview(resolveAimTarget(start, start));
+
+      cleanupWinListeners();
+      if (typeof window === 'undefined') return;
+
+      const finishAim = (cx: number, cy: number) => {
+        const st = webDragRef.current;
+        if (!st || st.mode !== mode || st.id !== id) return;
+        webDragRef.current = null;
+        cleanupWinListeners();
+        setAimPreview(null);
+        if (mode === 'touch') {
+          lastTouchEndRef.current = Date.now();
+        }
+        const end =
+          Number.isFinite(cx) && Number.isFinite(cy)
+            ? getLocalCoords(cx, cy)
+            : st.last;
+        const target = resolveAimTarget(st.start, end);
+        kickBallRef.current(target.x, target.y);
+      };
+
+      if (mode === 'touch') {
+        const findTouch = (list: TouchList) => {
+          for (let i = 0; i < list.length; i++) {
+            if (list[i].identifier === id) return list[i];
+          }
+          return null;
+        };
+        const onWinTouchMove = (ev: TouchEvent) => {
+          const t = findTouch(ev.touches) || findTouch(ev.changedTouches);
+          if (!t) return;
+          if (ev.cancelable) ev.preventDefault();
+          const st = webDragRef.current;
+          if (!st) return;
+          const pt = getLocalCoords(t.clientX, t.clientY);
+          st.last = pt;
+          setAimPreview(resolveAimTarget(st.start, pt));
+        };
+        const onWinTouchEnd = (ev: TouchEvent) => {
+          const t = findTouch(ev.changedTouches);
+          if (!t) return;
+          if (ev.cancelable) ev.preventDefault();
+          finishAim(t.clientX, t.clientY);
+        };
+        const onWinTouchCancel = (ev: TouchEvent) => {
+          const t = findTouch(ev.changedTouches);
+          finishAim(t ? t.clientX : NaN, t ? t.clientY : NaN);
+        };
+        window.addEventListener('touchmove', onWinTouchMove, { passive: false });
+        window.addEventListener('touchend', onWinTouchEnd, { passive: false });
+        window.addEventListener('touchcancel', onWinTouchCancel);
+        winCleanupRef.current = () => {
+          window.removeEventListener('touchmove', onWinTouchMove);
+          window.removeEventListener('touchend', onWinTouchEnd);
+          window.removeEventListener('touchcancel', onWinTouchCancel);
+        };
+      } else {
+        const onWinPointerMove = (ev: PointerEvent) => {
+          if (ev.pointerId !== id) return;
+          ev.preventDefault?.();
+          const st = webDragRef.current;
+          if (!st) return;
+          const pt = getLocalCoords(ev.clientX, ev.clientY);
+          st.last = pt;
+          setAimPreview(resolveAimTarget(st.start, pt));
+        };
+        const onWinPointerUp = (ev: PointerEvent) => {
+          if (ev.pointerId !== id) return;
+          finishAim(ev.clientX, ev.clientY);
+        };
+        const onWinPointerCancel = (ev: PointerEvent) => {
+          if (ev.pointerId !== id) return;
+          finishAim(NaN, NaN);
+        };
+        window.addEventListener('pointermove', onWinPointerMove, { passive: false });
+        window.addEventListener('pointerup', onWinPointerUp);
+        window.addEventListener('pointercancel', onWinPointerCancel);
+        winCleanupRef.current = () => {
+          window.removeEventListener('pointermove', onWinPointerMove);
+          window.removeEventListener('pointerup', onWinPointerUp);
+          window.removeEventListener('pointercancel', onWinPointerCancel);
+        };
+      }
+    },
+    [cleanupWinListeners, getLocalCoords, resolveAimTarget]
+  );
+
+  // Direct non-passive touchstart listener for iPad / iPhone Safari
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const domEl = getFieldDomEl();
+    if (!domEl || typeof domEl.addEventListener !== 'function') return;
+
+    const onDomTouchStart = (ev: TouchEvent) => {
+      if (webDragRef.current) return;
+      const t = ev.changedTouches[0];
+      if (!t) return;
+      if (ev.cancelable) ev.preventDefault();
+      beginWebAim('touch', t.identifier, t.clientX, t.clientY);
+    };
+
+    domEl.addEventListener('touchstart', onDomTouchStart, { passive: false });
+    return () => {
+      domEl.removeEventListener?.('touchstart', onDomTouchStart);
+    };
+  }, [beginWebAim, getFieldDomEl]);
 
   const webFieldProps =
     Platform.OS === 'web'
       ? ({
           onPointerDown: (e: {
+            pointerId: number;
+            pointerType?: string;
             clientX: number;
             clientY: number;
             preventDefault?: () => void;
           }) => {
+            // Touch input is handled directly by our non-passive DOM touchstart listener
+            if (e.pointerType === 'touch') return;
+            if (Date.now() - lastTouchEndRef.current < 500) return;
+            if (webDragRef.current) return;
             e.preventDefault?.();
-            soundEngine.unlock();
-            const pt = getLocalCoords(e.clientX, e.clientY);
-            gestureStartRef.current = pt;
-            setAimPreview(pt);
-          },
-          onPointerMove: (e: { clientX: number; clientY: number }) => {
-            if (!gestureStartRef.current) return;
-            const pt = getLocalCoords(e.clientX, e.clientY);
-            setAimPreview(pt);
-          },
-          onPointerUp: (e: { clientX: number; clientY: number }) => {
-            const start = gestureStartRef.current;
-            gestureStartRef.current = null;
-            setAimPreview(null);
-            if (!start) return;
-            const end = getLocalCoords(e.clientX, e.clientY);
-            const swipeDx = end.x - start.x;
-            const swipeDy = end.y - start.y;
-            if (Math.hypot(swipeDx, swipeDy) > 22 && swipeDy < -10) {
-              // Flicked upward — kick in swipe direction!
-              kickBallToward(
-                physRef.current.x + swipeDx * 3,
-                physRef.current.y + swipeDy * 3
-              );
-            } else {
-              // Simple toddler tap — kick straight toward where they tapped!
-              kickBallToward(end.x, end.y);
-            }
+            beginWebAim('pointer', e.pointerId, e.clientX, e.clientY);
           },
         } as Record<string, unknown>)
       : {};
@@ -612,23 +771,33 @@ export const BallPassGame: React.FC = () => {
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => {
         soundEngine.unlock();
-        gestureStartRef.current = {
+        const pt = {
           x: evt.nativeEvent.locationX,
           y: evt.nativeEvent.locationY,
         };
+        gestureStartRef.current = pt;
+        setAimPreview(pt);
       },
-      onPanResponderRelease: (evt, g) => {
+      onPanResponderMove: (evt) => {
+        const start = gestureStartRef.current;
+        if (!start) return;
+        const curr = {
+          x: evt.nativeEvent.locationX,
+          y: evt.nativeEvent.locationY,
+        };
+        setAimPreview(resolveAimTarget(start, curr));
+      },
+      onPanResponderRelease: (evt) => {
         const start = gestureStartRef.current;
         gestureStartRef.current = null;
+        setAimPreview(null);
         if (!start) return;
-        if (Math.hypot(g.dx, g.dy) > 22 && g.dy < -10) {
-          kickBallToward(
-            physRef.current.x + g.dx * 3,
-            physRef.current.y + g.dy * 3
-          );
-        } else {
-          kickBallToward(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
-        }
+        const end = {
+          x: evt.nativeEvent.locationX,
+          y: evt.nativeEvent.locationY,
+        };
+        const target = resolveAimTarget(start, end);
+        kickBallRef.current(target.x, target.y);
       },
     })
   ).current;
@@ -653,7 +822,12 @@ export const BallPassGame: React.FC = () => {
       {/* Full-bleed Interactive Play Field */}
       <View
         ref={fieldNodeRef}
-        style={styles.field}
+        style={[
+          styles.field,
+          Platform.OS === 'web'
+            ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
+            : null,
+        ]}
         onLayout={(e) => {
           const { width: w, height: h } = e.nativeEvent.layout;
           if (w > 100 && h > 100) {

@@ -4,7 +4,6 @@ import {
   Image,
   PanResponder,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -28,6 +27,7 @@ import {
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
   ZooExhibitAnimalSvg,
@@ -647,8 +647,9 @@ export const ArcticCatchGame: React.FC = () => {
       const edgePad = isTablet ? 86 : 64;
       const clampedTarget = Math.max(edgePad, Math.min(f.w - edgePad, s.targetX));
       const dx = clampedTarget - s.catcherX;
-      // Smooth responsive glide toward touch/tap X
-      const glideFactor = Math.min(1, dt * 13.5);
+      // Snappy finger tracking while sliding, smooth glide on tap
+      const glideRate = activeSlideRef.current ? 22 : 14;
+      const glideFactor = Math.min(1, dt * glideRate);
       const prevX = s.catcherX;
       s.catcherX += dx * glideFactor;
       s.catcherVx = (s.catcherX - prevX) / dt;
@@ -801,42 +802,160 @@ export const ArcticCatchGame: React.FC = () => {
   ]);
 
   // Unified Drag OR Tap anywhere on the bay to glide smoothly!
+  // Uses direct non-passive DOM touchstart/touchmove + window listeners on Web so iPad Safari
+  // NEVER steals drags for page scrolling or fires pointercancel mid-slide.
   const fieldNodeRef = useRef<React.ComponentRef<typeof View> | null>(null);
-  const pointerActiveRef = useRef(false);
+  const activeSlideRef = useRef<{ mode: 'touch' | 'pointer'; id: number } | null>(null);
+  const lastTouchEndRef = useRef<number>(0);
+  const winCleanupRef = useRef<(() => void) | null>(null);
 
-  const getLocalX = (clientX: number) => {
-    if (Platform.OS === 'web' && fieldNodeRef.current) {
-      const el = fieldNodeRef.current as unknown as {
-        getBoundingClientRect?: () => DOMRect;
-      };
-      const rect = el.getBoundingClientRect?.();
+  const getFieldDomEl = useCallback(() => {
+    if (Platform.OS !== 'web' || !fieldNodeRef.current) return null;
+    const raw = fieldNodeRef.current as unknown as {
+      addEventListener?: HTMLElement['addEventListener'];
+      removeEventListener?: HTMLElement['removeEventListener'];
+      getBoundingClientRect?: () => DOMRect;
+      getNode?: () => HTMLElement;
+    };
+    if (typeof raw.getBoundingClientRect === 'function') return raw;
+    if (typeof raw.getNode === 'function') return raw.getNode();
+    return null;
+  }, []);
+
+  const getLocalX = useCallback(
+    (clientX: number) => {
+      const el = getFieldDomEl();
+      const rect = el?.getBoundingClientRect?.();
       if (rect) {
         return clientX - rect.left;
       }
+      return clientX;
+    },
+    [getFieldDomEl]
+  );
+
+  const cleanupWinListeners = useCallback(() => {
+    if (winCleanupRef.current) {
+      winCleanupRef.current();
+      winCleanupRef.current = null;
     }
-    return clientX;
-  };
+  }, []);
+
+  useEffect(() => () => cleanupWinListeners(), [cleanupWinListeners]);
+
+  const beginWebSlide = useCallback(
+    (mode: 'touch' | 'pointer', id: number, clientX: number) => {
+      soundEngine.unlock();
+      activeSlideRef.current = { mode, id };
+      simRef.current.targetX = getLocalX(clientX);
+
+      cleanupWinListeners();
+      if (typeof window === 'undefined') return;
+
+      const endSlide = () => {
+        const st = activeSlideRef.current;
+        if (!st || st.mode !== mode || st.id !== id) return;
+        activeSlideRef.current = null;
+        cleanupWinListeners();
+        if (mode === 'touch') {
+          lastTouchEndRef.current = Date.now();
+        }
+      };
+
+      if (mode === 'touch') {
+        const findTouch = (list: TouchList) => {
+          for (let i = 0; i < list.length; i++) {
+            if (list[i].identifier === id) return list[i];
+          }
+          return null;
+        };
+        const onWinTouchMove = (ev: TouchEvent) => {
+          const t = findTouch(ev.touches) || findTouch(ev.changedTouches);
+          if (!t) return;
+          if (ev.cancelable) ev.preventDefault();
+          simRef.current.targetX = getLocalX(t.clientX);
+        };
+        const onWinTouchEnd = (ev: TouchEvent) => {
+          const t = findTouch(ev.changedTouches);
+          if (!t) return;
+          if (ev.cancelable) ev.preventDefault();
+          simRef.current.targetX = getLocalX(t.clientX);
+          endSlide();
+        };
+        const onWinTouchCancel = (ev: TouchEvent) => {
+          const t = findTouch(ev.changedTouches);
+          if (t) simRef.current.targetX = getLocalX(t.clientX);
+          endSlide();
+        };
+        window.addEventListener('touchmove', onWinTouchMove, { passive: false });
+        window.addEventListener('touchend', onWinTouchEnd, { passive: false });
+        window.addEventListener('touchcancel', onWinTouchCancel);
+        winCleanupRef.current = () => {
+          window.removeEventListener('touchmove', onWinTouchMove);
+          window.removeEventListener('touchend', onWinTouchEnd);
+          window.removeEventListener('touchcancel', onWinTouchCancel);
+        };
+      } else {
+        const onWinPointerMove = (ev: PointerEvent) => {
+          if (ev.pointerId !== id) return;
+          ev.preventDefault?.();
+          simRef.current.targetX = getLocalX(ev.clientX);
+        };
+        const onWinPointerUp = (ev: PointerEvent) => {
+          if (ev.pointerId !== id) return;
+          simRef.current.targetX = getLocalX(ev.clientX);
+          endSlide();
+        };
+        const onWinPointerCancel = (ev: PointerEvent) => {
+          if (ev.pointerId !== id) return;
+          endSlide();
+        };
+        window.addEventListener('pointermove', onWinPointerMove, { passive: false });
+        window.addEventListener('pointerup', onWinPointerUp);
+        window.addEventListener('pointercancel', onWinPointerCancel);
+        winCleanupRef.current = () => {
+          window.removeEventListener('pointermove', onWinPointerMove);
+          window.removeEventListener('pointerup', onWinPointerUp);
+          window.removeEventListener('pointercancel', onWinPointerCancel);
+        };
+      }
+    },
+    [cleanupWinListeners, getLocalX]
+  );
+
+  // Direct non-passive touchstart listener on the bay for iPad / iPhone Safari
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const domEl = getFieldDomEl();
+    if (!domEl || typeof domEl.addEventListener !== 'function') return;
+
+    const onDomTouchStart = (ev: TouchEvent) => {
+      const t = ev.changedTouches[0];
+      if (!t) return;
+      if (ev.cancelable) ev.preventDefault();
+      beginWebSlide('touch', t.identifier, t.clientX);
+    };
+
+    domEl.addEventListener('touchstart', onDomTouchStart, { passive: false });
+    return () => {
+      domEl.removeEventListener?.('touchstart', onDomTouchStart);
+    };
+  }, [beginWebSlide, getFieldDomEl]);
 
   const webFieldProps =
     Platform.OS === 'web'
       ? ({
           onPointerDown: (e: {
+            pointerId: number;
+            pointerType?: string;
             clientX: number;
             preventDefault?: () => void;
           }) => {
-            soundEngine.unlock();
-            pointerActiveRef.current = true;
-            simRef.current.targetX = getLocalX(e.clientX);
-          },
-          onPointerMove: (e: { clientX: number }) => {
-            if (!pointerActiveRef.current) return;
-            simRef.current.targetX = getLocalX(e.clientX);
-          },
-          onPointerUp: () => {
-            pointerActiveRef.current = false;
-          },
-          onPointerCancel: () => {
-            pointerActiveRef.current = false;
+            // Touch input is handled directly by our non-passive DOM touchstart listener
+            if (e.pointerType === 'touch') return;
+            if (Date.now() - lastTouchEndRef.current < 500) return;
+            e.preventDefault?.();
+            beginWebSlide('pointer', e.pointerId, e.clientX);
           },
         } as Record<string, unknown>)
       : {};
@@ -904,18 +1023,25 @@ export const ArcticCatchGame: React.FC = () => {
         onDifficultyChange={(d) => resetRound(d, buddyIdx)}
       />
 
-      {/* Interactive Arctic Bay Play Field */}
-      <View
-        ref={fieldNodeRef}
-        style={styles.field}
-        onLayout={(e) => {
-          const { width: w, height: h } = e.nativeEvent.layout;
-          if (w > 100 && h > 100) {
-            setFieldSize({ w, h });
-          }
-        }}
-        {...(Platform.OS === 'web' ? webFieldProps : nativePan.panHandlers)}
-      >
+      {/* Host wraps the draggable bay and the floating buddy switcher as siblings so buddy taps never collide with bay dragging */}
+      <View style={styles.fieldHost}>
+        {/* Interactive Arctic Bay Play Field */}
+        <View
+          ref={fieldNodeRef}
+          style={[
+            styles.field,
+            Platform.OS === 'web'
+              ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
+              : null,
+          ]}
+          onLayout={(e) => {
+            const { width: w, height: h } = e.nativeEvent.layout;
+            if (w > 100 && h > 100) {
+              setFieldSize({ w, h });
+            }
+          }}
+          {...(Platform.OS === 'web' ? webFieldProps : nativePan.panHandlers)}
+        >
         {/* Ambient drifting snowflakes & shimmering icy foreground bay waves */}
         <Svg
           width={fieldSize.w}
@@ -1006,45 +1132,6 @@ export const ArcticCatchGame: React.FC = () => {
             );
           })}
         </Svg>
-
-        {/* Compact Frosted Arctic Buddy Switcher Pill (top-center) */}
-        <View style={styles.buddyBarWrap} pointerEvents="box-none">
-          <View
-            style={[styles.buddyPill, isTablet && styles.buddyPillTablet]}
-            {...(Platform.OS === 'web'
-              ? ({
-                  onPointerDown: (e: { stopPropagation?: () => void }) =>
-                    e.stopPropagation?.(),
-                } as Record<string, unknown>)
-              : {})}
-          >
-            {ARCTIC_BUDDIES.map((b, idx) => {
-              const selected = idx === buddyIdx % ARCTIC_BUDDIES.length;
-              return (
-                <Pressable
-                  key={b.kind}
-                  onPress={() => {
-                    soundEngine.unlock();
-                    soundEngine.playAnimalSound(b.kind);
-                    setBuddyIdx(idx);
-                  }}
-                  accessibilityLabel={`Play as ${b.label}`}
-                  style={[
-                    styles.buddyChip,
-                    isTablet && styles.buddyChipTablet,
-                    selected && styles.buddyChipActive,
-                  ]}
-                >
-                  <ZooExhibitAnimalSvg
-                    animal={b.kind}
-                    size={isTablet ? 38 : 30}
-                    highlighted={selected}
-                  />
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
 
         {/* Falling Storybook Arctic Fish & Playful Snowballs */}
         {frame.items.map((item) => (
@@ -1141,6 +1228,42 @@ export const ArcticCatchGame: React.FC = () => {
             />
           </View>
         </Animated.View>
+        </View>
+
+        {/* Compact Frosted Arctic Buddy Switcher Pill (sibling outside field so buddy taps never collide with dragging) */}
+        <View style={styles.buddyBarWrap} pointerEvents="box-none">
+          <View style={[styles.buddyPill, isTablet && styles.buddyPillTablet]}>
+            {ARCTIC_BUDDIES.map((b, idx) => {
+              const selected = idx === buddyIdx % ARCTIC_BUDDIES.length;
+              return (
+                <TactileButton
+                  key={b.kind}
+                  onPress={() => {
+                    soundEngine.unlock();
+                    soundEngine.playAnimalSound(b.kind);
+                    setBuddyIdx(idx);
+                  }}
+                  accessibilityLabel={`Play as ${b.label}`}
+                  style={{ width: isTablet ? 48 : 38 }}
+                >
+                  <View
+                    style={[
+                      styles.buddyChip,
+                      isTablet && styles.buddyChipTablet,
+                      selected && styles.buddyChipActive,
+                    ]}
+                  >
+                    <ZooExhibitAnimalSvg
+                      animal={b.kind}
+                      size={isTablet ? 38 : 30}
+                      highlighted={selected}
+                    />
+                  </View>
+                </TactileButton>
+              );
+            })}
+          </View>
+        </View>
       </View>
 
       <CelebrationOverlay
@@ -1155,6 +1278,11 @@ export const ArcticCatchGame: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  fieldHost: {
+    flex: 1,
+    width: '100%',
+    position: 'relative',
   },
   field: {
     flex: 1,

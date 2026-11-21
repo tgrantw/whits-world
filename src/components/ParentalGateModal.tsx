@@ -10,6 +10,7 @@ import {
 import { soundEngine } from '../services/sound';
 import { COLORS } from '../theme';
 import { LockIcon } from './JungleArt';
+import { TactileButton } from './TactileButton';
 
 interface ParentalGateModalProps {
   visible: boolean;
@@ -161,14 +162,14 @@ export const ParentalGateModal: React.FC<ParentalGateModalProps> = ({
               <LockIcon size={18} color="#6D4C3D" />
               <Text style={styles.badgeText}>PARENTS ONLY</Text>
             </View>
-            <Pressable
+            <TactileButton
               onPress={onClose}
-              accessibilityRole="button"
               accessibilityLabel="Close parental gate"
-              style={styles.closeBtn}
             >
-              <Text style={styles.closeText}>✕</Text>
-            </Pressable>
+              <View style={styles.closeBtn}>
+                <Text style={styles.closeText}>✕</Text>
+              </View>
+            </TactileButton>
           </View>
 
           <Text style={styles.title}>Ask a Grown-Up</Text>
@@ -183,16 +184,16 @@ export const ParentalGateModal: React.FC<ParentalGateModalProps> = ({
             </Text>
             <View style={styles.choicesRow}>
               {challenge.choices.map((c) => (
-                <Pressable
+                <TactileButton
                   key={c}
                   onPress={() => handleAnswer(c)}
-                  style={({ pressed }) => [
-                    styles.choiceBtn,
-                    pressed && styles.choiceBtnPressed,
-                  ]}
+                  accessibilityLabel={`Answer ${c}`}
+                  style={{ flex: 1 }}
                 >
-                  <Text style={styles.choiceText}>{c}</Text>
-                </Pressable>
+                  <View style={styles.choiceBtn}>
+                    <Text style={styles.choiceText}>{c}</Text>
+                  </View>
+                </TactileButton>
               ))}
             </View>
             {hintText && <Text style={styles.hintText}>{hintText}</Text>}
@@ -210,9 +211,10 @@ export const ParentalGateModal: React.FC<ParentalGateModalProps> = ({
             style={styles.holdBtn}
           >
             <Animated.View
+              pointerEvents="none"
               style={[styles.holdProgress, { width: holdWidth }]}
             />
-            <Text style={styles.holdBtnText}>
+            <Text pointerEvents="none" style={styles.holdBtnText}>
               {holding
                 ? 'Keep holding for 3 seconds...'
                 : 'Press & Hold for 3 Seconds'}

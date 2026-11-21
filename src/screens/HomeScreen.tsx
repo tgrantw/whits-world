@@ -1070,6 +1070,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 4,
+    zIndex: 40,
   },
   topBarTablet: {
     paddingHorizontal: 28,

@@ -58,7 +58,11 @@ const toddlerCss = `
         -webkit-user-select: none;
         user-select: none;
         -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
         background-color: #EBF8E5;
+      }
+      * {
+        -webkit-tap-highlight-color: transparent;
       }
 `;
 if (!html.includes('overscroll-behavior: none')) {
