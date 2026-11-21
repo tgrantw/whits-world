@@ -601,6 +601,42 @@ export const SoundIcon: React.FC<{
   </Svg>
 );
 
+export const FullscreenIcon: React.FC<{
+  active: boolean;
+  size?: number;
+  color?: string;
+}> = ({ active, size = 24, color = '#593315' }) => (
+  <Svg width={size} height={size} viewBox="0 0 32 32">
+    {active ? (
+      <G
+        stroke={color}
+        strokeWidth="3.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      >
+        <Path d="M 12 6 V 12 H 6" />
+        <Path d="M 20 6 V 12 H 26" />
+        <Path d="M 20 26 V 20 H 26" />
+        <Path d="M 12 26 V 20 H 6" />
+      </G>
+    ) : (
+      <G
+        stroke={color}
+        strokeWidth="3.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      >
+        <Path d="M 6 12 V 6 H 12" />
+        <Path d="M 20 6 H 26 V 12" />
+        <Path d="M 26 20 V 26 H 20" />
+        <Path d="M 12 26 H 6 V 20" />
+      </G>
+    )}
+  </Svg>
+);
+
 export const LockIcon: React.FC<{
   unlocked?: boolean;
   size?: number;

@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +18,7 @@ import {
 import { WhitMascot } from '../components/WhitMascot';
 import {
   CrownIcon,
+  FullscreenIcon,
   JungleBushCoverSvg,
   LockIcon,
   SoundIcon,
@@ -609,6 +611,35 @@ export const HomeScreen: React.FC = () => {
   } = useApp();
   const { isTablet, isTabletLandscape } = useResponsive();
 
+  const canFullscreen =
+    Platform.OS === 'web' &&
+    typeof document !== 'undefined' &&
+    Boolean(document.fullscreenEnabled);
+
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() =>
+    canFullscreen ? Boolean(document.fullscreenElement) : false
+  );
+
+  useEffect(() => {
+    if (!canFullscreen) return;
+    const syncFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+    };
+  }, [canFullscreen]);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!canFullscreen) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    } else {
+      document.documentElement?.requestFullscreen?.().catch(() => {});
+    }
+  }, [canFullscreen]);
+
   const previewScale = isTabletLandscape ? 1.06 : isTablet ? 1.1 : 0.96;
   const mascotSize = isTabletLandscape ? 186 : isTablet ? 184 : 148;
   const signW = isTabletLandscape ? 278 : isTablet ? 310 : 268;
@@ -826,6 +857,29 @@ export const HomeScreen: React.FC = () => {
         </TactileButton>
 
         <View style={[styles.parentCorner, isTablet && { gap: 12 }]}>
+          {canFullscreen && (
+            <TactileButton
+              onPress={toggleFullscreen}
+              accessibilityLabel={
+                isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'
+              }
+              style={{ width: isTablet ? 52 : 44 }}
+            >
+              <View
+                style={[
+                  styles.woodenIconPill,
+                  isTablet && { width: 52, height: 52, borderRadius: 20 },
+                ]}
+              >
+                <FullscreenIcon
+                  active={isFullscreen}
+                  size={isTablet ? 24 : 20}
+                  color={COLORS.woodDark}
+                />
+              </View>
+            </TactileButton>
+          )}
+
           <TactileButton
             onPress={toggleMute}
             accessibilityLabel={isMuted ? 'Unmute sounds' : 'Mute sounds'}
