@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -17,6 +25,7 @@ import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { StarIcon } from '../components/JungleArt';
 import { SnapBurst } from '../components/SnapBurst';
+import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
   ZooExhibitAnimalSvg,
@@ -300,11 +309,19 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
     outputRange: [1, 1.06],
   });
 
-  const handlePress = () => {
-    if (popping) return;
+  const poppedRef = useRef(false);
+  const lastTriggerRef = useRef(0);
+
+  const triggerPop = () => {
+    if (poppedRef.current || popping) return;
+    const now = Date.now();
+    if (now - lastTriggerRef.current < 220) return;
+    lastTriggerRef.current = now;
+
     soundEngine.unlock();
     const accepted = onPop(bubble);
     if (accepted) {
+      poppedRef.current = true;
       setPopping(true);
       Animated.parallel([
         Animated.timing(scaleAnim, {
@@ -340,6 +357,30 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
     }
   };
 
+  const webBubbleTouchProps =
+    Platform.OS === 'web'
+      ? ({
+          onTouchStart: (e: {
+            preventDefault?: () => void;
+            stopPropagation?: () => void;
+          }) => {
+            e.preventDefault?.();
+            e.stopPropagation?.();
+            triggerPop();
+          },
+          onPointerDown: (e: {
+            pointerType?: string;
+            preventDefault?: () => void;
+            stopPropagation?: () => void;
+          }) => {
+            if (e.pointerType === 'touch') return;
+            e.preventDefault?.();
+            e.stopPropagation?.();
+            triggerPop();
+          },
+        } as Record<string, unknown>)
+      : {};
+
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View
@@ -355,7 +396,9 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
         }}
       >
         <Pressable
-          onPress={handlePress}
+          onPressIn={Platform.OS !== 'web' ? triggerPop : undefined}
+          onPress={triggerPop}
+          hitSlop={14}
           accessibilityRole="button"
           accessibilityLabel={
             isRainbow
@@ -366,12 +409,22 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
               ? 'Pop mini rainbow bubble'
               : `Pop ${bubble.animal} bubble`
           }
-          style={{
-            width: size,
-            height: size,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          style={[
+            {
+              width: size,
+              height: size,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            Platform.OS === 'web'
+              ? ({
+                  cursor: 'pointer',
+                  touchAction: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                } as unknown as object)
+              : null,
+          ]}
+          {...webBubbleTouchProps}
         >
           {/* Pearlescent / Rainbow / Golden Watercolor Bubble */}
           <Svg
@@ -379,6 +432,7 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
             height={size}
             viewBox="0 0 120 120"
             style={StyleSheet.absoluteFill}
+            pointerEvents="none"
           >
             <Defs>
               <RadialGradient id={`bub-${uid}`} cx="34%" cy="28%" r="68%">
@@ -759,39 +813,49 @@ export const BubblePopGame: React.FC = () => {
       <View style={styles.stageWrap}>
         {/* Tappable Warm Storybook Aquarium Porthole for Med & Hard */}
         {difficulty > 1 && (
-          <Pressable
+          <TactileButton
             onPress={handlePortholeTap}
-            accessibilityRole="button"
             accessibilityLabel={`Find ${targetAnimal} bubbles`}
-            style={({ pressed }) => [
-              styles.targetPorthole,
-              isTablet && styles.targetPortholeTablet,
-              hintActive && styles.targetPortholeGlow,
-              pressed && { transform: [{ scale: 0.96 }] },
-            ]}
+            bounceScale={0.95}
           >
-            <View style={styles.portholeGloss} pointerEvents="none" />
-            <View style={styles.portholeGlass}>
-              <AnimatedZooAnimal
-                state={hintActive ? 'calling' : 'idle'}
-                size={isTablet ? 58 : 44}
-                seed={19}
-                weight={getAnimalWeight(targetAnimal)}
-              >
-                <ZooExhibitAnimalSvg
-                  animal={targetAnimal}
+            <View
+              style={[
+                styles.targetPorthole,
+                isTablet && styles.targetPortholeTablet,
+                hintActive && styles.targetPortholeGlow,
+              ]}
+            >
+              <View style={styles.portholeGloss} pointerEvents="none" />
+              <View style={styles.portholeGlass}>
+                <AnimatedZooAnimal
+                  state={hintActive ? 'calling' : 'idle'}
                   size={isTablet ? 58 : 44}
-                />
-              </AnimatedZooAnimal>
+                  seed={19}
+                  weight={getAnimalWeight(targetAnimal)}
+                >
+                  <ZooExhibitAnimalSvg
+                    animal={targetAnimal}
+                    size={isTablet ? 58 : 44}
+                  />
+                </AnimatedZooAnimal>
+              </View>
+              <View style={styles.portholeStarsCol}>
+                <StarIcon size={isTablet ? 24 : 19} color="#F4C542" />
+              </View>
             </View>
-            <View style={styles.portholeStarsCol}>
-              <StarIcon size={isTablet ? 24 : 19} color="#F4C542" />
-            </View>
-          </Pressable>
+          </TactileButton>
         )}
 
         {/* Full-bleed Interactive Bubble Field */}
-        <View style={[styles.bubbleField, { width: tankW, height: tankH }]}>
+        <View
+          style={[
+            styles.bubbleField,
+            { width: tankW, height: tankH },
+            Platform.OS === 'web'
+              ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
+              : null,
+          ]}
+        >
           {bubbles.map((b) => {
             const bSize =
               b.special === 'rainbow'
