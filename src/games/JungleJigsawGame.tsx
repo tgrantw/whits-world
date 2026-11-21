@@ -354,7 +354,7 @@ export const JungleJigsawGame: React.FC = () => {
     <View
       style={[
         styles.animalPickerShell,
-        isTabletLandscape && { maxWidth: boardDimension + 48 },
+        isTabletLandscape && styles.animalPickerShellLandscape,
       ]}
     >
       <ScrollView
@@ -596,13 +596,13 @@ export const JungleJigsawGame: React.FC = () => {
       />
 
       {isTabletLandscape ? (
-        <View style={styles.playAreaLandscape}>
-          <View style={styles.landscapeLeftCol}>
-            {renderBoard()}
-            {renderAnimalPicker()}
+        <>
+          <View style={styles.landscapePickerWrap}>{renderAnimalPicker()}</View>
+          <View style={styles.playAreaLandscape}>
+            <View style={styles.landscapeLeftCol}>{renderBoard()}</View>
+            <View style={styles.landscapeRightCol}>{renderCurvedDock()}</View>
           </View>
-          <View style={styles.landscapeRightCol}>{renderCurvedDock()}</View>
-        </View>
+        </>
       ) : (
         <View
           style={[
@@ -610,9 +610,10 @@ export const JungleJigsawGame: React.FC = () => {
             isTablet && styles.playAreaTabletPortrait,
           ]}
         >
+          {isTablet && renderAnimalPicker()}
           {renderBoard()}
           {renderCurvedDock()}
-          {renderAnimalPicker()}
+          {!isTablet && renderAnimalPicker()}
         </View>
       )}
 
@@ -654,6 +655,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingBottom: 22,
   },
+  landscapePickerWrap: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 2,
+    zIndex: 20,
+  },
   playAreaLandscape: {
     flex: 1,
     width: '100%',
@@ -687,6 +695,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 6,
     zIndex: 15,
+  },
+  animalPickerShellLandscape: {
+    maxWidth: 820,
   },
   animalPickerRow: {
     flexDirection: 'row',

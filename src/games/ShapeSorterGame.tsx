@@ -83,7 +83,7 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         xPct: 28,
         yPct: 14,
         tabletPortraitPos: { xPct: 29, yPct: 14 },
-        landscapePos: { xPct: 21, yPct: 7 },
+        landscapePos: { xPct: 21, yPct: 11 },
         sizeFactor: 0.92,
       },
       // Gorilla standing squarely in the open sunlit meadow in front of the bushes
@@ -264,7 +264,7 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         xPct: 28,
         yPct: 14,
         tabletPortraitPos: { xPct: 29, yPct: 14 },
-        landscapePos: { xPct: 21, yPct: 7 },
+        landscapePos: { xPct: 21, yPct: 11 },
         sizeFactor: 0.92,
       },
       // Baby elephant standing in the open sunlit meadow
@@ -745,7 +745,7 @@ export const ShapeSorterGame: React.FC = () => {
     ? Math.min(720, Math.round(width * 0.64))
     : Math.min(680, width - 24);
   const stageH = isTabletLandscape
-    ? Math.min(500, Math.max(340, height - 180))
+    ? Math.min(480, Math.max(320, height - 220))
     : isTablet
     ? Math.min(610, Math.max(360, height - 335))
     : Math.min(460, Math.max(300, height - 295));
@@ -758,7 +758,7 @@ export const ShapeSorterGame: React.FC = () => {
     <View
       style={[
         styles.scenePickerShell,
-        isTabletLandscape && { maxWidth: stageW },
+        isTabletLandscape && styles.scenePickerShellLandscape,
       ]}
     >
       <ScrollView
@@ -955,18 +955,19 @@ export const ShapeSorterGame: React.FC = () => {
       />
 
       {isTabletLandscape ? (
-        <View style={styles.playAreaLandscape}>
-          <View style={styles.landscapeLeft}>
-            {renderOpenStage()}
-            {renderExhibitPicker()}
+        <>
+          <View style={styles.landscapePickerWrap}>{renderExhibitPicker()}</View>
+          <View style={styles.playAreaLandscape}>
+            <View style={styles.landscapeLeft}>{renderOpenStage()}</View>
+            <View style={styles.landscapeRight}>{renderCurvedDock()}</View>
           </View>
-          <View style={styles.landscapeRight}>{renderCurvedDock()}</View>
-        </View>
+        </>
       ) : (
         <View style={styles.playArea}>
+          {isTablet && renderExhibitPicker()}
           {renderOpenStage()}
           {renderCurvedDock()}
-          {renderExhibitPicker()}
+          {!isTablet && renderExhibitPicker()}
         </View>
       )}
 
@@ -1006,6 +1007,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 14,
     overflow: 'visible',
+  },
+  landscapePickerWrap: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 2,
+    zIndex: 20,
   },
   playAreaLandscape: {
     flex: 1,
@@ -1110,6 +1118,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 6,
     zIndex: 15,
+  },
+  scenePickerShellLandscape: {
+    maxWidth: 820,
   },
   scenePickerRow: {
     flexDirection: 'row',
