@@ -342,6 +342,31 @@ class SoundEngine {
       this.playTone(f * 2, t, d * 0.7, 0.04, 'sine');
     });
   }
+
+  /**
+   * Warm, cheerful spoken animal name via Web Speech API (respects mute setting).
+   * Safe no-op on platforms or browsers without SpeechSynthesis support.
+   */
+  public speakWord(word: string): void {
+    if (this.muted || Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth || typeof window.SpeechSynthesisUtterance !== 'function') {
+        return;
+      }
+      synth.cancel();
+      const utter = new window.SpeechSynthesisUtterance(word);
+      utter.lang = 'en-US';
+      utter.rate = 0.94;
+      utter.pitch = 1.12;
+      utter.volume = 0.9;
+      synth.speak(utter);
+    } catch {
+      // Ignore Web Speech API restrictions on unsupported browsers
+    }
+  }
 }
 
 export const soundEngine = new SoundEngine();

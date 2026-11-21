@@ -1,15 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import {
   AnimatedZooAnimal,
@@ -52,6 +52,8 @@ interface ExhibitAnimalSpot {
 
 interface ZooExhibitStage {
   id: string;
+  title: string;
+  emoji: string;
   backdrop: ExhibitId;
   badgeColor: string;
   /** Always matches spots[0].animal so the selector icon ALWAYS appears in the round! */
@@ -59,14 +61,81 @@ interface ZooExhibitStage {
   spots: ExhibitAnimalSpot[];
 }
 
+const SOLVED_EXHIBITS_KEY = 'whits_world_solved_exhibits_v1';
+
+const ANIMAL_LABELS: Record<ExhibitAnimalKind, string> = {
+  monkey: 'Monkey',
+  toucan: 'Toucan',
+  gorilla: 'Gorilla',
+  frog: 'Frog',
+  whale: 'Whale',
+  turtle: 'Turtle',
+  octopus: 'Octopus',
+  clownfish: 'Clownfish',
+  giraffe: 'Giraffe',
+  zebra: 'Zebra',
+  elephant: 'Elephant',
+  lion: 'Lion',
+  panda: 'Panda',
+  flamingo: 'Flamingo',
+  hippo: 'Hippo',
+  tiger: 'Tiger',
+  penguin: 'Penguin',
+  seal: 'Seal',
+  polarbear: 'Polar Bear',
+  puffin: 'Puffin',
+  cow: 'Cow',
+  sheep: 'Sheep',
+  duck: 'Duck',
+  pig: 'Pig',
+};
+
+const WATER_ANIMALS = new Set<ExhibitAnimalKind>([
+  'whale',
+  'turtle',
+  'octopus',
+  'clownfish',
+  'penguin',
+  'seal',
+  'duck',
+  'frog',
+  'hippo',
+]);
+
+const BIRD_ANIMALS = new Set<ExhibitAnimalKind>(['toucan', 'flamingo', 'puffin']);
+
+function loadSavedSolvedExhibits(): string[] {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(SOLVED_EXHIBITS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((v): v is string => typeof v === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSolvedExhibits(ids: string[]): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SOLVED_EXHIBITS_KEY, JSON.stringify(ids));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'monkeys',
+    title: 'Jungle Clearing',
+    emoji: '🌴',
     backdrop: 'monkeys',
     badgeColor: '#A9DA9B',
     badgeAnimal: 'monkey',
     spots: [
-      // Monkey grounded on the sunlit grassy right foreground meadow bank
       {
         id: 'mk-monkey',
         animal: 'monkey',
@@ -76,7 +145,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 58, yPct: 78 },
         sizeFactor: 0.98,
       },
-      // Toucan cleanly perched ON top of the left tree branch across phone, iPad portrait & landscape
       {
         id: 'mk-toucan',
         animal: 'toucan',
@@ -86,7 +154,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 21, yPct: 11 },
         sizeFactor: 0.92,
       },
-      // Gorilla standing squarely in the open sunlit meadow in front of the bushes
       {
         id: 'mk-gorilla',
         animal: 'gorilla',
@@ -96,7 +163,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 24, yPct: 80 },
         sizeFactor: 1.04,
       },
-      // Frog nestled along the lower sunlit grass clearing near the stream bank
       {
         id: 'mk-frog',
         animal: 'frog',
@@ -110,6 +176,8 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'aquarium',
+    title: 'Ocean Aquarium',
+    emoji: '🐳',
     backdrop: 'aquarium',
     badgeColor: '#9EDEEF',
     badgeAnimal: 'whale',
@@ -122,6 +190,8 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'savanna',
+    title: 'Sunny Savanna',
+    emoji: '🦒',
     backdrop: 'savanna',
     badgeColor: '#F5DF98',
     badgeAnimal: 'giraffe',
@@ -134,6 +204,8 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'sanctuary',
+    title: 'Bamboo Sanctuary',
+    emoji: '🐼',
     backdrop: 'sanctuary',
     badgeColor: '#BCE2C4',
     badgeAnimal: 'panda',
@@ -146,11 +218,12 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'arctic',
+    title: 'Arctic Lagoon',
+    emoji: '🐧',
     backdrop: 'arctic',
     badgeColor: '#C5E4F4',
     badgeAnimal: 'penguin',
     spots: [
-      // Penguin standing cheerfully on the sunlit right foreground snow / ice floe
       {
         id: 'ar-penguin',
         animal: 'penguin',
@@ -160,7 +233,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 48, yPct: 79 },
         sizeFactor: 0.94,
       },
-      // Seal resting right atop the left flat snow shelf in the lagoon
       {
         id: 'ar-seal',
         animal: 'seal',
@@ -170,7 +242,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 22, yPct: 46 },
         sizeFactor: 0.96,
       },
-      // Polar Bear sitting cozily on the sunlit left foreground ice floe / snowbank
       {
         id: 'ar-polarbear',
         animal: 'polarbear',
@@ -180,7 +251,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 22, yPct: 78 },
         sizeFactor: 1.02,
       },
-      // Puffin perched on the right snow shelf overlooking the sparkling lagoon
       {
         id: 'ar-puffin',
         animal: 'puffin',
@@ -194,11 +264,12 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'farm',
+    title: 'Happy Farm',
+    emoji: '🐄',
     backdrop: 'farm',
     badgeColor: '#F5DB9A',
     badgeAnimal: 'cow',
     spots: [
-      // Cow standing solidly on the open sunlit meadow IN FRONT of the fence
       {
         id: 'fm-cow',
         animal: 'cow',
@@ -208,7 +279,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 21, yPct: 80 },
         sizeFactor: 1.0,
       },
-      // Sheep grazing on the green pasture right in front of the cozy red barn
       {
         id: 'fm-sheep',
         animal: 'sheep',
@@ -218,7 +288,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 22, yPct: 49 },
         sizeFactor: 0.92,
       },
-      // Duck splashing right beside the right farm stream edge
       {
         id: 'fm-duck',
         animal: 'duck',
@@ -228,7 +297,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 48, yPct: 80 },
         sizeFactor: 0.88,
       },
-      // Happy Pig trotting on the sunny green hillside meadow behind the fence
       {
         id: 'fm-pig',
         animal: 'pig',
@@ -243,11 +311,12 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   /* Rounds 7–10: "Visiting Friends" casts across habitats for endless replayability */
   {
     id: 'clearing-visitors',
+    title: 'Jungle Visitors',
+    emoji: '🐯',
     backdrop: 'monkeys',
     badgeColor: '#F6CC9D',
     badgeAnimal: 'tiger',
     spots: [
-      // Tiger visiting the sunny right meadow bank
       {
         id: 'cv-tiger',
         animal: 'tiger',
@@ -257,7 +326,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 57, yPct: 78 },
         sizeFactor: 1.0,
       },
-      // Toucan greeting visitors from the left tree branch
       {
         id: 'cv-toucan',
         animal: 'toucan',
@@ -267,7 +335,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 21, yPct: 11 },
         sizeFactor: 0.92,
       },
-      // Baby elephant standing in the open sunlit meadow
       {
         id: 'cv-elephant',
         animal: 'elephant',
@@ -277,7 +344,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
         landscapePos: { xPct: 25, yPct: 80 },
         sizeFactor: 1.06,
       },
-      // Panda snacking near the lower sunlit stream edge
       {
         id: 'cv-panda',
         animal: 'panda',
@@ -291,6 +357,8 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'aquarium-party',
+    title: 'Reef Party',
+    emoji: '🐙',
     backdrop: 'aquarium',
     badgeColor: '#B5D9F8',
     badgeAnimal: 'octopus',
@@ -303,6 +371,8 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'savanna-oasis',
+    title: 'Savanna Oasis',
+    emoji: '🦁',
     backdrop: 'savanna',
     badgeColor: '#F5C98E',
     badgeAnimal: 'lion',
@@ -315,6 +385,8 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   },
   {
     id: 'sanctuary-picnic',
+    title: 'Sanctuary Picnic',
+    emoji: '🦩',
     backdrop: 'sanctuary',
     badgeColor: '#F5C7DA',
     badgeAnimal: 'flamingo',
@@ -332,7 +404,6 @@ function getExhibitSpots(
   difficulty: Difficulty,
   loopVariant = 0
 ): ExhibitAnimalSpot[] {
-  // On subsequent loops through the 10 exhibits, rotate animal subsets & gently mirror symmetrical scenes
   const shouldMirror =
     loopVariant % 2 === 1 &&
     exhibit.backdrop !== 'monkeys' &&
@@ -343,14 +414,12 @@ function getExhibitSpots(
   );
 
   if (difficulty === 1) {
-    // Rotate diagonally balanced pairs across loops so Easy stays fresh
     if (loopVariant % 2 === 1) {
       return [mapped[1], mapped[3]];
     }
     return [mapped[0], mapped[2]];
   }
   if (difficulty === 2) {
-    // Rotate which 3 of 4 animals appear across loops
     const skipIdx = (3 - (loopVariant % 4) + 4) % 4;
     return mapped.filter((_, idx) => idx !== skipIdx);
   }
@@ -375,126 +444,377 @@ const EXHIBIT_BACKDROP_MAP: Record<ExhibitId, typeof STORYBOOK_ASSETS.bgClearing
   farm: STORYBOOK_ASSETS.bgFarm,
 };
 
+interface AmbientParticleSpec {
+  leftPct: number;
+  topPct: number;
+  size: number;
+  color: string;
+  borderColor?: string;
+  dx: number;
+  dy: number;
+  duration: number;
+  isPetal?: boolean;
+}
+
+function getHabitatParticles(exhibit: ExhibitId): AmbientParticleSpec[] {
+  switch (exhibit) {
+    case 'aquarium':
+      return [
+        { leftPct: 14, topPct: 82, size: 15, color: 'rgba(225,252,255,0.48)', borderColor: '#FFFFFF', dx: 10, dy: -190, duration: 4800 },
+        { leftPct: 24, topPct: 74, size: 10, color: 'rgba(225,252,255,0.42)', borderColor: '#FFFFFF', dx: -8, dy: -165, duration: 4100 },
+        { leftPct: 68, topPct: 84, size: 14, color: 'rgba(225,252,255,0.45)', borderColor: '#FFFFFF', dx: -12, dy: -180, duration: 5200 },
+        { leftPct: 84, topPct: 76, size: 11, color: 'rgba(225,252,255,0.40)', borderColor: '#FFFFFF', dx: 8, dy: -155, duration: 4400 },
+        { leftPct: 48, topPct: 88, size: 9, color: 'rgba(225,252,255,0.40)', borderColor: '#FFFFFF', dx: 6, dy: -140, duration: 3900 },
+      ];
+    case 'arctic':
+      return [
+        { leftPct: 12, topPct: 8, size: 9, color: 'rgba(255,255,255,0.88)', dx: 20, dy: 210, duration: 6400 },
+        { leftPct: 28, topPct: 16, size: 7, color: 'rgba(255,255,255,0.82)', dx: -16, dy: 190, duration: 5800 },
+        { leftPct: 46, topPct: 6, size: 10, color: 'rgba(255,255,255,0.9)', dx: 18, dy: 230, duration: 7000 },
+        { leftPct: 66, topPct: 14, size: 8, color: 'rgba(255,255,255,0.84)', dx: -20, dy: 200, duration: 6200 },
+        { leftPct: 84, topPct: 10, size: 9, color: 'rgba(255,255,255,0.86)', dx: 14, dy: 220, duration: 6600 },
+      ];
+    case 'monkeys':
+      return [
+        { leftPct: 18, topPct: 30, size: 10, color: 'rgba(255, 244, 168, 0.78)', dx: 24, dy: -36, duration: 5200 },
+        { leftPct: 42, topPct: 44, size: 8, color: 'rgba(255, 248, 190, 0.75)', dx: -22, dy: -28, duration: 4700 },
+        { leftPct: 72, topPct: 32, size: 12, color: 'rgba(130, 194, 98, 0.72)', dx: -28, dy: 80, duration: 6200, isPetal: true },
+        { leftPct: 84, topPct: 22, size: 10, color: 'rgba(255, 240, 150, 0.76)', dx: -18, dy: 34, duration: 5400 },
+      ];
+    case 'savanna':
+      return [
+        { leftPct: 16, topPct: 36, size: 9, color: 'rgba(255, 244, 186, 0.72)', dx: 42, dy: -16, duration: 6200 },
+        { leftPct: 44, topPct: 24, size: 7, color: 'rgba(255, 238, 165, 0.68)', dx: 36, dy: -12, duration: 5500 },
+        { leftPct: 68, topPct: 42, size: 10, color: 'rgba(255, 246, 196, 0.7)', dx: 48, dy: -18, duration: 6800 },
+        { leftPct: 30, topPct: 58, size: 8, color: 'rgba(255, 240, 175, 0.66)', dx: 32, dy: -10, duration: 5800 },
+      ];
+    case 'sanctuary':
+      return [
+        { leftPct: 15, topPct: 14, size: 12, color: 'rgba(252, 198, 214, 0.86)', dx: 32, dy: 140, duration: 6000, isPetal: true },
+        { leftPct: 40, topPct: 10, size: 11, color: 'rgba(255, 234, 178, 0.85)', dx: -26, dy: 155, duration: 6600, isPetal: true },
+        { leftPct: 65, topPct: 16, size: 12, color: 'rgba(252, 198, 214, 0.84)', dx: 28, dy: 145, duration: 5800, isPetal: true },
+        { leftPct: 86, topPct: 12, size: 10, color: 'rgba(202, 236, 186, 0.84)', dx: -24, dy: 135, duration: 6200, isPetal: true },
+      ];
+    case 'farm':
+    default:
+      return [
+        { leftPct: 20, topPct: 28, size: 9, color: 'rgba(255, 252, 236, 0.85)', dx: 44, dy: -22, duration: 5800 },
+        { leftPct: 50, topPct: 22, size: 8, color: 'rgba(255, 246, 194, 0.8)', dx: 38, dy: -14, duration: 5200 },
+        { leftPct: 76, topPct: 34, size: 10, color: 'rgba(255, 252, 236, 0.82)', dx: 40, dy: -20, duration: 6400 },
+        { leftPct: 36, topPct: 48, size: 7, color: 'rgba(255, 248, 212, 0.78)', dx: 34, dy: -12, duration: 5400 },
+      ];
+  }
+}
+
+/** Single GPU-accelerated pure-View ambient particle (zero SVG!) */
+const AmbientParticle: React.FC<{ spec: AmbientParticleSpec; delayMs: number }> =
+  React.memo(({ spec, delayMs }) => {
+    const prog = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      prog.setValue(0);
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.delay(delayMs),
+          Animated.timing(prog, {
+            toValue: 1,
+            duration: spec.duration,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.timing(prog, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }, [delayMs, prog, spec.duration]);
+
+    const tx = prog.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0, spec.dx * 0.6, spec.dx],
+    });
+    const ty = prog.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, spec.dy],
+    });
+    const opacity = prog.interpolate({
+      inputRange: [0, 0.16, 0.82, 1],
+      outputRange: [0, 0.9, 0.82, 0],
+    });
+
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: `${spec.leftPct}%`,
+          top: `${spec.topPct}%`,
+          width: spec.size,
+          height: spec.isPetal ? spec.size * 0.68 : spec.size,
+          borderRadius: spec.size / 2,
+          backgroundColor: spec.color,
+          borderWidth: spec.borderColor ? 1.6 : 0,
+          borderColor: spec.borderColor || 'transparent',
+          opacity,
+          transform: [{ translateX: tx }, { translateY: ty }],
+        }}
+      />
+    );
+  });
+
 /**
- * Full-bleed edge-to-edge storybook Zoo Exhibit scenery (NO cramped wooden picture frame!):
- * Renders Warm Watercolor & Gouache painted PNG backdrops for all 6 worlds
- * with subtle animated rising bubbles in the Aquarium and soft drifting snow in the Arctic.
+ * Full-bleed edge-to-edge living Zoo Exhibit scenery for ALL 6 worlds!
+ * Pure Image + GPU-accelerated View particles (zero full-screen SVGs).
  */
-const FullBleedExhibitBackdrop: React.FC<{ exhibit: ExhibitId }> = ({
-  exhibit,
-}) => {
-  const ambientB = useRef(new Animated.Value(0)).current;
+const FullBleedExhibitBackdrop: React.FC<{ exhibit: ExhibitId }> = React.memo(
+  ({ exhibit }) => {
+    const particles = useMemo(() => getHabitatParticles(exhibit), [exhibit]);
+    return (
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Image
+          source={EXHIBIT_BACKDROP_MAP[exhibit]}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
+        {particles.map((spec, idx) => (
+          <AmbientParticle
+            key={`${exhibit}-${idx}`}
+            spec={spec}
+            delayMs={idx * 650}
+          />
+        ))}
+      </View>
+    );
+  }
+);
+
+/** Interactive scenery surprise burst when tapping open background in any habitat */
+const HabitatSurpriseBurst: React.FC<{
+  x: number;
+  y: number;
+  exhibit: ExhibitId;
+}> = React.memo(({ x, y, exhibit }) => {
+  const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (exhibit !== 'aquarium' && exhibit !== 'arctic') return;
-    ambientB.setValue(0);
-    const loopB = Animated.loop(
-      Animated.timing(ambientB, {
-        toValue: 1,
-        duration: exhibit === 'arctic' ? 6800 : 4600,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loopB.start();
-    return () => {
-      loopB.stop();
-    };
-  }, [ambientB, exhibit]);
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 620,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [anim]);
 
-  const riseY = ambientB.interpolate({
-    inputRange: [0, 1],
-    outputRange: [30, -180],
-  });
-  const bubbleOpacity = ambientB.interpolate({
-    inputRange: [0, 0.15, 0.85, 1],
-    outputRange: [0, 0.78, 0.7, 0],
-  });
-  const snowY = ambientB.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-40, 220],
-  });
-  const snowX = ambientB.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [-10, 12, -8],
-  });
-  const snowOpacity = ambientB.interpolate({
-    inputRange: [0, 0.18, 0.82, 1],
-    outputRange: [0, 0.85, 0.75, 0],
-  });
+  const palette: Record<ExhibitId, string[]> = {
+    monkeys: ['#8BD46E', '#FFE27A', '#A8E07E'],
+    aquarium: ['#B8F2FF', '#FFFFFF', '#7FD8F2'],
+    savanna: ['#FFE484', '#FFB966', '#FFF3B8'],
+    sanctuary: ['#FBC2D4', '#FFF0B8', '#BCE8A8'],
+    arctic: ['#FFFFFF', '#CBEFFF', '#E6F8FF'],
+    farm: ['#FFF7D6', '#FFE074', '#FFFFFF'],
+  };
+  const colors = palette[exhibit];
+  const dirs = [
+    { dx: -34, dy: -28 },
+    { dx: 0, dy: -44 },
+    { dx: 34, dy: -26 },
+    { dx: -26, dy: 14 },
+    { dx: 26, dy: 14 },
+  ];
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Image
-        source={EXHIBIT_BACKDROP_MAP[exhibit]}
-        style={{ width: '100%', height: '100%' }}
-        resizeMode="cover"
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', left: x, top: y, zIndex: 18 }}
+    >
+      {/* Expanding soft habitat ripple */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: -22,
+          top: -22,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          borderWidth: 2.5,
+          borderColor: colors[0],
+          opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 0] }),
+          transform: [
+            {
+              scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.85] }),
+            },
+          ],
+        }}
       />
-      {exhibit === 'aquarium' && (
-        <Animated.View
-          style={[
-            styles.bubbleColA,
-            { opacity: bubbleOpacity, transform: [{ translateY: riseY }] },
-          ]}
-        >
-          <Svg width="40" height="80" viewBox="0 0 40 80">
-            <Circle
-              cx="14"
-              cy="60"
-              r="8"
-              fill="rgba(225,252,255,0.45)"
-              stroke="#FFFFFF"
-              strokeWidth="2"
-            />
-            <Circle
-              cx="26"
-              cy="34"
-              r="5.5"
-              fill="rgba(225,252,255,0.45)"
-              stroke="#FFFFFF"
-              strokeWidth="1.8"
-            />
-          </Svg>
-        </Animated.View>
-      )}
-      {exhibit === 'arctic' && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            top: '14%',
-            left: '10%',
-            right: '10%',
-            height: 180,
-            opacity: snowOpacity,
-            transform: [{ translateY: snowY }, { translateX: snowX }],
-          }}
-        >
-          <Svg width="100%" height="180" viewBox="0 0 320 180">
-            <Circle cx="36" cy="28" r="4.5" fill="#FFFFFF" opacity="0.9" />
-            <Circle cx="94" cy="76" r="3.5" fill="#FFFFFF" opacity="0.82" />
-            <Circle cx="158" cy="22" r="5" fill="#FFFFFF" opacity="0.92" />
-            <Circle cx="218" cy="88" r="3.8" fill="#FFFFFF" opacity="0.84" />
-            <Circle cx="276" cy="40" r="4.8" fill="#FFFFFF" opacity="0.88" />
-            <Circle cx="62" cy="140" r="3.2" fill="#FFFFFF" opacity="0.78" />
-            <Circle cx="186" cy="144" r="4.2" fill="#FFFFFF" opacity="0.85" />
-            <Circle cx="254" cy="134" r="3.4" fill="#FFFFFF" opacity="0.76" />
-          </Svg>
-        </Animated.View>
-      )}
+      {/* Playful habitat droplets / petals / sparkles */}
+      {dirs.map((d, idx) => {
+        const sz = idx === 1 ? 13 : 10;
+        const isBubble = exhibit === 'aquarium';
+        return (
+          <Animated.View
+            key={idx}
+            style={{
+              position: 'absolute',
+              left: -sz / 2,
+              top: -sz / 2,
+              width: sz,
+              height: sz,
+              borderRadius: sz / 2,
+              backgroundColor: isBubble ? 'rgba(225,252,255,0.55)' : colors[idx % colors.length],
+              borderWidth: isBubble ? 1.8 : 0,
+              borderColor: '#FFFFFF',
+              opacity: anim.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
+              transform: [
+                {
+                  translateX: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, d.dx],
+                  }),
+                },
+                {
+                  translateY: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, d.dy],
+                  }),
+                },
+                {
+                  scale: anim.interpolate({
+                    inputRange: [0, 0.4, 1],
+                    outputRange: [0.4, 1.15, 0.6],
+                  }),
+                },
+              ],
+            }}
+          />
+        );
+      })}
     </View>
   );
-};
+});
 
-/** Soft golden shimmer pulsing around the matching silhouette while dragging on Easy & Med */
-const PulsingSilhouetteHalo: React.FC<{
-  active: boolean;
-  size: number;
-  children: React.ReactNode;
-}> = ({ active, size, children }) => {
-  const pulse = useRef(new Animated.Value(0)).current;
+/** Cheerful storybook animal name pill that springs in above a matched/tapped animal */
+const AnimalNamePill: React.FC<{ label: string }> = React.memo(({ label }) => {
+  const pop = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!active) {
+    Animated.sequence([
+      Animated.spring(pop, {
+        toValue: 1,
+        friction: 5,
+        tension: 190,
+        useNativeDriver: true,
+      }),
+      Animated.delay(750),
+      Animated.timing(fade, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fade, pop]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.namePill,
+        {
+          opacity: fade,
+          transform: [
+            {
+              translateY: pop.interpolate({
+                inputRange: [0, 1],
+                outputRange: [12, -10],
+              }),
+            },
+            {
+              scale: pop.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.65, 1],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <Text style={styles.namePillText}>{label}!</Text>
+    </Animated.View>
+  );
+});
+
+/** Soft arrival banner briefly introducing each zoo habitat */
+const ExhibitTitleBanner: React.FC<{ title: string; emoji: string }> = React.memo(
+  ({ title, emoji }) => {
+    const anim = useRef(new Animated.Value(0)).current;
+    const fade = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+      Animated.sequence([
+        Animated.spring(anim, {
+          toValue: 1,
+          friction: 6,
+          tension: 160,
+          useNativeDriver: true,
+        }),
+        Animated.delay(1350),
+        Animated.timing(fade, {
+          toValue: 0,
+          duration: 360,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [anim, fade]);
+
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.arrivalBanner,
+          {
+            opacity: fade,
+            transform: [
+              {
+                translateY: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-14, 0],
+                }),
+              },
+              {
+                scale: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.88, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <Text style={styles.arrivalBannerText}>
+          {emoji} {title}
+        </Text>
+      </Animated.View>
+    );
+  }
+);
+
+/** Soft golden shimmer + magnetic ring around silhouettes when dragging, hinting, or hovering */
+const PulsingSilhouetteHalo: React.FC<{
+  active: boolean;
+  hovered: boolean;
+  wiggleTick: number;
+  size: number;
+  children: React.ReactNode;
+}> = ({ active, hovered, wiggleTick, size, children }) => {
+  const pulse = useRef(new Animated.Value(0)).current;
+  const wiggle = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!active && !hovered) {
       pulse.stopAnimation();
       pulse.setValue(0);
       return;
@@ -503,13 +823,13 @@ const PulsingSilhouetteHalo: React.FC<{
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
-          duration: 620,
+          duration: hovered ? 360 : 600,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(pulse, {
           toValue: 0,
-          duration: 620,
+          duration: hovered ? 360 : 600,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -517,46 +837,74 @@ const PulsingSilhouetteHalo: React.FC<{
     );
     loop.start();
     return () => loop.stop();
-  }, [active, pulse]);
+  }, [active, hovered, pulse]);
+
+  useEffect(() => {
+    if (!wiggleTick) return;
+    wiggle.setValue(0);
+    Animated.sequence([
+      Animated.timing(wiggle, { toValue: 1, duration: 85, useNativeDriver: true }),
+      Animated.timing(wiggle, { toValue: -1, duration: 110, useNativeDriver: true }),
+      Animated.timing(wiggle, { toValue: 0.7, duration: 95, useNativeDriver: true }),
+      Animated.timing(wiggle, { toValue: 0, duration: 95, useNativeDriver: true }),
+    ]).start();
+  }, [wiggle, wiggleTick]);
 
   const haloOpacity = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.22, 0.58],
+    outputRange: hovered ? [0.46, 0.85] : [0.22, 0.56],
   });
   const haloScale = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.96, 1.12],
+    outputRange: hovered ? [1.02, 1.18] : [0.96, 1.12],
+  });
+  const wiggleRot = wiggle.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ['-8deg', '8deg'],
   });
 
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      {active && (
+    <Animated.View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: [{ rotate: wiggleRot }],
+      }}
+    >
+      {(active || hovered) && (
         <Animated.View
           pointerEvents="none"
           style={{
             position: 'absolute',
-            width: Math.round(size * 0.94),
-            height: Math.round(size * 0.94),
-            borderRadius: Math.round(size * 0.47),
-            backgroundColor: '#FFE57F',
+            width: Math.round(size * (hovered ? 1.02 : 0.94)),
+            height: Math.round(size * (hovered ? 1.02 : 0.94)),
+            borderRadius: Math.round(size * 0.51),
+            backgroundColor: hovered ? 'rgba(255, 226, 102, 0.52)' : '#FFE57F',
+            borderWidth: hovered ? 3.5 : 0,
+            borderColor: '#FFF7C2',
             opacity: haloOpacity,
             transform: [{ scale: haloScale }],
           }}
         />
       )}
       {children}
-    </View>
+    </Animated.View>
   );
 };
 
-/** Joyful celebrate bounce on snap -> staggered gentle idle breathing + animal sound & hop on tap */
+/** Placed living exhibit animal: celebrates on snap & victory party, plus playful habitat tap reactions! */
 const LivingExhibitAnimal: React.FC<{
   animal: ExhibitAnimalKind;
   size: number;
   seed: number;
+  partyMode: boolean;
   onAnimalTap?: () => void;
-}> = ({ animal, size, seed, onAnimalTap }) => {
+}> = ({ animal, size, seed, partyMode, onAnimalTap }) => {
   const [animState, setAnimState] = useState<'celebrate' | 'idle'>('celebrate');
+  const extraMove = useRef(new Animated.Value(0)).current;
+  const [waterTick, setWaterTick] = useState(0);
 
   useEffect(() => {
     setAnimState('celebrate');
@@ -566,30 +914,63 @@ const LivingExhibitAnimal: React.FC<{
     return () => clearTimeout(t);
   }, [animal]);
 
+  const triggerPlayfulMove = () => {
+    if (WATER_ANIMALS.has(animal)) {
+      setWaterTick(Date.now());
+    }
+    const lift = BIRD_ANIMALS.has(animal) ? -22 : -12;
+    extraMove.setValue(0);
+    Animated.sequence([
+      Animated.timing(extraMove, {
+        toValue: lift,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(extraMove, {
+        toValue: 0,
+        friction: 4,
+        tension: 180,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   return (
-    <AnimatedZooAnimal
-      state={animState}
-      size={size}
-      seed={seed}
-      weight={getAnimalWeight(animal)}
-      silentTap
-      onTap={() => {
-        soundEngine.playAnimalSound(animal);
-        onAnimalTap?.();
-      }}
-    >
-      <ZooExhibitAnimalSvg animal={animal} size={size} />
-    </AnimatedZooAnimal>
+    <Animated.View style={{ transform: [{ translateY: extraMove }] }}>
+      <AnimatedZooAnimal
+        state={partyMode ? 'celebrate' : animState}
+        size={size}
+        seed={seed}
+        weight={getAnimalWeight(animal)}
+        silentTap
+        onTap={() => {
+          triggerPlayfulMove();
+          soundEngine.playAnimalSound(animal);
+          setTimeout(() => soundEngine.speakWord(ANIMAL_LABELS[animal]), 180);
+          onAnimalTap?.();
+        }}
+      >
+        <ZooExhibitAnimalSvg animal={animal} size={size} />
+      </AnimatedZooAnimal>
+      {waterTick > 0 && (
+        <HabitatSurpriseBurst
+          key={waterTick}
+          x={size * 0.5}
+          y={size * 0.28}
+          exhibit="aquarium"
+        />
+      )}
+    </Animated.View>
   );
 };
 
 /**
- * Zoo Exhibits (Free Tier — Full-Bleed Immersive Storybook Scenes):
- * - Edge-to-edge animated exhibit backdrops (NO cramped brown picture frame!)
- * - Unified translucent animal silhouettes kept completely static (`state="static"`)
- *   with a soft golden shimmer while dragging on Easy & Med
- * - Tray animals breathe with staggered seeds, lift cleanly on drag, and celebrate + vocalize on snap!
- * - Defaults to Medium (2) with clearly labeled Easy | Med | Hard toggle.
+ * Zoo Exhibits (Full-Bleed Living Storybook Habitats):
+ * - All 6 worlds have ambient pure-View motion & tappable background surprises!
+ * - "Who Lives Here?" silhouette clue tap + forgiving magnetic hover snap!
+ * - Spoken animal names + playful name pills + persistent Zoo Passport progress!
+ * - Synchronized victory animal chorus before CelebrationOverlay!
  */
 export const ShapeSorterGame: React.FC = () => {
   const { addStar, collectSticker, goHome } = useApp();
@@ -597,24 +978,47 @@ export const ShapeSorterGame: React.FC = () => {
 
   const [difficulty, setDifficulty] = useState<Difficulty>(2);
   const [stageIdx, setStageIdx] = useState(0);
-  const [solvedExhibits, setSolvedExhibits] = useState<string[]>([]);
+  const [solvedExhibits, setSolvedExhibits] = useState<string[]>(() =>
+    loadSavedSolvedExhibits()
+  );
   const [placedIds, setPlacedIds] = useState<string[]>([]);
   const [burstMap, setBurstMap] = useState<Record<string, number>>({});
+  const [namePillMap, setNamePillMap] = useState<Record<string, number>>({});
+  const [wiggleMap, setWiggleMap] = useState<Record<string, number>>({});
   const [trayItems, setTrayItems] = useState<ExhibitAnimalSpot[]>(() =>
     shuffle(getExhibitSpots(ZOO_EXHIBITS[0], 2, 0))
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [clueItemId, setClueItemId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [hoveredSlotId, setHoveredSlotId] = useState<string | null>(null);
   const [hintSlotId, setHintSlotId] = useState<string | null>(null);
+  const [partyMode, setPartyMode] = useState(false);
   const [won, setWon] = useState(false);
+  const [bannerTick, setBannerTick] = useState(1);
+  const [surpriseBurst, setSurpriseBurst] = useState<{
+    x: number;
+    y: number;
+    tick: number;
+  } | null>(null);
 
   const slotRefs = useRef<Record<string, MeasurableNode>>({});
+  const stageNodeRef = useRef<MeasurableNode>(null);
+  const clueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentExhibit = ZOO_EXHIBITS[stageIdx % ZOO_EXHIBITS.length];
   const loopVariant = Math.floor(stageIdx / ZOO_EXHIBITS.length);
   const activeSpots = getExhibitSpots(currentExhibit, difficulty, loopVariant);
-  const hitPadding = isTablet ? 76 : 58;
+  const hitPadding =
+    difficulty <= 2 ? (isTablet ? 86 : 66) : isTablet ? 74 : 56;
+
+  useEffect(() => {
+    return () => {
+      if (clueTimerRef.current) clearTimeout(clueTimerRef.current);
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    };
+  }, []);
 
   const startStage = useCallback(
     (nextIdx: number, nextDiff: Difficulty = difficulty) => {
@@ -623,12 +1027,18 @@ export const ShapeSorterGame: React.FC = () => {
       setStageIdx(nextIdx);
       setPlacedIds([]);
       setBurstMap({});
+      setNamePillMap({});
+      setWiggleMap({});
       setTrayItems(shuffle(getExhibitSpots(ex, nextDiff, nextLoop)));
       setSelectedId(null);
+      setClueItemId(null);
       setDraggingId(null);
       setHoveredSlotId(null);
       setHintSlotId(null);
+      setPartyMode(false);
       setWon(false);
+      setSurpriseBurst(null);
+      setBannerTick((t) => t + 1);
     },
     [difficulty]
   );
@@ -641,17 +1051,43 @@ export const ShapeSorterGame: React.FC = () => {
     [stageIdx, startStage]
   );
 
+  // Synchronized Victory Chorus before CelebrationOverlay!
   useEffect(() => {
     if (placedIds.length === activeSpots.length && activeSpots.length > 0) {
-      setSolvedExhibits((prev) =>
-        prev.includes(currentExhibit.id) ? prev : [...prev, currentExhibit.id]
-      );
-      const t = setTimeout(() => {
+      setPartyMode(true);
+
+      let completedAllNow = false;
+      setSolvedExhibits((prev) => {
+        if (prev.includes(currentExhibit.id)) return prev;
+        const next = [...prev, currentExhibit.id];
+        saveSolvedExhibits(next);
+        if (next.length === ZOO_EXHIBITS.length) {
+          completedAllNow = true;
+        }
+        return next;
+      });
+
+      // Sparkle burst across all placed animals during the victory chorus!
+      const chorusTimer = setTimeout(() => {
+        const now = Date.now();
+        const bursts: Record<string, number> = {};
+        activeSpots.forEach((sp, i) => {
+          bursts[sp.id] = now + i;
+        });
+        setBurstMap(bursts);
+        soundEngine.playMatch();
+      }, 360);
+
+      const winTimer = setTimeout(() => {
         soundEngine.playWin();
-        addStar(1);
+        addStar(completedAllNow ? 2 : 1);
         setWon(true);
-      }, 680);
-      return () => clearTimeout(t);
+      }, 1520);
+
+      return () => {
+        clearTimeout(chorusTimer);
+        clearTimeout(winTimer);
+      };
     }
   }, [placedIds.length, activeSpots.length, addStar, currentExhibit.id]);
 
@@ -661,14 +1097,18 @@ export const ShapeSorterGame: React.FC = () => {
       soundEngine.playSnap();
       if (spot) {
         collectSticker(spot.animal);
-        setTimeout(() => soundEngine.playAnimalSound(spot.animal), 110);
+        setTimeout(() => soundEngine.playAnimalSound(spot.animal), 100);
+        setTimeout(() => soundEngine.speakWord(ANIMAL_LABELS[spot.animal]), 320);
       }
       setSelectedId(null);
+      setClueItemId(null);
       setDraggingId(null);
       setHintSlotId(null);
       setHoveredSlotId(null);
       setPlacedIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));
-      setBurstMap((prev) => ({ ...prev, [itemId]: Date.now() }));
+      const now = Date.now();
+      setBurstMap((prev) => ({ ...prev, [itemId]: now }));
+      setNamePillMap((prev) => ({ ...prev, [itemId]: now }));
     },
     [currentExhibit, collectSticker]
   );
@@ -717,29 +1157,72 @@ export const ShapeSorterGame: React.FC = () => {
     [hitPadding, placeItem]
   );
 
+  /**
+   * "Who Lives Here?" interactive silhouette tap:
+   * - If the matching animal is already selected -> snaps it right in!
+   * - If NO animal is selected yet -> wiggles the shadow, plays that animal's sound,
+   *   and bounces the matching animal in the wooden dock as a playful clue!
+   */
   const handleSlotTap = useCallback(
     (slotId: string) => {
       if (placedIds.includes(slotId)) return;
+      soundEngine.unlock();
+
       if (selectedId === slotId) {
         placeItem(slotId);
-      } else if (selectedId) {
+        return;
+      }
+
+      if (selectedId) {
         soundEngine.playGentleBounce();
         setHintSlotId(selectedId);
-        setTimeout(() => {
+        if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = setTimeout(() => {
           setHintSlotId((prev) => (prev === selectedId ? null : prev));
-        }, 900);
+        }, 1200);
+        return;
+      }
+
+      const spot = activeSpots.find((s) => s.id === slotId);
+      if (spot) {
+        soundEngine.playAnimalSound(spot.animal);
+        setWiggleMap((prev) => ({ ...prev, [slotId]: Date.now() }));
+        setClueItemId(slotId);
+        if (clueTimerRef.current) clearTimeout(clueTimerRef.current);
+        clueTimerRef.current = setTimeout(() => {
+          setClueItemId((prev) => (prev === slotId ? null : prev));
+        }, 1500);
       }
     },
-    [placedIds, selectedId, placeItem]
+    [activeSpots, placedIds, placeItem, selectedId]
   );
 
-  const handlePieceTap = useCallback((itemId: string) => {
-    setSelectedId((prev) => (prev === itemId ? null : itemId));
-    setHintSlotId(itemId);
-    setTimeout(() => {
-      setHintSlotId((prev) => (prev === itemId ? null : prev));
-    }, 1100);
-  }, []);
+  const handlePieceTap = useCallback(
+    (itemId: string) => {
+      soundEngine.unlock();
+      const spot = activeSpots.find((s) => s.id === itemId);
+      if (spot) {
+        soundEngine.playAnimalSound(spot.animal);
+      }
+      setClueItemId(null);
+      setSelectedId((prev) => {
+        const next = prev === itemId ? null : itemId;
+        if (next) {
+          setHintSlotId(next);
+          if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+          if (difficulty > 1) {
+            hintTimerRef.current = setTimeout(() => {
+              setHintSlotId((cur) => (cur === next ? null : cur));
+            }, 1800);
+          }
+        } else {
+          setHintSlotId(null);
+        }
+        return next;
+      });
+    },
+    [activeSpots, difficulty]
+  );
 
   const stageW = isTabletLandscape
     ? Math.min(720, Math.round(width * 0.64))
@@ -753,6 +1236,70 @@ export const ShapeSorterGame: React.FC = () => {
   const baseSpotSize = isTablet ? 136 : 94;
   const trayAnimalSize = isTablet ? 114 : 80;
   const traySlotSize = isTablet ? 124 : 86;
+
+  /** Playful habitat scenery surprise when tapping anywhere on open background */
+  const handleStageBackdropTap = useCallback(
+    (evt: {
+      nativeEvent: {
+        locationX?: number;
+        locationY?: number;
+        pageX?: number;
+        pageY?: number;
+      };
+    }) => {
+      soundEngine.unlock();
+      const ne = evt.nativeEvent;
+      let localX = typeof ne.locationX === 'number' ? ne.locationX : stageW * 0.5;
+      let localY = typeof ne.locationY === 'number' ? ne.locationY : stageH * 0.5;
+
+      if (
+        Platform.OS === 'web' &&
+        typeof ne.pageX === 'number' &&
+        typeof ne.pageY === 'number' &&
+        stageNodeRef.current
+      ) {
+        const raw = stageNodeRef.current as unknown as {
+          getBoundingClientRect?: () => DOMRect;
+          getNode?: () => HTMLElement;
+        };
+        const domEl =
+          typeof raw.getBoundingClientRect === 'function'
+            ? raw
+            : typeof raw.getNode === 'function'
+            ? raw.getNode()
+            : null;
+        const rect = domEl?.getBoundingClientRect?.();
+        if (rect) {
+          localX = ne.pageX - rect.left;
+          localY = ne.pageY - rect.top;
+        }
+      }
+
+      switch (currentExhibit.backdrop) {
+        case 'aquarium':
+          soundEngine.playBubblePop(Math.floor(Math.random() * 5));
+          break;
+        case 'arctic':
+          soundEngine.playWaterSplash(Math.floor(Math.random() * 5));
+          break;
+        case 'sanctuary':
+          soundEngine.playYumSparkle();
+          break;
+        case 'savanna':
+          soundEngine.playStarCollect(Math.floor(Math.random() * 3));
+          break;
+        case 'farm':
+          soundEngine.playCardFlip();
+          break;
+        default:
+          soundEngine.playPop();
+          break;
+      }
+
+      setSurpriseBurst({ x: localX, y: localY, tick: Date.now() });
+    },
+    [currentExhibit.backdrop, stageH, stageW]
+  );
 
   const renderExhibitPicker = () => (
     <View
@@ -777,7 +1324,7 @@ export const ShapeSorterGame: React.FC = () => {
                 soundEngine.playPop();
                 startStage(idx);
               }}
-              accessibilityLabel={`Switch to ${ex.id} exhibit`}
+              accessibilityLabel={`Switch to ${ex.title}`}
               style={{ width: tabSz }}
             >
               <View
@@ -805,18 +1352,62 @@ export const ShapeSorterGame: React.FC = () => {
             </TactileButton>
           );
         })}
+        {/* Compact Zoo Passport progress badge */}
+        <View style={styles.passportPill}>
+          <Text style={styles.passportText}>
+            🏅 {solvedExhibits.length}/{ZOO_EXHIBITS.length}
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
 
   const renderOpenStage = () => (
-    <View style={[styles.openStage, { width: stageW, height: stageH }]}>
+    <View
+      ref={stageNodeRef}
+      style={[styles.openStage, { width: stageW, height: stageH }]}
+    >
+      {/* Tappable habitat background behind animal spots for playful scenery surprises */}
+      <Pressable
+        onPress={handleStageBackdropTap}
+        style={StyleSheet.absoluteFill}
+        accessibilityLabel={`Explore ${currentExhibit.title}`}
+      />
+
+      {/* Scenery tap surprise burst */}
+      {surpriseBurst && (
+        <HabitatSurpriseBurst
+          key={surpriseBurst.tick}
+          x={surpriseBurst.x}
+          y={surpriseBurst.y}
+          exhibit={currentExhibit.backdrop}
+        />
+      )}
+
+      {/* Brief habitat arrival pill */}
+      <ExhibitTitleBanner
+        key={`${currentExhibit.id}-${bannerTick}`}
+        title={currentExhibit.title}
+        emoji={currentExhibit.emoji}
+      />
+
+      {/* Victory chorus badge before CelebrationOverlay */}
+      {partyMode && !won && (
+        <View style={styles.partyBanner} pointerEvents="none">
+          <Text style={styles.partyBannerText}>
+            ✨ {currentExhibit.title} Complete! ✨
+          </Text>
+        </View>
+      )}
+
       {activeSpots.map((spot, idx) => {
         const isPlaced = placedIds.includes(spot.id);
         const isDragShimmer =
           !isPlaced && draggingId === spot.id && difficulty <= 2;
+        const isHovered = !isPlaced && hoveredSlotId === spot.id;
+        const isSelectedEasy = !isPlaced && selectedId === spot.id && difficulty === 1;
         const isHighlighted =
-          hoveredSlotId === spot.id ||
+          isHovered ||
           hintSlotId === spot.id ||
           selectedId === spot.id ||
           isDragShimmer;
@@ -836,7 +1427,9 @@ export const ShapeSorterGame: React.FC = () => {
             onPress={isPlaced ? undefined : () => handleSlotTap(spot.id)}
             accessibilityRole="button"
             accessibilityLabel={
-              isPlaced ? `Tap ${spot.animal}` : `Match ${spot.animal} shape`
+              isPlaced
+                ? `Tap ${ANIMAL_LABELS[spot.animal]}`
+                : `Match ${ANIMAL_LABELS[spot.animal]} shape`
             }
             style={[
               styles.spotAnchor,
@@ -858,12 +1451,20 @@ export const ShapeSorterGame: React.FC = () => {
                   animal={spot.animal}
                   size={animalPx}
                   seed={idx + 1}
-                  onAnimalTap={() =>
-                    setBurstMap((prev) => ({ ...prev, [spot.id]: Date.now() }))
-                  }
+                  partyMode={partyMode}
+                  onAnimalTap={() => {
+                    const now = Date.now();
+                    setBurstMap((prev) => ({ ...prev, [spot.id]: now }));
+                    setNamePillMap((prev) => ({ ...prev, [spot.id]: now }));
+                  }}
                 />
               ) : (
-                <PulsingSilhouetteHalo active={isDragShimmer} size={animalPx}>
+                <PulsingSilhouetteHalo
+                  active={isDragShimmer || isSelectedEasy}
+                  hovered={isHovered}
+                  wiggleTick={wiggleMap[spot.id] || 0}
+                  size={animalPx}
+                >
                   <AnimatedZooAnimal state="static" size={animalPx}>
                     <ZooExhibitAnimalSvg
                       animal={spot.animal}
@@ -876,6 +1477,12 @@ export const ShapeSorterGame: React.FC = () => {
               )}
               {burstMap[spot.id] && (
                 <SnapBurst key={burstMap[spot.id]} size={isTablet ? 130 : 100} />
+              )}
+              {namePillMap[spot.id] && (
+                <AnimalNamePill
+                  key={namePillMap[spot.id]}
+                  label={ANIMAL_LABELS[spot.animal]}
+                />
               )}
             </View>
           </Pressable>
@@ -892,11 +1499,11 @@ export const ShapeSorterGame: React.FC = () => {
         isTabletLandscape && styles.woodenDockLandscape,
       ]}
     >
-      {/* Subtle sunlit watercolor wood highlight along the upper lip */}
       <View style={styles.woodenDockGloss} pointerEvents="none" />
       {trayItems.map((item, idx) => {
         const isPlaced = placedIds.includes(item.id);
         const isSelected = selectedId === item.id;
+        const isClued = clueItemId === item.id;
         const isDragging = draggingId === item.id;
         return (
           <View
@@ -904,6 +1511,7 @@ export const ShapeSorterGame: React.FC = () => {
             style={[
               styles.dockSlot,
               { width: traySlotSize, height: traySlotSize },
+              isClued && styles.dockSlotClue,
             ]}
           >
             {!isPlaced && (
@@ -921,7 +1529,7 @@ export const ShapeSorterGame: React.FC = () => {
               >
                 <View style={styles.dieCutPieceWrap}>
                   <AnimatedZooAnimal
-                    state={isDragging ? 'dragging' : 'idle'}
+                    state={isDragging ? 'dragging' : isClued ? 'calling' : 'idle'}
                     size={trayAnimalSize}
                     seed={idx + 11}
                     weight={getAnimalWeight(item.animal)}
@@ -930,7 +1538,7 @@ export const ShapeSorterGame: React.FC = () => {
                       animal={item.animal}
                       size={trayAnimalSize}
                       stickerRim
-                      highlighted={isSelected}
+                      highlighted={isSelected || isClued}
                     />
                   </AnimatedZooAnimal>
                 </View>
@@ -985,21 +1593,6 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  kelpLeft: {
-    position: 'absolute',
-    left: 14,
-    bottom: -10,
-  },
-  bubbleColA: {
-    position: 'absolute',
-    left: '18%',
-    bottom: 24,
-  },
-  savannaCloud: {
-    position: 'absolute',
-    top: 72,
-    right: '14%',
-  },
   playArea: {
     flex: 1,
     alignItems: 'center',
@@ -1041,6 +1634,82 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 10,
   },
+  arrivalBanner: {
+    position: 'absolute',
+    top: 4,
+    alignSelf: 'center',
+    left: '50%',
+    marginLeft: -108,
+    width: 216,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 250, 236, 0.92)',
+    borderWidth: 2,
+    borderColor: 'rgba(122, 82, 44, 0.36)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 35,
+    shadowColor: '#4A3525',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  arrivalBannerText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.woodDark,
+  },
+  partyBanner: {
+    position: 'absolute',
+    top: '42%',
+    alignSelf: 'center',
+    left: '50%',
+    marginLeft: -130,
+    width: 260,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: '#FFF5C2',
+    borderWidth: 3,
+    borderColor: COLORS.woodDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 45,
+    shadowColor: '#4A3525',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  partyBannerText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+    textAlign: 'center',
+  },
+  namePill: {
+    position: 'absolute',
+    top: -16,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#FFF7D6',
+    borderWidth: 2.5,
+    borderColor: COLORS.woodDark,
+    zIndex: 40,
+    shadowColor: '#4A3525',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  namePillText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+  },
   spotAnchor: {
     position: 'absolute',
   },
@@ -1052,7 +1721,6 @@ const styles = StyleSheet.create({
   shapeSpotPulse: {
     transform: [{ scale: 1.07 }],
   },
-  /* Softly shaded watercolor-style curved wooden dock (warm, organic, zero harsh border) */
   woodenDock: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1106,6 +1774,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
+    borderRadius: 28,
+  },
+  dockSlotClue: {
+    backgroundColor: 'rgba(255, 234, 118, 0.42)',
+    borderWidth: 3,
+    borderColor: '#FFE066',
   },
   dieCutPieceWrap: {
     alignItems: 'center',
@@ -1120,7 +1794,7 @@ const styles = StyleSheet.create({
     zIndex: 15,
   },
   scenePickerShellLandscape: {
-    maxWidth: 820,
+    maxWidth: 880,
   },
   scenePickerRow: {
     flexDirection: 'row',
@@ -1147,6 +1821,20 @@ const styles = StyleSheet.create({
     opacity: 1,
     transform: [{ scale: 1.08 }],
   },
+  passportPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 248, 224, 0.92)',
+    borderWidth: 2,
+    borderColor: 'rgba(122, 82, 44, 0.34)',
+    marginLeft: 2,
+  },
+  passportText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+  },
   solvedDot: {
     position: 'absolute',
     top: -3,
@@ -1161,7 +1849,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   solvedDotText: {
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '900',
     color: '#FFFFFF',
   },
