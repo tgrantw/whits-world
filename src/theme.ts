@@ -9,6 +9,7 @@ export type GameId =
   | 'size-sorter'
   | 'baby-match'
   | 'jungle-music'
+  | 'arctic-catch'
   | 'jungle-picnic';
 
 export interface GameMeta {
@@ -156,6 +157,17 @@ export const GAMES: GameMeta[] = [
     plaqueBorder: '#A8701D',
     accent: '#D99426',
     leafTint: '#E8A530',
+  },
+  {
+    id: 'arctic-catch',
+    title: 'Arctic Catch',
+    subtitle: 'Slide & catch fish!',
+    isFree: false,
+    plaqueBg: '#B3E3DC',
+    plaqueInner: '#F0FBF9',
+    plaqueBorder: '#2C7F78',
+    accent: '#2F948B',
+    leafTint: '#4DAAD8',
   },
 ];
 

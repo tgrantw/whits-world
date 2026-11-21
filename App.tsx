@@ -8,6 +8,7 @@ import { PaywallModal } from './src/components/PaywallModal';
 import { StarJarModal } from './src/components/StarJarModal';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { AnimalPeekabooGame } from './src/games/AnimalPeekabooGame';
+import { ArcticCatchGame } from './src/games/ArcticCatchGame';
 import { BabyMatchGame } from './src/games/BabyMatchGame';
 import { BallPassGame } from './src/games/BallPassGame';
 import { BubblePopGame } from './src/games/BubblePopGame';
@@ -55,6 +56,8 @@ const RootNavigator: React.FC = () => {
         return <BabyMatchGame />;
       case 'jungle-music':
         return <JungleMusicGame />;
+      case 'arctic-catch':
+        return <ArcticCatchGame />;
       case 'jungle-picnic':
         return <JunglePicnicGame />;
       default:

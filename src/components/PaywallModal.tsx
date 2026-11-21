@@ -68,6 +68,14 @@ const SHOWCASE_GAMES: ShowcaseGame[] = [
     border: '#D9B159',
     accent: '#A16E16',
   },
+  {
+    id: 'arctic-catch',
+    title: 'Arctic Catch',
+    benefit: 'Glide & catch fish',
+    bg: '#DDF5F1',
+    border: '#6EBDB4',
+    accent: '#237A72',
+  },
 ];
 
 const ShowcaseArt: React.FC<{ id: string }> = ({ id }) => {
@@ -106,6 +114,13 @@ const ShowcaseArt: React.FC<{ id: string }> = ({ id }) => {
         <View style={styles.artBottomRow}>
           <ZooExhibitAnimalSvg animal="giraffe" size={46} />
           <ZooExhibitAnimalSvg animal="panda" size={30} />
+        </View>
+      );
+    case 'arctic-catch':
+      return (
+        <View style={styles.artBottomRow}>
+          <ZooExhibitAnimalSvg animal="penguin" size={42} />
+          <ZooExhibitAnimalSvg animal="seal" size={34} />
         </View>
       );
     case 'jungle-music':
@@ -210,13 +225,13 @@ export const PaywallModal: React.FC = () => {
               <View style={styles.heroCopy}>
                 <Text style={[styles.title, isTablet && styles.titleTablet]}>
                   {isUnlocked
-                    ? 'All 8 Zoo Games Unlocked!'
+                    ? 'All 9 Zoo Games Unlocked!'
                     : 'Unlock All of Whit’s World'}
                 </Text>
                 <Text style={styles.priceSubtitle}>
                   {isUnlocked
                     ? 'Thank you for supporting calm, ad-free play.'
-                    : `All 5 extra games • ${UNLOCK_PRICE_DISPLAY} once, keep forever`}
+                    : `All 6 extra games • ${UNLOCK_PRICE_DISPLAY} once, keep forever`}
                 </Text>
               </View>
             </View>
@@ -231,7 +246,7 @@ export const PaywallModal: React.FC = () => {
               ))}
             </View>
 
-            {/* Visual 5-Game Storybook Showcase */}
+            {/* Visual 6-Game Storybook Showcase */}
             <Text style={styles.sectionHeading}>
               INCLUDED IN THE FULL ZOO PACK
             </Text>
@@ -300,7 +315,7 @@ export const PaywallModal: React.FC = () => {
                     <View style={styles.buyBtnInner}>
                       <CrownIcon size={20} color="#FFE578" />
                       <Text style={styles.buyBtnText}>
-                        Unlock All 8 Games — {UNLOCK_PRICE_DISPLAY}
+                        Unlock All 9 Games — {UNLOCK_PRICE_DISPLAY}
                       </Text>
                     </View>
                   )}

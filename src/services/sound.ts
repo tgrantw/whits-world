@@ -172,6 +172,15 @@ class SoundEngine {
     this.playTone(base * 1.5, 0.05, 0.18, 0.09, 'sine');
   }
 
+  /** Playful sparkling arctic water splash + rising catch chime */
+  public playWaterSplash(step = 0): void {
+    const pentatonic = [523.25, 587.33, 659.25, 783.99, 880, 1046.5];
+    const note = pentatonic[step % pentatonic.length];
+    this.playTone(320, 0, 0.09, 0.13, 'sine', 640);
+    this.playTone(note, 0.04, 0.18, 0.16, 'triangle');
+    this.playTone(note * 1.5, 0.09, 0.16, 0.08, 'sine');
+  }
+
   /** Playful, warm musical signature tailored to each zoo & aquarium animal */
   public playAnimalSound(animal: string): void {
     switch (animal) {

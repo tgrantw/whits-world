@@ -552,6 +552,47 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
           </View>
         </View>
       );
+    case 'arctic-catch':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'flex-end', gap: 4 }]}>
+          <View style={{ alignItems: 'center' }}>
+            <View style={{ marginBottom: -s(6), zIndex: 2 }}>
+              <AnimatedZooAnimal size={s(52)} seed={13} weight="medium">
+                <ZooExhibitAnimalSvg animal="penguin" size={s(52)} />
+              </AnimatedZooAnimal>
+            </View>
+            <Svg width={s(66)} height={s(18)} viewBox="0 0 66 18">
+              <Path
+                d="M 4 8 Q 33 2 62 8 L 57 15 Q 33 18 9 15 Z"
+                fill="#E8F8FD"
+                stroke="#4A3525"
+                strokeWidth="2.2"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </View>
+          <View style={{ marginBottom: s(18) }}>
+            <Svg width={s(38)} height={s(38)} viewBox="0 0 54 54">
+              <Path
+                d="M 14 27 L 5 18 Q 8 27 5 36 Z"
+                fill="#EE8B6B"
+                stroke="#4A3525"
+                strokeWidth="2.2"
+                strokeLinejoin="round"
+              />
+              <Path
+                d="M 13 27 C 16 14 36 12 47 25 C 49 27 49 28 47 30 C 36 42 16 40 13 27 Z"
+                fill="#6AC4DF"
+                stroke="#4A3525"
+                strokeWidth="2.4"
+                strokeLinejoin="round"
+              />
+              <Circle cx="38" cy="25" r="2.6" fill="#4A3525" />
+              <Circle cx="39" cy="24" r="0.9" fill="#FFFFFF" />
+            </Svg>
+          </View>
+        </View>
+      );
   }
 };
 
@@ -606,7 +647,7 @@ export const HomeScreen: React.FC = () => {
                   isTablet && { fontSize: 15.5 },
                 ]}
               >
-                Unlock All 8 Zoo Games ({UNLOCK_PRICE_DISPLAY})
+                Unlock All 9 Zoo Games ({UNLOCK_PRICE_DISPLAY})
               </Text>
               <Text
                 style={[
@@ -639,7 +680,7 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.unlockedFooterPill}>
           <CrownIcon size={19} color="#FFD23F" />
           <Text style={styles.unlockedFooterText}>
-            All 8 Zoo Games Unlocked • Parent Corner
+            All 9 Zoo Games Unlocked • Parent Corner
           </Text>
         </View>
       </TactileButton>
@@ -1173,7 +1214,8 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    columnGap: 12,
     rowGap: 14,
   },
   gridTablet: {
@@ -1185,15 +1227,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cardColumnPhone: {
-    width: '48%',
+    width: '47.5%',
   },
   cardColumnTablet: {
     width: '30.5%',
     minWidth: 196,
   },
   cardColumnTabletLandscape: {
-    width: '23.2%',
-    minWidth: 162,
+    width: '30.8%',
+    minWidth: 186,
   },
   plaqueOuter: {
     width: '100%',
@@ -1248,9 +1290,9 @@ const styles = StyleSheet.create({
     marginBottom: 9,
   },
   plaqueInnerLandscape: {
-    height: 112,
+    height: 100,
     borderRadius: 20,
-    marginBottom: 8,
+    marginBottom: 7,
   },
   lockBadge: {
     position: 'absolute',

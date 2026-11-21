@@ -300,7 +300,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsUnlocked(ent.unlockAll);
     setStatusMessage(
       unlocked
-        ? 'Preview Mode: All 5 games unlocked!'
+        ? 'Preview Mode: All 6 games unlocked!'
         : 'Preview Mode: Free Tier active (3 games locked).'
     );
     if (unlocked) {
