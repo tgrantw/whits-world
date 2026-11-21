@@ -158,6 +158,15 @@ class SoundEngine {
     this.playTone(340, 0.02, 0.14, 0.1, 'triangle', 540);
   }
 
+  /** Joyful uplifting soccer goal fanfare chord */
+  public playGoalCheer(): void {
+    this.playTone(523.25, 0, 0.13, 0.16, 'triangle'); // C5
+    this.playTone(659.25, 0.07, 0.15, 0.16, 'triangle'); // E5
+    this.playTone(783.99, 0.14, 0.18, 0.17, 'sine'); // G5
+    this.playTone(1046.5, 0.21, 0.34, 0.18, 'sine'); // C6
+    this.playTone(1318.5, 0.25, 0.28, 0.08, 'triangle'); // E6 sparkle
+  }
+
   /** Playful rubbery mushroom bumper boing */
   public playBoing(): void {
     this.playTone(230, 0, 0.14, 0.17, 'sine', 490);
