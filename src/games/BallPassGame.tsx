@@ -15,7 +15,6 @@ import Svg, {
   LinearGradient,
   Path,
   RadialGradient,
-  Rect,
   Stop,
 } from 'react-native-svg';
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
@@ -25,6 +24,11 @@ import {
 } from '../components/AnimatedZooAnimal';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
+import {
+  JungleClearingBackdrop,
+  JungleGoalArchSvg,
+  JungleSoccerPitch,
+} from '../components/JungleSoccerPitch';
 import { WhitMascot, WhitMood } from '../components/WhitMascot';
 import { SnapBurst } from '../components/SnapBurst';
 import {
@@ -175,73 +179,6 @@ const MushroomBumperSvg: React.FC<{ size: number; boinged: boolean }> = ({
   );
 };
 
-/** Soft painterly wooden jungle goal arch with leafy storybook vines */
-const JungleGoalArchSvg: React.FC<{
-  width: number;
-  height: number;
-  active: boolean;
-}> = ({ width, height, active }) => (
-  <Svg width={width} height={height} viewBox="0 0 160 110">
-    <Ellipse cx="80" cy="95" rx="68" ry="13" fill="rgba(42, 78, 38, 0.2)" />
-    {active && (
-      <Ellipse
-        cx="80"
-        cy="91"
-        rx="74"
-        ry="18"
-        fill="rgba(255, 232, 130, 0.54)"
-      />
-    )}
-    <Path
-      d="M 22 92 L 26 30 Q 80 12 134 30 L 138 92 Z"
-      fill="rgba(255, 249, 236, 0.30)"
-    />
-    <Path
-      d="M 46 24 L 44 90 M 80 18 L 80 90 M 114 24 L 116 90 M 24 52 Q 80 42 136 52 M 23 72 Q 80 64 137 72"
-      stroke="rgba(106, 77, 56, 0.22)"
-      strokeWidth="2"
-      fill="none"
-    />
-    <Path
-      d="M 18 95 L 20 30 Q 80 7 140 30 L 142 95"
-      fill="none"
-      stroke="#6B4D36"
-      strokeWidth="15"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      opacity="0.78"
-    />
-    <Path
-      d="M 18 95 L 20 30 Q 80 7 140 30 L 142 95"
-      fill="none"
-      stroke={active ? '#F6CF65' : '#D4A167'}
-      strokeWidth="10.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M 24 29 Q 80 10 136 29"
-      fill="none"
-      stroke="#FFF4D4"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      opacity="0.58"
-    />
-    <Path
-      d="M 16 28 Q 4 14 22 10 Q 32 18 16 28 Z"
-      fill="#6DA85B"
-      stroke="#5C4432"
-      strokeWidth="2"
-    />
-    <Path
-      d="M 144 28 Q 156 14 138 10 Q 128 18 144 28 Z"
-      fill="#7EB869"
-      stroke="#5C4432"
-      strokeWidth="2"
-    />
-  </Svg>
-);
-
 /** Zoo animal standing by its goal: idle breathing, calling double-hop, or goal celebrate */
 const GoalAnimal: React.FC<{
   animal: ExhibitAnimalKind;
@@ -280,7 +217,6 @@ const GoalAnimal: React.FC<{
 export const BallPassGame: React.FC = () => {
   const { addStar, collectSticker, goHome } = useApp();
   const { isTablet, isTabletLandscape, width, height } = useResponsive();
-  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
   const [difficulty, setDifficulty] = useState<Difficulty>(2);
   const [roundSeed, setRoundSeed] = useState(0);
@@ -704,92 +640,8 @@ export const BallPassGame: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Full-bleed Painterly Sunlit Jungle Clearing Meadow Background */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Image
-          source={STORYBOOK_ASSETS.bgClearing}
-          style={{ width: '100%', height: '100%', opacity: 0.42 }}
-          resizeMode="cover"
-        />
-        <Svg
-          width="100%"
-          height="100%"
-          viewBox="0 0 800 600"
-          preserveAspectRatio="xMidYMid slice"
-          style={StyleSheet.absoluteFill}
-        >
-          <Defs>
-            <LinearGradient id={`pitch-${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#D6EBC6" stopOpacity="0.82" />
-              <Stop offset="0.22" stopColor="#B6DC8F" stopOpacity="0.86" />
-              <Stop offset="0.62" stopColor="#93C46E" stopOpacity="0.90" />
-              <Stop offset="1" stopColor="#72A856" stopOpacity="0.94" />
-            </LinearGradient>
-            <RadialGradient id={`clearing-${uid}`} cx="50%" cy="52%" r="54%">
-              <Stop offset="0" stopColor="#E6F2B3" stopOpacity="0.72" />
-              <Stop offset="0.58" stopColor="#B6DC85" stopOpacity="0.38" />
-              <Stop offset="1" stopColor="#72A856" stopOpacity="0" />
-            </RadialGradient>
-            <RadialGradient id={`dappleA-${uid}`} cx="50%" cy="50%" r="50%">
-              <Stop offset="0" stopColor="#FFF8D2" stopOpacity="0.42" />
-              <Stop offset="1" stopColor="#FFF8D2" stopOpacity="0" />
-            </RadialGradient>
-          </Defs>
-
-          <Rect x="0" y="0" width="800" height="600" fill={`url(#pitch-${uid})`} />
-          {/* Soft sunlit clearing oval & dappled watercolor sun pools */}
-          <Ellipse cx="400" cy="330" rx="350" ry="235" fill={`url(#clearing-${uid})`} />
-          <Ellipse cx="210" cy="240" rx="115" ry="64" fill={`url(#dappleA-${uid})`} />
-          <Ellipse cx="600" cy="390" rx="130" ry="74" fill={`url(#dappleA-${uid})`} />
-          <Ellipse cx="400" cy="450" rx="165" ry="62" fill={`url(#dappleA-${uid})`} />
-
-          {/* Soft storybook chalk-cream meadow rings */}
-          <Ellipse
-            cx="400"
-            cy="332"
-            rx="270"
-            ry="180"
-            fill="none"
-            stroke="rgba(255, 250, 236, 0.36)"
-            strokeWidth="4.5"
-            strokeDasharray="16 14"
-          />
-          <Circle
-            cx="400"
-            cy="332"
-            r="56"
-            fill="none"
-            stroke="rgba(255, 250, 236, 0.3)"
-            strokeWidth="3.5"
-          />
-
-          {/* Subtle painterly grass tufts dotting the meadow */}
-          <Path d="M 140 310 Q 144 298 148 310 M 148 310 Q 154 300 158 310" stroke="#5A8F46" strokeWidth="2.4" strokeLinecap="round" fill="none" opacity="0.42" />
-          <Path d="M 642 292 Q 646 280 650 292 M 650 292 Q 656 282 660 292" stroke="#5A8F46" strokeWidth="2.4" strokeLinecap="round" fill="none" opacity="0.42" />
-          <Path d="M 244 452 Q 248 440 252 452 M 252 452 Q 258 442 262 452" stroke="#4D803B" strokeWidth="2.4" strokeLinecap="round" fill="none" opacity="0.4" />
-          <Path d="M 548 474 Q 552 462 556 474 M 556 474 Q 562 464 566 474" stroke="#4D803B" strokeWidth="2.4" strokeLinecap="round" fill="none" opacity="0.4" />
-
-          {/* Soft scalloped watercolor canopy edge along top */}
-          <Path
-            d="M -20 64 C 30 22 96 18 144 50 C 194 12 270 16 318 50 C 374 14 452 14 504 50 C 556 16 632 14 686 50 C 734 18 784 26 820 60 L 820 -10 L -20 -10 Z"
-            fill="#5D924E"
-            opacity="0.72"
-          />
-          <Path
-            d="M -20 44 C 40 10 112 10 164 38 C 224 4 294 8 348 36 C 406 4 484 6 538 36 C 594 8 666 6 720 36 C 760 14 794 20 820 42 L 820 -10 L -20 -10 Z"
-            fill="#487B40"
-            opacity="0.82"
-          />
-
-          {/* Soft wildflowers dotting the edges */}
-          <Circle cx="54" cy="480" r="7.5" fill="#F8DB74" opacity="0.88" />
-          <Circle cx="54" cy="480" r="3" fill="#DF7A52" opacity="0.88" />
-          <Circle cx="744" cy="462" r="8.5" fill="#F4A0B6" opacity="0.88" />
-          <Circle cx="744" cy="462" r="3.5" fill="#F8DB74" opacity="0.88" />
-          <Circle cx="86" cy="240" r="6.5" fill="#FFF9EC" opacity="0.82" />
-          <Circle cx="722" cy="252" r="6.5" fill="#FFF9EC" opacity="0.82" />
-        </Svg>
-      </View>
+      {/* Full-bleed Painterly Sunlit Jungle Clearing Surround */}
+      <JungleClearingBackdrop />
 
       <GameHeader
         totalSteps={GOALS_TO_WIN}
@@ -810,7 +662,15 @@ export const BallPassGame: React.FC = () => {
         }}
         {...(Platform.OS === 'web' ? webFieldProps : nativePan.panHandlers)}
       >
-        {/* Subtle aim guide line while swiping or tapping */}
+        {/* Responsive Storybook Jungle Soccer Pitch (mowed stripes, chalk lines & corner flags) */}
+        <JungleSoccerPitch
+          width={fieldSize.w}
+          height={fieldSize.h}
+          difficulty={difficulty}
+          isTablet={isTablet}
+        />
+
+        {/* Subtle chalk aim guide line & target ring while swiping or tapping */}
         {aimPreview && !physRef.current.moving && (
           <Svg
             width={fieldSize.w}
@@ -820,10 +680,25 @@ export const BallPassGame: React.FC = () => {
           >
             <Path
               d={`M ${ballRender.x} ${ballRender.y} L ${aimPreview.x} ${aimPreview.y}`}
-              stroke="rgba(255, 250, 236, 0.72)"
-              strokeWidth="5.5"
+              stroke="rgba(42, 76, 32, 0.24)"
+              strokeWidth="7.5"
               strokeDasharray="10 10"
               strokeLinecap="round"
+            />
+            <Path
+              d={`M ${ballRender.x} ${ballRender.y} L ${aimPreview.x} ${aimPreview.y}`}
+              stroke="rgba(255, 251, 238, 0.86)"
+              strokeWidth="5"
+              strokeDasharray="10 10"
+              strokeLinecap="round"
+            />
+            <Circle
+              cx={aimPreview.x}
+              cy={aimPreview.y}
+              r={10}
+              fill="rgba(255, 244, 180, 0.42)"
+              stroke="rgba(255, 251, 238, 0.9)"
+              strokeWidth="2.5"
             />
           </Svg>
         )}
@@ -878,13 +753,22 @@ export const BallPassGame: React.FC = () => {
                 { left: sx - sz / 2, top: sy - sz / 2 },
               ]}
             >
-              <Svg width={sz} height={sz} viewBox="0 0 36 36">
+              <Svg width={sz} height={sz} viewBox="0 0 36 38">
+                <Ellipse cx="18" cy="33.5" rx="10" ry="3.2" fill="rgba(38, 72, 32, 0.24)" />
                 <Path
                   d="M18 3 L22.4 12.2 L32.5 13.6 L25.1 20.6 L26.9 30.6 L18 25.8 L9.1 30.6 L10.9 20.6 L3.5 13.6 L13.6 12.2 Z"
                   fill="#FAD968"
                   stroke="#7D5938"
                   strokeWidth="2"
                   strokeLinejoin="round"
+                />
+                <Path
+                  d="M18 7.5 L20.4 12.8 L26 13.6 L22 17.5"
+                  fill="none"
+                  stroke="#FFF7D4"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  opacity="0.7"
                 />
               </Svg>
             </View>
