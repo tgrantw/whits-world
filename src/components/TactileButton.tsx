@@ -25,10 +25,16 @@ interface WebTouch {
 interface WebTouchEvent {
   changedTouches?: ArrayLike<WebTouch>;
   touches?: ArrayLike<WebTouch>;
+  preventDefault?: () => void;
   stopPropagation?: () => void;
 }
 
 const TOUCH_TAP_SLOP_PX = 24;
+
+// Shared across all TactileButton instances so when a touch tap unmounts one screen
+// (e.g. Home button -> HomeScreen) and mounts a new button in the same spot (Star Jar),
+// the browser's delayed synthetic `click` event never ghost-clicks the newly mounted button.
+let lastGlobalTouchPressAt = 0;
 
 /**
  * Playful spring-bounce button wrapper inspired by Sago Mini / Khan Academy Kids.
@@ -55,7 +61,6 @@ export const TactileButton: React.FC<TactileButtonProps> = ({
     startY: number;
     moved: boolean;
   } | null>(null);
-  const lastTouchFireRef = useRef<number>(0);
 
   const animateIn = useCallback(() => {
     Animated.spring(scale, {
@@ -77,8 +82,8 @@ export const TactileButton: React.FC<TactileButtonProps> = ({
 
   const handlePress = useCallback(() => {
     if (disabled) return;
-    // Deduplicate trailing synthetic click after our direct web touchend handler fired
-    if (Platform.OS === 'web' && Date.now() - lastTouchFireRef.current < 500) {
+    // Deduplicate trailing synthetic click after any direct web touchend tap
+    if (Platform.OS === 'web' && Date.now() - lastGlobalTouchPressAt < 500) {
       return;
     }
     onPress?.();
@@ -139,8 +144,9 @@ export const TactileButton: React.FC<TactileButtonProps> = ({
               }
             }
 
+            e.preventDefault?.();
             e.stopPropagation?.();
-            lastTouchFireRef.current = Date.now();
+            lastGlobalTouchPressAt = Date.now();
             onPress?.();
           },
           onTouchCancel: () => {

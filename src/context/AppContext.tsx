@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { Platform } from 'react-native';
@@ -209,7 +210,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, [starsEarned]);
 
+  const lastGoHomeAtRef = useRef<number>(0);
+
   const openStarJar = useCallback(() => {
+    // Prevent ghost-click or accidental rapid double-tap on top-left Home button from opening Star Jar
+    if (Date.now() - lastGoHomeAtRef.current < 400) return;
     soundEngine.unlock();
     soundEngine.playStarCollect(2);
     setHasNewAccessory(false);
@@ -259,6 +264,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const goHome = useCallback(() => {
+    lastGoHomeAtRef.current = Date.now();
     soundEngine.playCardFlip();
     setActiveGame(null);
   }, []);
