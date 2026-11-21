@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -9,15 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  LinearGradient,
-  Path,
-  RadialGradient,
-  Stop,
-} from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import {
   AnimatedZooAnimal,
@@ -45,7 +37,7 @@ const GOAL_ANIMALS: ExhibitAnimalKind[] = ['lion', 'elephant', 'giraffe', 'panda
 const GOALS_TO_WIN = 4;
 
 type BallPhase = 'ready' | 'dragging' | 'flying' | 'returning' | 'scored';
-type DragKind = 'dribble' | 'slingshot' | 'aim';
+type DragKind = 'pending_ball' | 'dribble' | 'slingshot' | 'aim';
 
 interface GoalSpec {
   id: number;
@@ -156,10 +148,9 @@ const WatercolorJungleBall: React.FC<{ size: number }> = React.memo(({ size }) =
   </View>
 ));
 
-/** Soft gouache-shaded spotted storybook jungle mushroom bumper */
+/** Soft gouache-shaded spotted storybook jungle mushroom bumper (zero SVG gradients) */
 const MushroomBumperSvg: React.FC<{ size: number; boingTick: number }> = React.memo(
   ({ size, boingTick }) => {
-    const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
     const scale = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
@@ -176,29 +167,17 @@ const MushroomBumperSvg: React.FC<{ size: number; boingTick: number }> = React.m
     return (
       <Animated.View style={{ transform: [{ scale }] }} pointerEvents="none">
         <Svg width={size} height={size} viewBox="0 0 100 100">
-          <Defs>
-            <RadialGradient id={`cap-${uid}`} cx="36%" cy="28%" r="72%">
-              <Stop offset="0" stopColor="#F5A082" />
-              <Stop offset="0.58" stopColor="#DF7258" />
-              <Stop offset="1" stopColor="#BC553F" />
-            </RadialGradient>
-            <LinearGradient id={`stem-${uid}`} x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor="#FFF8E8" />
-              <Stop offset="0.65" stopColor="#F3E2C0" />
-              <Stop offset="1" stopColor="#DFC79C" />
-            </LinearGradient>
-          </Defs>
           <Ellipse cx="50" cy="87" rx="30" ry="8.5" fill="rgba(44, 78, 38, 0.24)" />
           <Path
             d="M 38 56 L 34 83 Q 50 91 66 83 L 62 56 Z"
-            fill={`url(#stem-${uid})`}
+            fill="#F5E6C8"
             stroke="#6A4D38"
             strokeWidth="2.8"
             strokeLinejoin="round"
           />
           <Path
             d="M 11 56 C 11 23 30 11 50 11 C 70 11 89 23 89 56 C 72 64 28 64 11 56 Z"
-            fill={`url(#cap-${uid})`}
+            fill="#DF7258"
             stroke="#6A4D38"
             strokeWidth="3"
             strokeLinejoin="round"
@@ -209,7 +188,7 @@ const MushroomBumperSvg: React.FC<{ size: number; boingTick: number }> = React.m
             rx="14"
             ry="6"
             fill="#FFE8D6"
-            opacity="0.35"
+            opacity="0.38"
             transform="rotate(-18 36 24)"
           />
           <Circle cx="34" cy="35" r="7.5" fill="#FFF7E4" opacity="0.92" />
@@ -514,6 +493,13 @@ export const BallPassGame: React.FC = () => {
   });
 
   const [aimVisual, setAimVisual] = useState<AimVisual | null>(null);
+  const aimRef = useRef<AimVisual | null>(null);
+  const aimDirtyRef = useRef(false);
+
+  const setAimBuffered = useCallback((next: AimVisual | null) => {
+    aimRef.current = next;
+    aimDirtyRef.current = true;
+  }, []);
 
   const starsRef = useRef(stars);
   starsRef.current = stars;
@@ -633,6 +619,8 @@ export const BallPassGame: React.FC = () => {
       setStars(buildStars(nextGoals[startIdx].baseXPct, nextGoals[startIdx].yPct));
       setWon(false);
       setMascotMood('wave');
+      aimRef.current = null;
+      aimDirtyRef.current = false;
       setAimVisual(null);
       physRef.current.swayTime = 0;
       physRef.current.goalSwayOffsetPx = 0;
@@ -691,6 +679,8 @@ export const BallPassGame: React.FC = () => {
       setTimeout(() => soundEngine.playAnimalSound(animal), 160);
       collectSticker(animal);
 
+      aimRef.current = null;
+      aimDirtyRef.current = false;
       setAimVisual(null);
       setBurstPos({ x: goalX, y: goalY, tick: Date.now(), isGoal: true });
       setCelebratingGoalId(goalId);
@@ -781,9 +771,9 @@ export const BallPassGame: React.FC = () => {
       const ny = Math.min(-0.34, dy / len);
       const norm = Math.hypot(nx, ny);
 
-      const baseSpeed = isTablet ? 860 : 700;
-      const minSpeed = isTablet ? 720 : 580;
-      const maxSpeed = isTablet ? 1140 : 920;
+      const baseSpeed = isTablet ? 470 : 390;
+      const minSpeed = isTablet ? 400 : 330;
+      const maxSpeed = isTablet ? 600 : 490;
       const speed = speedOverride
         ? Math.max(minSpeed, Math.min(maxSpeed, speedOverride))
         : baseSpeed;
@@ -792,7 +782,7 @@ export const BallPassGame: React.FC = () => {
       p.vy = (ny / norm) * speed;
       p.phase = 'flying';
       p.flightTime = 0;
-      p.kickScale = 1.24;
+      p.kickScale = 1.2;
       p.trail = [{ x: p.x, y: p.y }];
       p.trailTick = 0;
       setMascotMood('happy');
@@ -829,7 +819,7 @@ export const BallPassGame: React.FC = () => {
     [getGoalCenter]
   );
 
-  // 60fps smooth physics, aim-assist, comet trail, & fast smooth return loop
+  // 60fps smooth physics, aim-assist, comet trail, & calm smooth return loop
   useEffect(() => {
     let rafId = 0;
     let lastTs = performance.now();
@@ -847,7 +837,7 @@ export const BallPassGame: React.FC = () => {
       if (diff === 3 && !wonRef.current) {
         p.swayTime += dt;
         const maxSway = Math.min(68, f.w * 0.1);
-        p.goalSwayOffsetPx = Math.sin(p.swayTime * 1.35) * maxSway;
+        p.goalSwayOffsetPx = Math.sin(p.swayTime * 1.2) * maxSway;
       } else {
         p.goalSwayOffsetPx = 0;
       }
@@ -855,7 +845,7 @@ export const BallPassGame: React.FC = () => {
       // Smoothly relax kick squash/pop scale back to resting scale
       const restScale = p.phase === 'scored' ? 0.84 : 1;
       if (Math.abs(p.kickScale - restScale) > 0.005) {
-        p.kickScale += (restScale - p.kickScale) * Math.min(1, dt * 14);
+        p.kickScale += (restScale - p.kickScale) * Math.min(1, dt * 12);
       } else {
         p.kickScale = restScale;
       }
@@ -875,7 +865,7 @@ export const BallPassGame: React.FC = () => {
           const dirDot = (p.vx * toGoalX + p.vy * toGoalY) / (speed * distToGoal);
           const assistThreshold = diff === 1 ? 0.28 : diff === 2 ? 0.56 : 0.68;
           if (dirDot > assistThreshold) {
-            const steerStrength = diff === 1 ? 8.5 : diff === 2 ? 5.6 : 3.6;
+            const steerStrength = diff === 1 ? 6.8 : diff === 2 ? 4.4 : 2.9;
             const desiredVx = (toGoalX / distToGoal) * speed;
             const desiredVy = (toGoalY / distToGoal) * speed;
             p.vx += (desiredVx - p.vx) * Math.min(1, steerStrength * dt);
@@ -883,17 +873,17 @@ export const BallPassGame: React.FC = () => {
           }
         }
 
-        // Integrate position & crisp grass friction
+        // Integrate position & gentle grass friction so calm kicks glide into the net
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        const friction = Math.pow(0.988, dt * 60);
+        const friction = Math.pow(0.992, dt * 60);
         p.vx *= friction;
         p.vy *= friction;
-        p.rot += (p.vx * 0.55 + Math.abs(p.vy) * 0.38) * dt;
+        p.rot += (p.vx * 0.65 + Math.abs(p.vy) * 0.45) * dt;
 
-        // Comet trail sampling
+        // Soft comet trail sampling
         p.trailTick += dt;
-        if (p.trailTick >= 0.024) {
+        if (p.trailTick >= 0.036) {
           p.trailTick = 0;
           p.trail = [{ x: p.x, y: p.y }, ...p.trail].slice(0, 5);
         }
@@ -917,7 +907,7 @@ export const BallPassGame: React.FC = () => {
           soundEngine.playPop();
         }
 
-        // Bouncy Mushroom Bumper collisions (with playful upward deflection!)
+        // Bouncy Mushroom Bumper collisions (playful gentle pinball bounce!)
         for (const bmp of bumpersRef.current) {
           const bx = (bmp.xPct / 100) * f.w;
           const by = (bmp.yPct / 100) * f.h;
@@ -931,21 +921,20 @@ export const BallPassGame: React.FC = () => {
             p.x = bx + nx * (minDist + 3);
             p.y = by + ny * (minDist + 3);
             const dot = p.vx * nx + p.vy * ny;
-            p.vx = (p.vx - 2 * dot * nx) * 1.04;
-            p.vy = (p.vy - 2 * dot * ny) * 1.04;
+            p.vx = (p.vx - 2 * dot * nx) * 1.02;
+            p.vy = (p.vy - 2 * dot * ny) * 1.02;
 
-            // Gentle upward/sideways pinball bias if ball was kicked up into bottom of bumper
-            if (p.vy > -120 && dy > 0) {
+            if (p.vy > -90 && dy > 0) {
               const side = dx >= 0 ? 1 : -1;
-              p.vx = side * Math.max(300, Math.abs(p.vx) + 180);
-              p.vy = -440;
+              p.vx = side * Math.max(220, Math.abs(p.vx) + 120);
+              p.vy = -310;
             }
             const spd = Math.hypot(p.vx, p.vy);
-            if (spd < 420) {
-              p.vx = (p.vx / Math.max(1, spd)) * 440;
-              p.vy = (p.vy / Math.max(1, spd)) * 440;
+            if (spd < 320) {
+              p.vx = (p.vx / Math.max(1, spd)) * 340;
+              p.vy = (p.vy / Math.max(1, spd)) * 340;
             }
-            p.kickScale = 1.22;
+            p.kickScale = 1.18;
             soundEngine.playBoing();
             setBoingMap((prev) => ({ ...prev, [bmp.id]: Date.now() }));
           }
@@ -959,12 +948,12 @@ export const BallPassGame: React.FC = () => {
         if (!hitGoal && p.phase === 'flying') {
           const currSpeed = Math.hypot(p.vx, p.vy);
           const returningDown =
-            (p.vy > 80 && p.y > f.h * 0.44) ||
-            (hitTopWall && p.flightTime > 0.35);
+            (p.vy > 70 && p.y > f.h * 0.44) ||
+            (hitTopWall && p.flightTime > 0.55);
           if (
-            currSpeed < 165 ||
+            currSpeed < 95 ||
             p.y > f.h * 0.78 ||
-            p.flightTime > 1.75 ||
+            p.flightTime > 2.6 ||
             returningDown
           ) {
             setMascotMood('encourage');
@@ -973,8 +962,8 @@ export const BallPassGame: React.FC = () => {
           }
         }
       } else if (p.phase === 'returning') {
-        // Fast, silky 0.34s ease-out roll straight back to Whit's feet!
-        p.returnT = Math.min(1, p.returnT + dt / 0.34);
+        // Smooth, calm 0.52s ease-out roll back to Whit's feet
+        p.returnT = Math.min(1, p.returnT + dt / 0.52);
         const ease = 1 - Math.pow(1 - p.returnT, 3);
         const targetX = f.w * 0.5;
         const targetY = f.h * 0.7;
@@ -982,12 +971,17 @@ export const BallPassGame: React.FC = () => {
         const prevY = p.y;
         p.x = p.returnStartX + (targetX - p.returnStartX) * ease;
         p.y = p.returnStartY + (targetY - p.returnStartY) * ease;
-        p.rot += Math.hypot(p.x - prevX, p.y - prevY) * 1.4;
+        p.rot += Math.hypot(p.x - prevX, p.y - prevY) * 1.1;
         if (p.returnT >= 1) {
           p.x = targetX;
           p.y = targetY;
           p.phase = 'ready';
         }
+      }
+
+      if (aimDirtyRef.current) {
+        aimDirtyRef.current = false;
+        setAimVisual(aimRef.current);
       }
 
       setBallRender((prev) => {
@@ -1112,10 +1106,10 @@ export const BallPassGame: React.FC = () => {
       const nearBall = Math.hypot(pt.x - p.x, pt.y - p.y) <= grabR;
       const now = performance.now();
 
-      const kind: DragKind = nearBall ? 'dribble' : 'aim';
+      const kind: DragKind = nearBall ? 'pending_ball' : 'aim';
       if (nearBall) {
         p.phase = 'dragging';
-        p.kickScale = 1.14;
+        p.kickScale = 1.12;
         soundEngine.playPop();
       } else {
         setTapRipple({ x: pt.x, y: pt.y, tick: Date.now() });
@@ -1136,7 +1130,7 @@ export const BallPassGame: React.FC = () => {
       // Preview aim immediately for non-ball touches pointing upfield
       if (!nearBall && pt.y < p.y - 12) {
         const locked = findAimedGoalId(p.x, p.y, pt.x, pt.y);
-        setAimVisual({
+        setAimBuffered({
           fromX: p.x,
           fromY: p.y,
           toX: pt.x,
@@ -1147,11 +1141,11 @@ export const BallPassGame: React.FC = () => {
           lockedGoalId: locked,
         });
       } else {
-        setAimVisual(null);
+        setAimBuffered(null);
       }
       return true;
     },
-    [ballRadius, findAimedGoalId]
+    [ballRadius, findAimedGoalId, setAimBuffered]
   );
 
   const moveGesture = useCallback(
@@ -1159,9 +1153,14 @@ export const BallPassGame: React.FC = () => {
       const g = gestureRef.current;
       if (!g) return;
       const p = physRef.current;
-      if (p.phase === 'scored') {
+      if (p.phase === 'scored' || p.phase === 'returning') {
         gestureRef.current = null;
-        setAimVisual(null);
+        setAimBuffered(null);
+        return;
+      }
+      if (g.kind !== 'aim' && p.phase !== 'dragging') {
+        gestureRef.current = null;
+        setAimBuffered(null);
         return;
       }
 
@@ -1173,126 +1172,115 @@ export const BallPassGame: React.FC = () => {
       const travel = Math.hypot(pt.x - g.start.x, pt.y - g.start.y);
       if (travel > g.maxTravel) g.maxTravel = travel;
       g.samples.push({ x: pt.x, y: pt.y, t: now });
-      // Keep last ~110ms of samples for silky flick velocity calculation
-      const cutoff = now - 110;
+      const cutoff = now - 120;
       while (g.samples.length > 2 && g.samples[0].t < cutoff) {
         g.samples.shift();
       }
 
       const swipeDx = pt.x - g.start.x;
       const swipeDy = pt.y - g.start.y;
+      const stepDx = pt.x - g.last.x;
+      const stepDy = pt.y - g.last.y;
 
-      if (g.kind === 'dribble' || g.kind === 'slingshot') {
-        // Switch into slingshot cleanly if pulling downward from kick spot before dribbling upfield
-        if (!g.hasDribbledUp && swipeDy > 24) {
+      // Lock ball gesture cleanly once finger moves > 14px so it NEVER flips back & forth!
+      if (g.kind === 'pending_ball' && travel >= 14) {
+        if (swipeDy > 14 && Math.abs(p.y - homeY) < 40) {
           g.kind = 'slingshot';
-        } else if (g.kind === 'slingshot' && swipeDy < 10) {
+        } else {
           g.kind = 'dribble';
         }
+      }
 
-        if (g.kind === 'slingshot') {
-          const pullDist = Math.min(48, Math.hypot(swipeDx, swipeDy));
-          const pullAngle = Math.atan2(swipeDy, swipeDx);
-          p.x = homeX + Math.cos(pullAngle) * pullDist;
-          p.y = homeY + Math.sin(pullAngle) * pullDist;
-          p.kickScale = 1.08 + (pullDist / 48) * 0.1;
+      if (g.kind === 'slingshot') {
+        const pullDist = Math.min(48, Math.hypot(swipeDx, swipeDy));
+        const pullAngle = Math.atan2(Math.max(10, swipeDy), swipeDx);
+        p.x = homeX + Math.cos(pullAngle) * pullDist;
+        p.y = homeY + Math.sin(pullAngle) * pullDist;
+        p.kickScale = 1.06 + (pullDist / 48) * 0.1;
 
-          // Forward aim arrow projects opposite the pull-back vector
-          const aimLen = Math.min(f.h * 0.48, 120 + pullDist * 3.8);
-          const toX = Math.max(20, Math.min(f.w - 20, homeX - Math.cos(pullAngle) * aimLen));
-          const toY = Math.max(24, Math.min(homeY - 36, homeY - Math.sin(pullAngle) * aimLen));
-          const locked = findAimedGoalId(homeX, homeY, toX, toY);
-          setAimVisual({
-            fromX: homeX,
-            fromY: homeY,
-            toX,
-            toY,
-            isSlingshot: true,
-            anchorX: p.x,
-            anchorY: p.y,
-            lockedGoalId: locked,
-          });
-        } else {
-          // DIRECT DRIBBLE / FLICK: ball smoothly rolls right under the child's finger!
-          if (swipeDy < -24) {
-            g.hasDribbledUp = true;
-          }
-          const pad = ballRadius + 10;
-          const nextX = Math.max(pad, Math.min(f.w - pad, pt.x));
-          const nextY = Math.max(pad, Math.min(f.h * 0.78, pt.y));
-          const stepDx = nextX - p.x;
-          const stepDy = nextY - p.y;
-          p.x = nextX;
-          p.y = nextY;
-          p.rot += stepDx * 1.15 - stepDy * 0.55;
-          p.kickScale = 1.12;
+        const aimLen = Math.min(f.h * 0.48, 120 + pullDist * 3.8);
+        const toX = Math.max(20, Math.min(f.w - 20, homeX - Math.cos(pullAngle) * aimLen));
+        const toY = Math.max(24, Math.min(homeY - 36, homeY - Math.sin(pullAngle) * aimLen));
+        setAimBuffered({
+          fromX: homeX,
+          fromY: homeY,
+          toX,
+          toY,
+          isSlingshot: true,
+          anchorX: p.x,
+          anchorY: p.y,
+          lockedGoalId: findAimedGoalId(homeX, homeY, toX, toY),
+        });
+      } else if (g.kind === 'dribble') {
+        // Delta movement keeps the ball silky-smooth with ZERO teleport on initial grab!
+        const pad = ballRadius + 10;
+        const nextX = Math.max(pad, Math.min(f.w - pad, p.x + stepDx));
+        const nextY = Math.max(pad, Math.min(f.h * 0.78, p.y + stepDy));
+        p.x = nextX;
+        p.y = nextY;
+        p.rot += stepDx * 1.1 - stepDy * 0.5;
+        p.kickScale = 1.1;
 
-          // Collect stars & check instant goal while dragging the ball!
-          collectTouchedStars(p.x, p.y);
+        collectTouchedStars(p.x, p.y);
 
-          // Gently nudge away from mushroom bumpers with a fun boing while dribbling
-          for (const bmp of bumpersRef.current) {
-            const bx = (bmp.xPct / 100) * f.w;
-            const by = (bmp.yPct / 100) * f.h;
-            const dx = p.x - bx;
-            const dy = p.y - by;
-            const dist = Math.hypot(dx, dy);
-            const minDist = ballRadius + bmp.rPx;
-            if (dist < minDist && dist > 0.1) {
-              p.x = bx + (dx / dist) * (minDist + 2);
-              p.y = by + (dy / dist) * (minDist + 2);
-              soundEngine.playBoing();
-              setBoingMap((prev) => ({ ...prev, [bmp.id]: Date.now() }));
-            }
-          }
-
-          if (checkGoalCollisions(p.x, p.y)) {
-            gestureRef.current = null;
-            cleanupWinListeners();
-            setAimVisual(null);
-            return;
-          }
-
-          // Project a helpful forward aim guide ahead of the ball along the drag direction
-          const oldest = g.samples[0] || g.start;
-          const dirDx = pt.x - oldest.x;
-          const dirDy = pt.y - oldest.y;
-          const dirLen = Math.hypot(dirDx, dirDy);
-          if (dirLen > 10 && dirDy < 12) {
-            const ux = dirDx / dirLen;
-            const uy = Math.min(-0.35, dirDy / dirLen);
-            const uNorm = Math.hypot(ux, uy);
-            const guideLen = isTablet ? 170 : 130;
-            const toX = Math.max(20, Math.min(f.w - 20, p.x + (ux / uNorm) * guideLen));
-            const toY = Math.max(20, p.y + (uy / uNorm) * guideLen);
-            setAimVisual({
-              fromX: p.x,
-              fromY: p.y,
-              toX,
-              toY,
-              isSlingshot: false,
-              anchorX: p.x,
-              anchorY: p.y,
-              lockedGoalId: findAimedGoalId(p.x, p.y, toX, toY),
-            });
-          } else {
-            setAimVisual(null);
+        for (const bmp of bumpersRef.current) {
+          const bx = (bmp.xPct / 100) * f.w;
+          const by = (bmp.yPct / 100) * f.h;
+          const dx = p.x - bx;
+          const dy = p.y - by;
+          const dist = Math.hypot(dx, dy);
+          const minDist = ballRadius + bmp.rPx;
+          if (dist < minDist && dist > 0.1) {
+            p.x = bx + (dx / dist) * (minDist + 2);
+            p.y = by + (dy / dist) * (minDist + 2);
+            soundEngine.playBoing();
+            setBoingMap((prev) => ({ ...prev, [bmp.id]: Date.now() }));
           }
         }
-      } else {
+
+        if (checkGoalCollisions(p.x, p.y)) {
+          gestureRef.current = null;
+          cleanupWinListeners();
+          setAimBuffered(null);
+          return;
+        }
+
+        const oldest = g.samples[0] || g.start;
+        const dirDx = pt.x - oldest.x;
+        const dirDy = pt.y - oldest.y;
+        const dirLen = Math.hypot(dirDx, dirDy);
+        if (dirLen > 12 && dirDy < 12) {
+          const ux = dirDx / dirLen;
+          const uy = Math.min(-0.35, dirDy / dirLen);
+          const uNorm = Math.hypot(ux, uy);
+          const guideLen = isTablet ? 165 : 125;
+          const toX = Math.max(20, Math.min(f.w - 20, p.x + (ux / uNorm) * guideLen));
+          const toY = Math.max(20, p.y + (uy / uNorm) * guideLen);
+          setAimBuffered({
+            fromX: p.x,
+            fromY: p.y,
+            toX,
+            toY,
+            isSlingshot: false,
+            anchorX: p.x,
+            anchorY: p.y,
+            lockedGoalId: findAimedGoalId(p.x, p.y, toX, toY),
+          });
+        } else {
+          setAimBuffered(null);
+        }
+      } else if (g.kind === 'aim') {
         // Field-wide tap / swipe aim
         let toX = pt.x;
         let toY = pt.y;
         let isSling = false;
         if (travel > 22) {
           if (swipeDy < -12) {
-            // Upward swipe anywhere on grass -> project from ball along swipe direction
             const len = Math.max(1, Math.hypot(swipeDx, swipeDy));
             const guideLen = Math.min(f.h * 0.52, Math.max(150, len * 1.9));
             toX = Math.max(20, Math.min(f.w - 20, p.x + (swipeDx / len) * guideLen));
             toY = Math.max(20, p.y + (swipeDy / len) * guideLen);
           } else if (swipeDy > 26) {
-            // Downward pull anywhere on grass -> slingshot upfield!
             isSling = true;
             const len = Math.max(1, Math.hypot(swipeDx, swipeDy));
             const guideLen = Math.min(f.h * 0.52, Math.max(150, len * 2.1));
@@ -1300,7 +1288,7 @@ export const BallPassGame: React.FC = () => {
             toY = Math.max(20, p.y - (swipeDy / len) * guideLen);
           }
         }
-        setAimVisual({
+        setAimBuffered({
           fromX: p.x,
           fromY: p.y,
           toX,
@@ -1321,6 +1309,7 @@ export const BallPassGame: React.FC = () => {
       collectTouchedStars,
       findAimedGoalId,
       isTablet,
+      setAimBuffered,
     ]
   );
 
@@ -1330,10 +1319,11 @@ export const BallPassGame: React.FC = () => {
       if (!g) return;
       gestureRef.current = null;
       cleanupWinListeners();
+      setAimBuffered(null);
       setAimVisual(null);
 
       const p = physRef.current;
-      if (p.phase === 'scored' || wonRef.current) return;
+      if (p.phase === 'scored' || p.phase === 'returning' || wonRef.current) return;
 
       const f = fieldRef.current;
       const homeX = f.w * 0.5;
@@ -1343,14 +1333,12 @@ export const BallPassGame: React.FC = () => {
       const swipeDy = pt.y - g.start.y;
 
       // 1. Short Tap (either on the ball OR anywhere on the field!)
-      if (g.maxTravel < 22) {
-        if (g.kind === 'dribble') {
-          // Tapped directly on the ball -> joyful pass straight to the waving animal!
+      if (g.maxTravel < 22 || g.kind === 'pending_ball') {
+        if (g.kind !== 'aim') {
           const tp = getGoalCenter(activeGoalRef.current);
           kickBallAlong(tp.x - p.x, tp.y - p.y);
           return;
         }
-        // Tapped on/near a goal? Aim cleanly into that goal!
         const tapGoalR = isTablet ? 98 : 78;
         for (const goal of goalsRef.current) {
           const gp = getGoalCenter(goal);
@@ -1359,28 +1347,26 @@ export const BallPassGame: React.FC = () => {
             return;
           }
         }
-        // Tapped behind/beside Whit? Pass straight to the waving animal!
         if (pt.y > p.y - 16) {
           const tp = getGoalCenter(activeGoalRef.current);
           kickBallAlong(tp.x - p.x, tp.y - p.y);
           return;
         }
-        // Tapped upfield -> kick straight toward tapped spot!
         kickBallAlong(pt.x - p.x, pt.y - p.y);
         return;
       }
 
-      // 2. Slingshot Release
+      // 2. Slingshot Release (calm, toddler-friendly power curve)
       if (g.kind === 'slingshot') {
         const pullDist = Math.min(48, Math.hypot(swipeDx, swipeDy));
-        const power = (isTablet ? 740 : 600) + (pullDist / 48) * (isTablet ? 360 : 280);
+        const power = (isTablet ? 410 : 340) + (pullDist / 48) * (isTablet ? 175 : 140);
         p.x = homeX;
         p.y = homeY;
-        kickBallAlong(-swipeDx, -swipeDy, power);
+        kickBallAlong(-swipeDx, -Math.max(10, swipeDy), power);
         return;
       }
 
-      // 3. Direct Dribble / Flick Release
+      // 3. Direct Dribble / Flick Release (gentle rolling momentum)
       if (g.kind === 'dribble') {
         const oldest = g.samples[0];
         const newest = g.samples[g.samples.length - 1];
@@ -1390,19 +1376,16 @@ export const BallPassGame: React.FC = () => {
         const recentSpeed = Math.hypot(recentDx, recentDy) / dtSec;
 
         if (recentSpeed > 180 && recentDy < 60) {
-          // Crisp flick release -> use recent flick direction & boosted speed!
           const launchSpeed = Math.min(
-            isTablet ? 1140 : 920,
-            Math.max(isTablet ? 740 : 600, recentSpeed * 0.92)
+            isTablet ? 590 : 480,
+            Math.max(isTablet ? 420 : 340, recentSpeed * 0.45)
           );
           kickBallAlong(recentDx, Math.min(-40, recentDy), launchSpeed);
         } else if (swipeDy < -24) {
-          // Slow push/drag forward then let go -> keep rolling smoothly forward!
-          kickBallAlong(swipeDx, swipeDy, isTablet ? 780 : 640);
+          kickBallAlong(swipeDx, swipeDy, isTablet ? 450 : 370);
         } else {
-          // Dragged sideways without pushing forward -> gently roll toward waving target!
           const tp = getGoalCenter(activeGoalRef.current);
-          kickBallAlong(tp.x - p.x, tp.y - p.y, isTablet ? 760 : 620);
+          kickBallAlong(tp.x - p.x, tp.y - p.y, isTablet ? 440 : 360);
         }
         return;
       }
@@ -1413,8 +1396,8 @@ export const BallPassGame: React.FC = () => {
       const dtSec = Math.max(0.016, (newest.t - oldest.t) / 1000);
       const flickSpeed = Math.hypot(newest.x - oldest.x, newest.y - oldest.y) / dtSec;
       const launchSpeed = Math.min(
-        isTablet ? 1100 : 900,
-        Math.max(isTablet ? 760 : 620, flickSpeed * 0.85)
+        isTablet ? 580 : 475,
+        Math.max(isTablet ? 420 : 340, flickSpeed * 0.45)
       );
 
       if (swipeDy < -12) {
@@ -1425,7 +1408,7 @@ export const BallPassGame: React.FC = () => {
         kickBallAlong(pt.x - p.x, Math.min(-40, pt.y - p.y), launchSpeed);
       }
     },
-    [cleanupWinListeners, getGoalCenter, isTablet, kickBallAlong]
+    [cleanupWinListeners, getGoalCenter, isTablet, kickBallAlong, setAimBuffered]
   );
 
   const attachWebWindowListeners = useCallback(
@@ -1502,10 +1485,10 @@ export const BallPassGame: React.FC = () => {
       const t = ev.changedTouches[0];
       if (!t) return;
       if (ev.cancelable) ev.preventDefault();
+      lastTouchEndRef.current = Date.now();
 
       const curr = gestureRef.current;
       if (curr && curr.mode === 'touch') {
-        // Verify old touch is still physically on screen; if not, clean up stale state
         let oldStillDown = false;
         for (let i = 0; i < ev.touches.length; i++) {
           if (ev.touches[i].identifier === curr.id) {
@@ -1514,8 +1497,6 @@ export const BallPassGame: React.FC = () => {
           }
         }
         if (oldStillDown) {
-          // If the old touch is just a stationary palm/thumb resting away from the ball,
-          // hand off control to the child's new active finger!
           const p = physRef.current;
           const newPt = getLocalCoords(t.clientX, t.clientY);
           const oldDist = Math.hypot(curr.last.x - p.x, curr.last.y - p.y);
@@ -1558,7 +1539,7 @@ export const BallPassGame: React.FC = () => {
             preventDefault?: () => void;
           }) => {
             if (e.pointerType === 'touch') return;
-            if (Date.now() - lastTouchEndRef.current < 500) return;
+            if (Date.now() - lastTouchEndRef.current < 700) return;
             if (gestureRef.current) return;
             e.preventDefault?.();
             const pt = getLocalCoords(e.clientX, e.clientY);
@@ -1897,37 +1878,46 @@ export const BallPassGame: React.FC = () => {
             );
           })}
 
-        {/* Inviting pulsing golden ring around the ball when ready or grabbed */}
-        {(ballRender.phase === 'ready' || ballRender.phase === 'dragging') && (
+        {/* Inviting pulsing golden ring when ready, and solid bright ring when grabbed */}
+        {ballRender.phase === 'ready' && (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.ballHalo,
-              ballRender.phase === 'dragging' && styles.ballHaloActive,
               {
                 left: ballRender.x - (ballRadius + 13),
                 top: ballRender.y - (ballRadius + 13),
                 width: (ballRadius + 13) * 2,
                 height: (ballRadius + 13) * 2,
                 borderRadius: ballRadius + 13,
-                opacity:
-                  ballRender.phase === 'dragging'
-                    ? 0.95
-                    : readyPulse.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.32, 0.78],
-                      }),
+                opacity: readyPulse.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.32, 0.78],
+                }),
                 transform: [
                   {
-                    scale:
-                      ballRender.phase === 'dragging'
-                        ? 1.12
-                        : readyPulse.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.96, 1.1],
-                          }),
+                    scale: readyPulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.96, 1.1],
+                    }),
                   },
                 ],
+              },
+            ]}
+          />
+        )}
+        {ballRender.phase === 'dragging' && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.ballHalo,
+              styles.ballHaloActive,
+              {
+                left: ballRender.x - (ballRadius + 15),
+                top: ballRender.y - (ballRadius + 15),
+                width: (ballRadius + 15) * 2,
+                height: (ballRadius + 15) * 2,
+                borderRadius: ballRadius + 15,
               },
             ]}
           />
