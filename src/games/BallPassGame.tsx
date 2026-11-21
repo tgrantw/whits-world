@@ -513,11 +513,21 @@ export const BallPassGame: React.FC = () => {
         }
       }
 
-      setBallRender({
-        x: p.x,
-        y: p.y,
-        rot: p.rot,
-        swayOffsetPx: p.goalSwayOffsetPx,
+      setBallRender((prev) => {
+        if (
+          Math.abs(prev.x - p.x) < 0.25 &&
+          Math.abs(prev.y - p.y) < 0.25 &&
+          Math.abs(prev.rot - p.rot) < 0.5 &&
+          Math.abs(prev.swayOffsetPx - p.goalSwayOffsetPx) < 0.25
+        ) {
+          return prev;
+        }
+        return {
+          x: p.x,
+          y: p.y,
+          rot: p.rot,
+          swayOffsetPx: p.goalSwayOffsetPx,
+        };
       });
 
       rafId = requestAnimationFrame(step);
@@ -1056,6 +1066,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'flex-start',
+    zIndex: 10,
   },
   goalAnimalPos: {
     position: 'absolute',
@@ -1065,9 +1076,11 @@ const styles = StyleSheet.create({
   },
   starAnchor: {
     position: 'absolute',
+    zIndex: 14,
   },
   bumperAnchor: {
     position: 'absolute',
+    zIndex: 15,
   },
   burstAnchor: {
     position: 'absolute',

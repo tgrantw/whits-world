@@ -2,7 +2,6 @@ import React, { useId } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Svg, {
   Circle,
-  ClipPath,
   Defs,
   Ellipse,
   G,
@@ -23,7 +22,7 @@ const INK = '#5C4432';
  * Lets the hand-painted `bg-clearing.png` show softly through layered botanical canopy
  * and dappled golden sunbeams.
  */
-export const JungleClearingBackdrop: React.FC = () => {
+export const JungleClearingBackdrop: React.FC = React.memo(() => {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
   return (
@@ -132,7 +131,7 @@ export const JungleClearingBackdrop: React.FC = () => {
       </Svg>
     </View>
   );
-};
+});
 
 /** Small storybook 5-petal wildflower for the meadow apron outside the touchlines */
 const Wildflower: React.FC<{
@@ -297,7 +296,7 @@ interface JungleSoccerPitchProps {
  * center circle (50%, 50%), kick spot (50%, 70%), bamboo corner flags,
  * wildflowers, and botanical corner foliage to the active field dimensions.
  */
-export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = ({
+export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = React.memo(({
   width,
   height,
   difficulty,
@@ -338,6 +337,20 @@ export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = ({
   const aBLx = Math.max(4, leftAt(apronBot) - apronPadX);
   const aBRx = Math.min(w - 4, rightAt(apronBot) + apronPadX);
 
+  const apronH = Math.max(120, apronBot - apronTop);
+  const apronLeftAt = (y: number) => {
+    const t = Math.max(0, Math.min(1, (y - apronTop) / apronH));
+    return aTLx + (aBLx - aTLx) * t;
+  };
+  const apronRightAt = (y: number) => {
+    const t = Math.max(0, Math.min(1, (y - apronTop) / apronH));
+    return aTRx + (aBRx - aTRx) * t;
+  };
+  const apronPx = (fracX: number, y: number) => {
+    const l = apronLeftAt(y);
+    return l + fracX * (apronRightAt(y) - l);
+  };
+
   // Softly rounded trapezoid path for the mowed turf apron
   const rCorner = isTablet ? 22 : 16;
   const apronPath = [
@@ -353,9 +366,8 @@ export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = ({
     'Z',
   ].join(' ');
 
-  // 10 alternating horizontal mowed grass bands spanning the turf apron
+  // 10 alternating horizontal mowed grass bands drawn directly as exact trapezoid paths (zero ClipPath!)
   const stripeCount = 10;
-  const apronH = apronBot - apronTop;
   const stripeH = apronH / stripeCount;
 
   // Key pitch landmarks aligned directly with BallPassGame physics coordinates!
@@ -535,38 +547,13 @@ export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = ({
       pointerEvents="none"
     >
       <Defs>
-        <ClipPath id={`pitchClip-${uid}`}>
-          <Path d={apronPath} />
-        </ClipPath>
-
         {/* Warm painterly vertical sunlight wash over the mowed stripes */}
         <LinearGradient id={`turfLight-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#FFF9D6" stopOpacity="0.18" />
+          <Stop offset="0" stopColor="#FFF9D6" stopOpacity="0.16" />
           <Stop offset="0.45" stopColor="#FFF9D6" stopOpacity="0.02" />
           <Stop offset="0.82" stopColor="#3B6E30" stopOpacity="0.06" />
           <Stop offset="1" stopColor="#2F5D28" stopOpacity="0.14" />
         </LinearGradient>
-
-        {/* Soft watercolor sun-dapple pools */}
-        <RadialGradient id={`sunPool-${uid}`} cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor="#FFFAD4" stopOpacity="0.28" />
-          <Stop offset="0.65" stopColor="#EBF5B5" stopOpacity="0.1" />
-          <Stop offset="1" stopColor="#EBF5B5" stopOpacity="0" />
-        </RadialGradient>
-
-        {/* Subtle warm sandy-earth scuff around the kick spot & goal mouths */}
-        <RadialGradient id={`wornTurf-${uid}`} cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor="#D6CE86" stopOpacity="0.34" />
-          <Stop offset="0.65" stopColor="#B8CA72" stopOpacity="0.14" />
-          <Stop offset="1" stopColor="#94C564" stopOpacity="0" />
-        </RadialGradient>
-
-        {/* Soft glowing chalk halo under the ball's starting kick spot */}
-        <RadialGradient id={`kickHalo-${uid}`} cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor="#FFFBE6" stopOpacity="0.46" />
-          <Stop offset="0.65" stopColor="#FFFBE6" stopOpacity="0.16" />
-          <Stop offset="1" stopColor="#FFFBE6" stopOpacity="0" />
-        </RadialGradient>
       </Defs>
 
       {/* Soft deep-meadow shadow framing the mowed soccer pitch */}
@@ -574,64 +561,70 @@ export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = ({
         <Path d={apronPath} fill="rgba(34, 68, 28, 0.24)" />
       </G>
 
-      {/* Rich mossy meadow rim around the turf bed */}
-      <Path
-        d={apronPath}
-        fill="#66A04B"
-        stroke="rgba(74, 53, 37, 0.28)"
-        strokeWidth="2.4"
-      />
+      {/* Base sunlit mowed turf apron (even bands color) */}
+      <Path d={apronPath} fill="#A3D670" />
 
-      {/* Clipped alternating watercolor mowed grass stripes & sun dapples */}
-      <G clipPath={`url(#pitchClip-${uid})`}>
-        {Array.from({ length: stripeCount }, (_, idx) => {
-          const y0 = apronTop + idx * stripeH;
-          const isLight = idx % 2 === 0;
+      {/* Alternating darker clover-green mowed stripes drawn directly as trapezoid paths (zero ClipPath!) */}
+      {[1, 3, 5, 7, 9].map((idx) => {
+        const y0 = apronTop + idx * stripeH;
+        const y1 = Math.min(apronBot, apronTop + (idx + 1) * stripeH);
+        const l0 = apronLeftAt(y0) + 1.5;
+        const r0 = apronRightAt(y0) - 1.5;
+        const l1 = apronLeftAt(y1) + 1.5;
+        const r1 = apronRightAt(y1) - 1.5;
+        if (idx === 9) {
+          const rc = Math.min(rCorner, Math.max(4, y1 - y0 - 2));
           return (
-            <Rect
+            <Path
               key={`stripe-${idx}`}
-              x={0}
-              y={y0 - 0.5}
-              width={w}
-              height={stripeH + 1}
-              fill={isLight ? '#A3D670' : '#89C05E'}
+              d={`M ${l0} ${y0} L ${r0} ${y0} L ${r1} ${y1 - rc} Q ${r1} ${y1} ${r1 - rc} ${y1} L ${l1 + rc} ${y1} Q ${l1} ${y1} ${l1} ${y1 - rc} Z`}
+              fill="#89C05E"
             />
           );
-        })}
+        }
+        return (
+          <Path
+            key={`stripe-${idx}`}
+            d={`M ${l0} ${y0} L ${r0} ${y0} L ${r1} ${y1} L ${l1} ${y1} Z`}
+            fill="#89C05E"
+          />
+        );
+      })}
 
-        {/* Symmetric 5-column stadium mow sheen (bright sunlit center lane from Whit to center goal) */}
-        <Rect x={0} y={apronTop} width={w * 0.2} height={apronH} fill="rgba(255, 252, 224, 0.045)" />
-        <Rect x={w * 0.2} y={apronTop} width={w * 0.2} height={apronH} fill="rgba(44, 84, 34, 0.035)" />
-        <Rect x={w * 0.4} y={apronTop} width={w * 0.2} height={apronH} fill="rgba(255, 252, 224, 0.055)" />
-        <Rect x={w * 0.6} y={apronTop} width={w * 0.2} height={apronH} fill="rgba(44, 84, 34, 0.035)" />
-        <Rect x={w * 0.8} y={apronTop} width={w * 0.2} height={apronH} fill="rgba(255, 252, 224, 0.045)" />
+      {/* Symmetric 5-column stadium mow sheen drawn directly as lightweight trapezoids */}
+      <Path
+        d={`M ${apronPx(0.2, apronTop + 2)} ${apronTop + 2} L ${apronPx(0.4, apronTop + 2)} ${apronTop + 2} L ${apronPx(0.4, apronBot - 2)} ${apronBot - 2} L ${apronPx(0.2, apronBot - 2)} ${apronBot - 2} Z`}
+        fill="rgba(44, 84, 34, 0.04)"
+      />
+      <Path
+        d={`M ${apronPx(0.4, apronTop + 2)} ${apronTop + 2} L ${apronPx(0.6, apronTop + 2)} ${apronTop + 2} L ${apronPx(0.6, apronBot - 2)} ${apronBot - 2} L ${apronPx(0.4, apronBot - 2)} ${apronBot - 2} Z`}
+        fill="rgba(255, 252, 224, 0.06)"
+      />
+      <Path
+        d={`M ${apronPx(0.6, apronTop + 2)} ${apronTop + 2} L ${apronPx(0.8, apronTop + 2)} ${apronTop + 2} L ${apronPx(0.8, apronBot - 2)} ${apronBot - 2} L ${apronPx(0.6, apronBot - 2)} ${apronBot - 2} Z`}
+        fill="rgba(44, 84, 34, 0.04)"
+      />
 
-        {/* Vertical watercolor sunlit-to-shaded turf depth */}
-        <Rect x={0} y={apronTop} width={w} height={apronH} fill={`url(#turfLight-${uid})`} />
+      {/* Vertical watercolor sunlit-to-shaded turf depth */}
+      <Path d={apronPath} fill={`url(#turfLight-${uid})`} />
 
-        {/* Soft dappled golden jungle sun pools */}
-        <Ellipse cx={w * 0.26} cy={h * 0.34} rx={w * 0.18} ry={h * 0.11} fill={`url(#sunPool-${uid})`} />
-        <Ellipse cx={w * 0.74} cy={h * 0.58} rx={w * 0.2} ry={h * 0.12} fill={`url(#sunPool-${uid})`} />
-        <Ellipse cx={w * 0.5} cy={h * 0.72} rx={w * 0.24} ry={h * 0.11} fill={`url(#sunPool-${uid})`} />
+      {/* Warm lived-in turf scuffs at Whit's kick spot & center goal mouth */}
+      <Ellipse cx={w * 0.5} cy={kickY} rx={isTablet ? 36 : 26} ry={isTablet ? 15 : 11} fill="rgba(214, 206, 134, 0.14)" />
+      <Ellipse cx={w * 0.5} cy={lineTop + 14} rx={isTablet ? 42 : 30} ry={isTablet ? 15 : 11} fill="rgba(214, 206, 134, 0.14)" />
 
-        {/* Beloved lived-in warm turf scuffs in goal mouths & at Whit's kick spot */}
-        <Ellipse cx={w * 0.5} cy={kickY} rx={isTablet ? 44 : 32} ry={isTablet ? 20 : 14} fill={`url(#wornTurf-${uid})`} />
-        <Ellipse cx={w * 0.5} cy={lineTop + 14} rx={isTablet ? 52 : 36} ry={isTablet ? 20 : 14} fill={`url(#wornTurf-${uid})`} />
-        {difficulty > 1 && (
-          <>
-            <Ellipse cx={w * 0.2} cy={h * 0.24} rx={isTablet ? 40 : 28} ry={isTablet ? 16 : 12} fill={`url(#wornTurf-${uid})`} />
-            <Ellipse cx={w * 0.8} cy={h * 0.24} rx={isTablet ? 40 : 28} ry={isTablet ? 16 : 12} fill={`url(#wornTurf-${uid})`} />
-          </>
-        )}
-
-        {/* Inner sunlit bevel highlight along top & left turf edge */}
-        <Path
-          d={apronPath}
-          fill="none"
-          stroke="rgba(255, 250, 224, 0.28)"
-          strokeWidth="4"
-        />
-      </G>
+      {/* Inner sunlit bevel & mossy hand-inked pitch border */}
+      <Path
+        d={apronPath}
+        fill="none"
+        stroke="rgba(255, 250, 224, 0.3)"
+        strokeWidth="3.5"
+      />
+      <Path
+        d={apronPath}
+        fill="none"
+        stroke="rgba(74, 53, 37, 0.26)"
+        strokeWidth="2.2"
+      />
 
       {/* Crisp Storybook Chalk Markings (shadow underlay + warm cream chalk) */}
       {renderChalkLines(chalkShadow, chalkW + 1.4, 1.4)}
@@ -657,9 +650,9 @@ export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = ({
       <Ellipse
         cx={w * 0.5}
         cy={kickY}
-        rx={isTablet ? 26 : 20}
-        ry={isTablet ? 18 : 14}
-        fill={`url(#kickHalo-${uid})`}
+        rx={isTablet ? 24 : 18}
+        ry={isTablet ? 16 : 12}
+        fill="rgba(255, 251, 230, 0.24)"
       />
       <Ellipse
         cx={w * 0.5}
@@ -743,7 +736,7 @@ export const JungleSoccerPitch: React.FC<JungleSoccerPitchProps> = ({
       )}
     </Svg>
   );
-};
+});
 
 /**
  * Hand-painted 3D wooden & bamboo storybook jungle soccer goal with diamond rope
@@ -753,7 +746,7 @@ export const JungleGoalArchSvg: React.FC<{
   width: number;
   height: number;
   active: boolean;
-}> = ({ width, height, active }) => {
+}> = React.memo(({ width, height, active }) => {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
   return (
@@ -913,4 +906,4 @@ export const JungleGoalArchSvg: React.FC<{
       <Circle cx="142" cy="22" r="3.4" fill={active ? '#FFE672' : '#F8D459'} stroke={INK} strokeWidth="1.2" />
     </Svg>
   );
-};
+});
