@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Whit's World",
+    "slug": "whits-world",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#EBF8E5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.whitsworld.puzzles"
+    },
+    "android": {
+      "package": "com.whitsworld.puzzles",
+      "adaptiveIcon": {
+        "backgroundColor": "#EBF8E5",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "name": "Whit's World",
+      "shortName": "Whit's World",
+      "backgroundColor": "#EBF8E5",
+      "themeColor": "#3E9B47"
+    }
+  }
+}
