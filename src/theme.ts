@@ -10,7 +10,8 @@ export type GameId =
   | 'baby-match'
   | 'jungle-music'
   | 'arctic-catch'
-  | 'jungle-picnic';
+  | 'jungle-picnic'
+  | 'zoo-coloring';
 
 export interface GameMeta {
   id: GameId;
@@ -112,6 +113,17 @@ export const GAMES: GameMeta[] = [
     plaqueInner: '#FFF8ED',
     plaqueBorder: '#A9612C',
     accent: '#C96D2E',
+    leafTint: '#E8A530',
+  },
+  {
+    id: 'zoo-coloring',
+    title: 'Zoo Coloring',
+    subtitle: 'Paint cute animals!',
+    isFree: true,
+    plaqueBg: '#F7C9DA',
+    plaqueInner: '#FFF5F9',
+    plaqueBorder: '#A84E73',
+    accent: '#D15B89',
     leafTint: '#E8A530',
   },
   {

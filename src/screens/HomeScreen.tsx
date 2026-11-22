@@ -609,6 +609,29 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
           </View>
         </View>
       );
+    case 'zoo-coloring':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 4 }]}>
+          <Svg width={s(54)} height={s(50)} viewBox="0 0 64 58">
+            <Path
+              d="M 32 6 C 49 6 60 16 60 30 C 60 44 48 52 34 52 C 26 52 24 46 28 42 C 31 39 27 35 22 38 C 12 43 4 37 4 27 C 4 14 16 6 32 6 Z"
+              fill="#F6E2B8"
+              stroke="#4A3525"
+              strokeWidth="2.8"
+              strokeLinejoin="round"
+            />
+            <Circle cx="18" cy="24" r="5" fill="#E85A50" stroke="#4A3525" strokeWidth="1.5" />
+            <Circle cx="28" cy="15" r="5" fill="#FAD44A" stroke="#4A3525" strokeWidth="1.5" />
+            <Circle cx="42" cy="16" r="5" fill="#5BB55E" stroke="#4A3525" strokeWidth="1.5" />
+            <Circle cx="49" cy="28" r="5" fill="#4DAAD8" stroke="#4A3525" strokeWidth="1.5" />
+            <Circle cx="42" cy="40" r="4.8" fill="#F082A8" stroke="#4A3525" strokeWidth="1.5" />
+            <Circle cx="16" cy="34" r="4" fill="#FFFDF7" stroke="#4A3525" strokeWidth="1.8" />
+          </Svg>
+          <AnimatedZooAnimal size={s(46)} seed={15} weight="medium">
+            <ZooExhibitAnimalSvg animal="lion" size={s(46)} />
+          </AnimatedZooAnimal>
+        </View>
+      );
   }
 };
 
@@ -692,7 +715,7 @@ export const HomeScreen: React.FC = () => {
                   isTablet && { fontSize: 15.5 },
                 ]}
               >
-                Unlock All 10 Zoo Games ({UNLOCK_PRICE_DISPLAY})
+                Unlock All {GAMES.length} Zoo Games ({UNLOCK_PRICE_DISPLAY})
               </Text>
               <Text
                 style={[

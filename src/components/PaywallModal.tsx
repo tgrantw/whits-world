@@ -13,7 +13,7 @@ import {
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
-import { COLORS, UNLOCK_PRICE_DISPLAY, UNLOCK_PRODUCT_ID } from '../theme';
+import { COLORS, GAMES, UNLOCK_PRICE_DISPLAY, UNLOCK_PRODUCT_ID } from '../theme';
 import { CrownIcon, JungleBushCoverSvg, StarIcon } from './JungleArt';
 import { TactileButton } from './TactileButton';
 import { WhitMascot } from './WhitMascot';
@@ -304,7 +304,7 @@ export const PaywallModal: React.FC = () => {
                 <TactileButton
                   onPress={handlePurchaseUnlockAll}
                   disabled={isPurchasing}
-                  accessibilityLabel={`Unlock All 10 Games — ${UNLOCK_PRICE_DISPLAY}`}
+                  accessibilityLabel={`Unlock All ${GAMES.length} Games — ${UNLOCK_PRICE_DISPLAY}`}
                 >
                   <View
                     style={[
@@ -318,7 +318,7 @@ export const PaywallModal: React.FC = () => {
                       <View style={styles.buyBtnInner}>
                         <CrownIcon size={20} color="#FFE578" />
                         <Text style={styles.buyBtnText}>
-                          Unlock All 10 Games — {UNLOCK_PRICE_DISPLAY}
+                          Unlock All {GAMES.length} Games — {UNLOCK_PRICE_DISPLAY}
                         </Text>
                       </View>
                     )}

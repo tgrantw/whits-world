@@ -17,6 +17,7 @@ import { JungleMusicGame } from './src/games/JungleMusicGame';
 import { JunglePicnicGame } from './src/games/JunglePicnicGame';
 import { ShapeSorterGame } from './src/games/ShapeSorterGame';
 import { SizeSorterGame } from './src/games/SizeSorterGame';
+import { ZooColoringGame } from './src/games/ZooColoringGame';
 import { HomeScreen } from './src/screens/HomeScreen';
 
 const RootNavigator: React.FC = () => {
@@ -60,6 +61,8 @@ const RootNavigator: React.FC = () => {
         return <ArcticCatchGame />;
       case 'jungle-picnic':
         return <JunglePicnicGame />;
+      case 'zoo-coloring':
+        return <ZooColoringGame />;
       default:
         return <HomeScreen />;
     }
