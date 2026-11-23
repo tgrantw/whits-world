@@ -1,41 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  Image,
-  PanResponder,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
-import { STORYBOOK_ASSETS } from '../assets/assetMap';
-import {
-  AnimatedZooAnimal,
-  getAnimalWeight,
-} from '../components/AnimatedZooAnimal';
+import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import { STORYBOOK_ANIMALS, STORYBOOK_ASSETS } from '../assets/assetMap';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
-import {
-  JungleClearingBackdrop,
-  JungleGoalArchSvg,
-  JungleSoccerPitch,
-} from '../components/JungleSoccerPitch';
-import { SnapBurst } from '../components/SnapBurst';
-import { WhitMascot, WhitMood } from '../components/WhitMascot';
-import {
-  ExhibitAnimalKind,
-  ZooExhibitAnimalSvg,
-} from '../components/ZooExhibitAnimals';
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { Difficulty } from '../theme';
+import { ExhibitAnimalKind } from '../components/ZooExhibitAnimals';
 
 const GOAL_ANIMALS: ExhibitAnimalKind[] = ['lion', 'elephant', 'giraffe', 'panda'];
 const GOALS_TO_WIN = 4;
-const TRAIL_COUNT = 4;
+const INK = '#5C4432';
 
 type BallPhase = 'ready' | 'dragging' | 'flying' | 'returning' | 'scored';
 type DragKind = 'pending_ball' | 'dribble' | 'slingshot' | 'aim';
@@ -73,13 +49,38 @@ interface AimVisual {
 }
 
 interface ActiveGesture {
-  mode: 'touch' | 'pointer' | 'native';
+  mode: 'touch' | 'pointer';
   id: number;
   kind: DragKind;
   start: { x: number; y: number };
   last: { x: number; y: number };
   maxTravel: number;
   samples: { x: number; y: number; t: number }[];
+}
+
+interface CanvasParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+interface CanvasRipple {
+  x: number;
+  y: number;
+  age: number;
+  duration: number;
+}
+
+interface CanvasBanner {
+  x: number;
+  y: number;
+  age: number;
+  duration: number;
 }
 
 function buildGoals(difficulty: Difficulty, roundSeed: number): GoalSpec[] {
@@ -95,27 +96,19 @@ function buildGoals(difficulty: Difficulty, roundSeed: number): GoalSpec[] {
   ];
 }
 
-/**
- * Place bouncy mushroom bumpers so they NEVER dead-block the straight lane to
- * the waving target animal, while staying fun for bank shots & boings!
- */
 function buildBumpers(
   difficulty: Difficulty,
   isTablet: boolean,
   targetGoalBaseXPct: number,
   targetGoalIdx: number
 ): BumperSpec[] {
-  const rPx = isTablet ? 33 : 24;
+  const rPx = isTablet ? 32 : 23;
   if (difficulty === 1) return [];
   if (difficulty === 2) {
     let xPct = 50;
-    if (targetGoalBaseXPct < 35) {
-      xPct = 58;
-    } else if (targetGoalBaseXPct > 65) {
-      xPct = 42;
-    } else {
-      xPct = targetGoalIdx % 2 === 0 ? 31 : 69;
-    }
+    if (targetGoalBaseXPct < 35) xPct = 58;
+    else if (targetGoalBaseXPct > 65) xPct = 42;
+    else xPct = targetGoalIdx % 2 === 0 ? 31 : 69;
     return [{ id: 'mush-mid', xPct, yPct: 49, rPx }];
   }
   return [
@@ -135,248 +128,340 @@ function buildStars(targetXPct: number, targetYPct: number): PathStar[] {
   }));
 }
 
-/** Soft gouache-shaded spotted storybook jungle mushroom bumper (zero SVG gradients) */
-const MushroomBumperSvg: React.FC<{ size: number; boingTick: number }> = React.memo(
-  ({ size, boingTick }) => {
-    const scale = useRef(new Animated.Value(1)).current;
-
-    useEffect(() => {
-      if (!boingTick) return;
-      scale.setValue(0.76);
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 3.2,
-        tension: 220,
-        useNativeDriver: true,
-      }).start();
-    }, [boingTick, scale]);
-
-    return (
-      <Animated.View style={{ transform: [{ scale }] }} pointerEvents="none">
-        <Svg width={size} height={size} viewBox="0 0 100 100">
-          <Ellipse cx="50" cy="87" rx="30" ry="8.5" fill="rgba(44, 78, 38, 0.24)" />
-          <Path
-            d="M 38 56 L 34 83 Q 50 91 66 83 L 62 56 Z"
-            fill="#F5E6C8"
-            stroke="#6A4D38"
-            strokeWidth="2.8"
-            strokeLinejoin="round"
-          />
-          <Path
-            d="M 11 56 C 11 23 30 11 50 11 C 70 11 89 23 89 56 C 72 64 28 64 11 56 Z"
-            fill="#DF7258"
-            stroke="#6A4D38"
-            strokeWidth="3"
-            strokeLinejoin="round"
-          />
-          <Ellipse
-            cx="36"
-            cy="24"
-            rx="14"
-            ry="6"
-            fill="#FFE8D6"
-            opacity="0.38"
-            transform="rotate(-18 36 24)"
-          />
-          <Circle cx="34" cy="35" r="7.5" fill="#FFF7E4" opacity="0.92" />
-          <Circle cx="59" cy="29" r="9" fill="#FFF7E4" opacity="0.92" />
-          <Circle cx="72" cy="46" r="5.5" fill="#FFF7E4" opacity="0.88" />
-          <Circle cx="26" cy="48" r="4.8" fill="#FFF7E4" opacity="0.88" />
-        </Svg>
-      </Animated.View>
-    );
-  }
-);
-
-/** Bouncing golden pointer above the active target animal's goal */
-const TargetGoalPointer: React.FC<{ isTablet: boolean }> = React.memo(({ isTablet }) => {
-  const bob = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bob, {
-          toValue: -7,
-          duration: 500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(bob, {
-          toValue: 0,
-          duration: 500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [bob]);
-
-  const sz = isTablet ? 30 : 24;
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        top: isTablet ? -26 : -21,
-        transform: [{ translateY: bob }],
-        zIndex: 20,
-      }}
-    >
-      <Svg width={sz} height={sz} viewBox="0 0 32 32">
-        <Path
-          d="M 16 27 L 5 12 Q 4 10 6.5 10 L 12 10 L 12 4.5 Q 12 3 13.5 3 L 18.5 3 Q 20 3 20 4.5 L 20 10 L 25.5 10 Q 28 10 27 12 Z"
-          fill="#FFE066"
-          stroke="#6A4822"
-          strokeWidth="2.4"
-          strokeLinejoin="round"
-        />
-      </Svg>
-    </Animated.View>
-  );
-});
-
-/** Zoo animal standing by its goal */
-const GoalAnimal: React.FC<{
-  animal: ExhibitAnimalKind;
-  size: number;
-  seed: number;
-  isTarget: boolean;
-  isCelebrating: boolean;
-}> = React.memo(({ animal, size, seed, isTarget, isCelebrating }) => {
-  const animState = isCelebrating ? 'celebrate' : isTarget ? 'calling' : 'idle';
-  return (
-    <View pointerEvents="none">
-      <AnimatedZooAnimal
-        state={animState}
-        size={size}
-        seed={seed}
-        weight={getAnimalWeight(animal)}
-      >
-        <ZooExhibitAnimalSvg
-          animal={animal}
-          size={size}
-          highlighted={isTarget || isCelebrating}
-        />
-      </AnimatedZooAnimal>
-    </View>
-  );
-});
-
-/** Soft expanding golden touch ripple on the grass */
-const TapRipple: React.FC<{ x: number; y: number }> = React.memo(({ x, y }) => {
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: 360,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  }, [anim]);
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.tapRipple,
-        {
-          left: x - 28,
-          top: y - 28,
-          opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 0] }),
-          transform: [
-            {
-              scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1.8] }),
-            },
-          ],
-        },
-      ]}
-    />
-  );
-});
-
-/** Floating celebratory "GOAL!" pill badge when scoring */
-const GoalBannerPop: React.FC<{ x: number; y: number; fieldW: number }> = React.memo(
-  ({ x, y, fieldW }) => {
-    const anim = useRef(new Animated.Value(0)).current;
-    const fade = useRef(new Animated.Value(1)).current;
-
-    useEffect(() => {
-      Animated.sequence([
-        Animated.spring(anim, {
-          toValue: 1,
-          friction: 4.5,
-          tension: 180,
-          useNativeDriver: true,
-        }),
-        Animated.delay(340),
-        Animated.timing(fade, {
-          toValue: 0,
-          duration: 240,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, [anim, fade]);
-
-    const clampedX = Math.max(76, Math.min(fieldW - 76, x));
-    const clampedY = Math.max(24, y - 34);
-
-    return (
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.goalBanner,
-          {
-            left: clampedX - 66,
-            top: clampedY,
-            opacity: fade,
-            transform: [
-              {
-                translateY: anim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [18, -12],
-                }),
-              },
-              {
-                scale: anim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.6, 1],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <Text style={styles.goalBannerText}>⭐ GOAL! ⭐</Text>
-      </Animated.View>
-    );
-  }
-);
-
-function resolveDomElement(node: unknown): HTMLElement | null {
-  if (!node) return null;
-  const raw = node as {
-    addEventListener?: HTMLElement['addEventListener'];
-    getBoundingClientRect?: () => DOMRect;
-    getNode?: () => HTMLElement;
-  };
-  if (typeof raw.getBoundingClientRect === 'function') {
-    return raw as unknown as HTMLElement;
-  }
-  if (typeof raw.getNode === 'function') {
-    return raw.getNode();
+function getWebAssetUri(asset: unknown): string | null {
+  if (!asset) return null;
+  if (typeof asset === 'string') return asset;
+  if (typeof asset === 'object' && asset !== null) {
+    const obj = asset as { uri?: string; default?: string };
+    if (typeof obj.uri === 'string') return obj.uri;
+    if (typeof obj.default === 'string') return obj.default;
   }
   return null;
 }
 
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  const rad = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.lineTo(x + w - rad, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+  ctx.lineTo(x + w, y + h - rad);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+  ctx.lineTo(x + rad, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+  ctx.lineTo(x, y + rad);
+  ctx.quadraticCurveTo(x, y, x + rad, y);
+  ctx.closePath();
+}
+
+function drawStarShape(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  outerR: number,
+  innerR: number
+) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 === 0 ? outerR : innerR;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function drawCornerFlag(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  pennantColor: string,
+  flipX: boolean
+) {
+  const dir = flipX ? -1 : 1;
+  ctx.save();
+  // Ground shadow
+  ctx.fillStyle = 'rgba(38, 68, 30, 0.28)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 6, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pennant
+  ctx.fillStyle = pennantColor;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 22);
+  ctx.quadraticCurveTo(x + dir * 7, y - 24, x + dir * 14, y - 17);
+  ctx.quadraticCurveTo(x + dir * 7, y - 13, x, y - 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Bamboo pole
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - 23);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#E4B878';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - 23);
+  ctx.stroke();
+
+  // Top finial
+  ctx.fillStyle = '#F8D86A';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.arc(x, y - 23, 2.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawJungleGoal(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  goalW: number,
+  goalH: number,
+  active: boolean,
+  locked: boolean
+) {
+  ctx.save();
+  const x0 = cx - goalW / 2;
+  const y0 = cy - goalH / 2;
+  const sx = goalW / 160;
+  const sy = goalH / 110;
+  ctx.translate(x0, y0);
+  ctx.scale(sx, sy);
+
+  // Aim-lock glow frame
+  if (locked) {
+    roundedRectPath(ctx, -6, -6, 172, 118, 26);
+    ctx.fillStyle = 'rgba(255, 232, 118, 0.28)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 240, 150, 0.92)';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+  }
+
+  // Soft grass shadow
+  ctx.fillStyle = 'rgba(38, 72, 32, 0.26)';
+  ctx.beginPath();
+  ctx.ellipse(80, 95, 70, 12.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Active target golden glow
+  if (active) {
+    ctx.fillStyle = 'rgba(255, 224, 102, 0.44)';
+    ctx.beginPath();
+    ctx.ellipse(80, 91, 76, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Net backdrop
+  ctx.fillStyle = 'rgba(255, 249, 236, 0.30)';
+  ctx.beginPath();
+  ctx.moveTo(21, 92);
+  ctx.lineTo(32, 34);
+  ctx.quadraticCurveTo(80, 22, 128, 34);
+  ctx.lineTo(139, 92);
+  ctx.closePath();
+  ctx.fill();
+
+  // Rear support frame
+  ctx.strokeStyle = 'rgba(92, 68, 50, 0.34)';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(29, 90);
+  ctx.lineTo(35, 37);
+  ctx.quadraticCurveTo(80, 25, 125, 37);
+  ctx.lineTo(131, 90);
+  ctx.stroke();
+
+  // Rope netting grid
+  const drawNetLines = (stroke: string, lw: number) => {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(42, 29); ctx.lineTo(38, 91);
+    ctx.moveTo(58, 24); ctx.lineTo(56, 91);
+    ctx.moveTo(80, 22); ctx.lineTo(80, 91);
+    ctx.moveTo(102, 24); ctx.lineTo(104, 91);
+    ctx.moveTo(118, 29); ctx.lineTo(122, 91);
+    ctx.moveTo(27, 48); ctx.quadraticCurveTo(80, 39, 133, 48);
+    ctx.moveTo(25, 63); ctx.quadraticCurveTo(80, 55, 135, 63);
+    ctx.moveTo(23, 78); ctx.quadraticCurveTo(80, 71, 137, 78);
+    ctx.stroke();
+  };
+  drawNetLines('rgba(92, 68, 50, 0.24)', 2.4);
+  drawNetLines('rgba(255, 250, 236, 0.68)', 1.4);
+
+  // Carved wooden frame (ink contour + warm fill)
+  ctx.beginPath();
+  ctx.moveTo(18, 94);
+  ctx.lineTo(20, 28);
+  ctx.quadraticCurveTo(80, 9, 140, 28);
+  ctx.lineTo(142, 94);
+  ctx.strokeStyle = '#5E412B';
+  ctx.lineWidth = 15.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = active ? '#F4C654' : '#D29A58';
+  ctx.lineWidth = 10.5;
+  ctx.stroke();
+
+  // Crossbar sunlight highlight
+  ctx.beginPath();
+  ctx.moveTo(25, 26);
+  ctx.quadraticCurveTo(80, 9.5, 135, 26);
+  ctx.strokeStyle = active ? 'rgba(255,247,220,0.88)' : 'rgba(255,247,220,0.62)';
+  ctx.lineWidth = 2.8;
+  ctx.stroke();
+
+  // Corner green leaves & blossoms
+  const drawLeaf = (x: number, y: number, flip: number) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(flip, 1);
+    ctx.fillStyle = '#66A554';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-15, -12, 0, -20);
+    ctx.quadraticCurveTo(12, -13, 0, 0);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = active ? '#FFE672' : '#F6A4BA';
+    ctx.beginPath();
+    ctx.arc(0, -6, 3.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  };
+  drawLeaf(18, 28, 1);
+  drawLeaf(142, 28, -1);
+
+  ctx.restore();
+}
+
+function drawTargetArrow(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  topY: number,
+  bobOffset: number,
+  isTablet: boolean
+) {
+  const s = isTablet ? 1.0 : 0.8;
+  ctx.save();
+  ctx.translate(cx, topY + bobOffset);
+  ctx.scale(s, s);
+  ctx.fillStyle = '#FFE066';
+  ctx.strokeStyle = '#6A4822';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(-11, -2);
+  ctx.lineTo(-4, -2);
+  ctx.lineTo(-4, -12);
+  ctx.lineTo(4, -12);
+  ctx.lineTo(4, -2);
+  ctx.lineTo(11, -2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawMushroomBumper(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rPx: number,
+  scale: number
+) {
+  const sz = rPx * 2.15;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale * (sz / 100), scale * (sz / 100));
+  ctx.translate(-50, -50);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(44, 78, 38, 0.24)';
+  ctx.beginPath();
+  ctx.ellipse(50, 87, 30, 8.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Stem
+  ctx.fillStyle = '#F5E6C8';
+  ctx.strokeStyle = '#6A4D38';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(38, 56);
+  ctx.lineTo(34, 83);
+  ctx.quadraticCurveTo(50, 91, 66, 83);
+  ctx.lineTo(62, 56);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Cap
+  ctx.fillStyle = '#DF7258';
+  ctx.beginPath();
+  ctx.moveTo(11, 56);
+  ctx.bezierCurveTo(11, 23, 30, 11, 50, 11);
+  ctx.bezierCurveTo(70, 11, 89, 23, 89, 56);
+  ctx.bezierCurveTo(72, 64, 28, 64, 11, 56);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Cream spots
+  ctx.fillStyle = 'rgba(255, 247, 228, 0.92)';
+  [
+    { x: 34, y: 35, r: 7.5 },
+    { x: 59, y: 29, r: 9 },
+    { x: 72, y: 46, r: 5.5 },
+    { x: 26, y: 48, r: 4.8 },
+  ].forEach((sp) => {
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
 /**
- * Jungle Ball Pass:
- * - Zero React re-renders during 60fps ball flight, dragging, returning, or goal sway:
- *   all continuous transforms are driven directly via GPU-composited Animated.Values.
- * - Pure-View soccer pitch with zero full-screen SVGs or SVG gradients.
- * - Calm, watchable toddler ball speed + rock-solid tap, swipe, slingshot, and dribble controls.
+ * Jungle Ball Pass (100% Single-Canvas 2D Renderer on Web):
+ * - Renders the ENTIRE pitch, goals, animals, stars, mushrooms, Whit, aim guide,
+ *   confetti, shadow, trail, and soccer ball onto ONE opaque HTML5 <canvas> cleared
+ *   cleanly every frame — mathematically eliminating Android/iPad GPU compositor
+ *   tile corruption ("glitchy colors") and ghosted multi-ball trails!
+ * - Direct non-passive touch listeners on the canvas for silky-smooth tap, swipe,
+ *   slingshot, and direct dribble controls at a calm, joyful toddler pace.
  */
 export const BallPassGame: React.FC = () => {
   const { addStar, collectSticker, goHome } = useApp();
@@ -386,9 +471,6 @@ export const BallPassGame: React.FC = () => {
   const [roundSeed, setRoundSeed] = useState(0);
   const [goalsScored, setGoalsScored] = useState(0);
   const [targetGoalIdx, setTargetGoalIdx] = useState(1);
-  const [celebratingGoalId, setCelebratingGoalId] = useState<number | null>(null);
-  const [mascotMood, setMascotMood] = useState<WhitMood>('wave');
-  const [ballPhaseUI, setBallPhaseUI] = useState<BallPhase>('ready');
   const [won, setWon] = useState(false);
 
   const [fieldSize, setFieldSize] = useState({
@@ -403,111 +485,19 @@ export const BallPassGame: React.FC = () => {
     [difficulty, isTablet, activeGoal.baseXPct, targetGoalIdx]
   );
 
-  const [stars, setStars] = useState<PathStar[]>(() =>
-    buildStars(activeGoal.baseXPct, activeGoal.yPct)
-  );
-  const [boingMap, setBoingMap] = useState<Record<string, number>>({});
-  const [burstPos, setBurstPos] = useState<{
-    x: number;
-    y: number;
-    tick: number;
-    isGoal: boolean;
-  } | null>(null);
-  const [tapRipple, setTapRipple] = useState<{
-    x: number;
-    y: number;
-    tick: number;
-  } | null>(null);
-  const [aimVisual, setAimVisual] = useState<AimVisual | null>(null);
-
   const ballRadius = isTablet ? 36 : 26;
-  const ballStartX = fieldSize.w * 0.5;
-  const ballStartY = fieldSize.h * 0.7;
 
-  // =========================================================================
-  // GPU-COMPOSITED ANIMATED VALUES (ZERO REACT RE-RENDERS AT 60FPS!)
-  // =========================================================================
-  const ballAnimX = useRef(new Animated.Value(ballStartX - ballRadius)).current;
-  const ballAnimY = useRef(new Animated.Value(ballStartY - ballRadius)).current;
-  const ballAnimScale = useRef(new Animated.Value(1)).current;
-  const ballAnimRot = useRef(new Animated.Value(0)).current;
-  const shadowAnimX = useRef(new Animated.Value(ballStartX - ballRadius * 0.78)).current;
-  const shadowAnimY = useRef(new Animated.Value(ballStartY + ballRadius * 0.68)).current;
-  const haloAnimX = useRef(new Animated.Value(ballStartX - (ballRadius + 14))).current;
-  const haloAnimY = useRef(new Animated.Value(ballStartY - (ballRadius + 14))).current;
-  const swayAnimX = useRef(new Animated.Value(0)).current;
-
-  const trailAnims = useRef(
-    Array.from({ length: TRAIL_COUNT }).map(() => ({
-      x: new Animated.Value(-200),
-      y: new Animated.Value(-200),
-      opacity: new Animated.Value(0),
-    }))
-  ).current;
-
-  const ballRotDeg = useMemo(
-    () =>
-      ballAnimRot.interpolate({
-        inputRange: [0, 360],
-        outputRange: ['0deg', '360deg'],
-      }),
-    [ballAnimRot]
-  );
-
-  // Subtle breathing pulse on the ready ring
-  const readyPulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(readyPulse, {
-          toValue: 1,
-          duration: 850,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(readyPulse, {
-          toValue: 0,
-          duration: 850,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [readyPulse]);
-
-  // Physics ref — mutated at 60fps without touching React state
-  const physRef = useRef({
-    x: ballStartX,
-    y: ballStartY,
-    vx: 0,
-    vy: 0,
-    rot: 0,
-    phase: 'ready' as BallPhase,
-    swayTime: 0,
-    goalSwayOffsetPx: 0,
-    kickScale: 1,
-    flightTime: 0,
-    returnStartX: ballStartX,
-    returnStartY: ballStartY,
-    returnT: 0,
-    trail: [] as { x: number; y: number }[],
-    trailTick: 0,
-    lastOtherGoalHitAt: 0,
-    lastBumperBoingAt: 0,
-  });
-
-  const ballRadiusRef = useRef(ballRadius);
-  ballRadiusRef.current = ballRadius;
-  const isTabletRef = useRef(isTablet);
-  isTabletRef.current = isTablet;
-  const starsRef = useRef(stars);
-  starsRef.current = stars;
+  // Refs synced for the 60fps single-canvas physics + draw loop (ZERO React re-renders!)
   const fieldRef = useRef(fieldSize);
   fieldRef.current = fieldSize;
   const diffRef = useRef(difficulty);
   diffRef.current = difficulty;
+  const isTabletRef = useRef(isTablet);
+  isTabletRef.current = isTablet;
+  const isTabletLandscapeRef = useRef(isTabletLandscape);
+  isTabletLandscapeRef.current = isTabletLandscape;
+  const ballRadiusRef = useRef(ballRadius);
+  ballRadiusRef.current = ballRadius;
   const goalsRef = useRef(goals);
   goalsRef.current = goals;
   const activeGoalRef = useRef(activeGoal);
@@ -523,72 +513,92 @@ export const BallPassGame: React.FC = () => {
   const targetGoalIdxRef = useRef(targetGoalIdx);
   targetGoalIdxRef.current = targetGoalIdx;
 
+  const starsRef = useRef<PathStar[]>(buildStars(activeGoal.baseXPct, activeGoal.yPct));
   const aimRef = useRef<AimVisual | null>(null);
-  const aimDirtyRef = useRef(false);
-  const lastAimFlushRef = useRef(0);
+  const particlesRef = useRef<CanvasParticle[]>([]);
+  const ripplesRef = useRef<CanvasRipple[]>([]);
+  const bannerRef = useRef<CanvasBanner | null>(null);
+  const boingScaleRef = useRef<Record<string, number>>({});
+  const celebratingGoalRef = useRef<{ id: number; until: number } | null>(null);
+  const whitCheerUntilRef = useRef<number>(0);
+
+  const physRef = useRef({
+    x: fieldSize.w * 0.5,
+    y: fieldSize.h * 0.7,
+    vx: 0,
+    vy: 0,
+    rot: 0,
+    phase: 'ready' as BallPhase,
+    time: 0,
+    swayTime: 0,
+    goalSwayOffsetPx: 0,
+    kickScale: 1,
+    flightTime: 0,
+    returnStartX: fieldSize.w * 0.5,
+    returnStartY: fieldSize.h * 0.7,
+    returnT: 0,
+    trail: [] as { x: number; y: number }[],
+    trailTick: 0,
+    lastOtherGoalHitAt: 0,
+    lastBumperBoingAt: 0,
+  });
+
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const nonTargetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const syncVisualsFromPhys = useCallback(() => {
-    const p = physRef.current;
-    const r = ballRadiusRef.current;
-    ballAnimX.setValue(p.x - r);
-    ballAnimY.setValue(p.y - r);
-    ballAnimScale.setValue(p.kickScale);
-    const wrappedRot = ((p.rot % 360) + 360) % 360;
-    ballAnimRot.setValue(wrappedRot);
-    shadowAnimX.setValue(p.x - r * 0.78);
-    shadowAnimY.setValue(p.y + r * 0.68);
-    haloAnimX.setValue(p.x - (r + 14));
-    haloAnimY.setValue(p.y - (r + 14));
-    swayAnimX.setValue(p.goalSwayOffsetPx);
-
-    for (let i = 0; i < TRAIL_COUNT; i++) {
-      const pt = p.phase === 'flying' ? p.trail[i] : undefined;
-      if (pt) {
-        const sz = Math.max(10, r * (1.2 - i * 0.22));
-        trailAnims[i].x.setValue(pt.x - sz / 2);
-        trailAnims[i].y.setValue(pt.y - sz / 2);
-        trailAnims[i].opacity.setValue(Math.max(0.1, 0.42 - i * 0.09));
-      } else {
-        trailAnims[i].opacity.setValue(0);
-      }
-    }
-  }, [
-    ballAnimRot,
-    ballAnimScale,
-    ballAnimX,
-    ballAnimY,
-    haloAnimX,
-    haloAnimY,
-    shadowAnimX,
-    shadowAnimY,
-    swayAnimX,
-    trailAnims,
-  ]);
-
-  const setPhase = useCallback((next: BallPhase) => {
-    physRef.current.phase = next;
-    setBallPhaseUI((prev) => (prev === next ? prev : next));
-  }, []);
-
-  const setAimBuffered = useCallback((next: AimVisual | null) => {
-    aimRef.current = next;
-    aimDirtyRef.current = true;
-  }, []);
 
   const clearTimers = useCallback(() => {
     if (advanceTimerRef.current) {
       clearTimeout(advanceTimerRef.current);
       advanceTimerRef.current = null;
     }
-    if (nonTargetTimerRef.current) {
-      clearTimeout(nonTargetTimerRef.current);
-      nonTargetTimerRef.current = null;
-    }
   }, []);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
+
+  // Preload hand-painted storybook PNGs into HTMLImageElement cache for 2D canvas drawing
+  const imgCacheRef = useRef<Record<string, HTMLImageElement>>({});
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const entries: [string, unknown][] = [
+      ['bgClearing', STORYBOOK_ASSETS.bgClearing],
+      ['jungleBall', STORYBOOK_ASSETS.jungleBall],
+      ['whitIdle', STORYBOOK_ASSETS.whitIdle],
+      ['whitCheer', STORYBOOK_ASSETS.whitCheer],
+      ['lion', STORYBOOK_ANIMALS.lion],
+      ['elephant', STORYBOOK_ANIMALS.elephant],
+      ['giraffe', STORYBOOK_ANIMALS.giraffe],
+      ['panda', STORYBOOK_ANIMALS.panda],
+    ];
+    entries.forEach(([key, asset]) => {
+      if (imgCacheRef.current[key]) return;
+      const uri = getWebAssetUri(asset);
+      if (!uri) return;
+      const img = new window.Image();
+      img.src = uri;
+      imgCacheRef.current[key] = img;
+    });
+  }, []);
+
+  const spawnBurst = useCallback((x: number, y: number, count: number) => {
+    const palette = ['#FFE066', '#FF8E6E', '#7EE081', '#7AD8F5', '#FFF8DC', '#F59AC0'];
+    const list = particlesRef.current;
+    for (let i = 0; i < count; i++) {
+      const ang = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.4;
+      const spd = 90 + Math.random() * 190;
+      list.push({
+        x,
+        y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 40,
+        size: 5 + Math.random() * 5.5,
+        color: palette[i % palette.length],
+        life: 0,
+        maxLife: 0.55 + Math.random() * 0.35,
+      });
+    }
+    if (list.length > 90) {
+      particlesRef.current = list.slice(-90);
+    }
+  }, []);
 
   const getGoalCenter = useCallback((g: GoalSpec) => {
     const f = fieldRef.current;
@@ -606,30 +616,26 @@ export const BallPassGame: React.FC = () => {
     p.y = f.h * 0.7;
     p.vx = 0;
     p.vy = 0;
+    p.phase = 'ready';
     p.kickScale = 1;
     p.flightTime = 0;
     p.trail = [];
-    setPhase('ready');
-    syncVisualsFromPhys();
-  }, [setPhase, syncVisualsFromPhys]);
+  }, []);
 
-  const beginSmoothReturn = useCallback(
-    (playSoftBounce = false) => {
-      const p = physRef.current;
-      if (p.phase === 'scored' || p.phase === 'returning' || p.phase === 'ready') return;
-      p.returnStartX = p.x;
-      p.returnStartY = p.y;
-      p.returnT = 0;
-      p.vx = 0;
-      p.vy = 0;
-      p.trail = [];
-      setPhase('returning');
-      if (playSoftBounce) {
-        soundEngine.playGentleBounce();
-      }
-    },
-    [setPhase]
-  );
+  const beginSmoothReturn = useCallback((playSoftBounce = false) => {
+    const p = physRef.current;
+    if (p.phase === 'scored' || p.phase === 'returning' || p.phase === 'ready') return;
+    p.phase = 'returning';
+    p.returnStartX = p.x;
+    p.returnStartY = p.y;
+    p.returnT = 0;
+    p.vx = 0;
+    p.vy = 0;
+    p.trail = [];
+    if (playSoftBounce) {
+      soundEngine.playGentleBounce();
+    }
+  }, []);
 
   const advanceTarget = useCallback(
     (nextScored: number, nextDiff: Difficulty = diffRef.current) => {
@@ -641,17 +647,17 @@ export const BallPassGame: React.FC = () => {
           : (currIdx + 1 + Math.floor(Math.random() * (nextGoals.length - 1))) %
             nextGoals.length;
       const g = nextGoals[nextIdx];
-      setCelebratingGoalId(null);
-      setBurstPos(null);
+      celebratingGoalRef.current = null;
+      bannerRef.current = null;
       setTargetGoalIdx(nextIdx);
-      setStars(buildStars(g.baseXPct, g.yPct));
+      starsRef.current = buildStars(g.baseXPct, g.yPct);
       resetBallToWhit();
 
       if (nextScored >= GOALS_TO_WIN) {
         setTimeout(() => {
           soundEngine.playWin();
           addStar(1);
-          setMascotMood('cheer');
+          whitCheerUntilRef.current = performance.now() + 3000;
           setWon(true);
         }, 380);
       }
@@ -667,15 +673,18 @@ export const BallPassGame: React.FC = () => {
       setDifficulty(nextDiff);
       setRoundSeed(nextSeed);
       setGoalsScored(0);
-      setCelebratingGoalId(null);
-      setBurstPos(null);
       setTargetGoalIdx(startIdx);
-      setStars(buildStars(nextGoals[startIdx].baseXPct, nextGoals[startIdx].yPct));
-      setWon(false);
-      setMascotMood('wave');
+      starsRef.current = buildStars(
+        nextGoals[startIdx].baseXPct,
+        nextGoals[startIdx].yPct
+      );
+      celebratingGoalRef.current = null;
+      bannerRef.current = null;
       aimRef.current = null;
-      aimDirtyRef.current = false;
-      setAimVisual(null);
+      particlesRef.current = [];
+      ripplesRef.current = [];
+      whitCheerUntilRef.current = 0;
+      setWon(false);
       physRef.current.swayTime = 0;
       physRef.current.goalSwayOffsetPx = 0;
       resetBallToWhit();
@@ -686,44 +695,35 @@ export const BallPassGame: React.FC = () => {
   useEffect(() => {
     if (physRef.current.phase === 'ready') {
       resetBallToWhit();
-    } else {
-      syncVisualsFromPhys();
     }
-  }, [fieldSize.w, fieldSize.h, resetBallToWhit, syncVisualsFromPhys]);
+  }, [fieldSize.w, fieldSize.h, resetBallToWhit]);
 
   const collectTouchedStars = useCallback((bx: number, by: number) => {
     const f = fieldRef.current;
     const r = ballRadiusRef.current;
-    let changed = false;
-    const updated = starsRef.current.map((st, idx) => {
-      if (st.collected) return st;
+    starsRef.current.forEach((st, idx) => {
+      if (st.collected) return;
       const sx = (st.xPct / 100) * f.w;
       const sy = (st.yPct / 100) * f.h;
       if (Math.hypot(bx - sx, by - sy) < r + 30) {
-        changed = true;
+        st.collected = true;
         soundEngine.playStarCollect(idx);
-        return { ...st, collected: true };
+        spawnBurst(sx, sy, 10);
       }
-      return st;
     });
-    if (changed) {
-      starsRef.current = updated;
-      setStars(updated);
-    }
-  }, []);
+  }, [spawnBurst]);
 
   const triggerGoalScored = useCallback(
     (goalX: number, goalY: number) => {
       const p = physRef.current;
       if (p.phase === 'scored' || wonRef.current) return;
+      p.phase = 'scored';
       p.vx = 0;
       p.vy = 0;
       p.x = goalX + (isTabletRef.current ? 34 : 24);
       p.y = goalY + (isTabletRef.current ? 14 : 10);
       p.trail = [];
       p.kickScale = 0.84;
-      setPhase('scored');
-      syncVisualsFromPhys();
 
       const animal = activeGoalRef.current.animal;
       const goalId = activeGoalRef.current.id;
@@ -733,23 +733,20 @@ export const BallPassGame: React.FC = () => {
       collectSticker(animal);
 
       aimRef.current = null;
-      aimDirtyRef.current = false;
-      setAimVisual(null);
-      setBurstPos({ x: goalX, y: goalY, tick: Date.now(), isGoal: true });
-      setCelebratingGoalId(goalId);
+      spawnBurst(goalX, goalY, 26);
+      bannerRef.current = { x: goalX, y: goalY - 26, age: 0, duration: 0.9 };
+      celebratingGoalRef.current = { id: goalId, until: performance.now() + 920 };
+      whitCheerUntilRef.current = performance.now() + 950;
+
       const nextScored = goalsScoredRef.current + 1;
       setGoalsScored(nextScored);
-      setMascotMood('cheer');
 
       clearTimers();
       advanceTimerRef.current = setTimeout(() => {
-        if (nextScored < GOALS_TO_WIN) {
-          setMascotMood('wave');
-        }
         advanceTarget(nextScored);
-      }, 880);
+      }, 900);
     },
-    [advanceTarget, clearTimers, collectSticker, setPhase, syncVisualsFromPhys]
+    [advanceTarget, clearTimers, collectSticker, spawnBurst]
   );
 
   const triggerFriendlyPassBack = useCallback(
@@ -759,15 +756,11 @@ export const BallPassGame: React.FC = () => {
       if (now - p.lastOtherGoalHitAt < 500) return;
       p.lastOtherGoalHitAt = now;
       soundEngine.playAnimalSound(other.animal);
-      setBurstPos({ x: gx, y: gy, tick: now, isGoal: false });
-      setCelebratingGoalId(other.id);
-      if (nonTargetTimerRef.current) clearTimeout(nonTargetTimerRef.current);
-      nonTargetTimerRef.current = setTimeout(() => {
-        setCelebratingGoalId((prev) => (prev === other.id ? null : prev));
-      }, 480);
+      spawnBurst(gx, gy, 12);
+      celebratingGoalRef.current = { id: other.id, until: performance.now() + 500 };
       beginSmoothReturn(false);
     },
-    [beginSmoothReturn]
+    [beginSmoothReturn, spawnBurst]
   );
 
   const checkGoalCollisions = useCallback(
@@ -828,15 +821,13 @@ export const BallPassGame: React.FC = () => {
 
       p.vx = (nx / norm) * speed;
       p.vy = (ny / norm) * speed;
+      p.phase = 'flying';
       p.flightTime = 0;
       p.kickScale = 1.18;
       p.trail = [{ x: p.x, y: p.y }];
       p.trailTick = 0;
-      setPhase('flying');
-      setMascotMood('happy');
-      syncVisualsFromPhys();
     },
-    [getGoalCenter, setPhase, syncVisualsFromPhys]
+    [getGoalCenter]
   );
 
   const findAimedGoalId = useCallback(
@@ -867,25 +858,446 @@ export const BallPassGame: React.FC = () => {
     [getGoalCenter]
   );
 
-  // Stable refs so the single RAF loop mounts ONCE and NEVER tears down on goals!
+  // =========================================================================
+  // SINGLE OPAQUE HTML5 <canvas> ELEMENT & 60FPS PHYSICS + RENDER LOOP
+  // =========================================================================
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [canvasEl, setCanvasEl] = useState<HTMLCanvasElement | null>(null);
+
+  const handleCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
+    canvasRef.current = el;
+    setCanvasEl((prev) => (prev === el ? prev : el));
+  }, []);
+
   const loopFnsRef = useRef({
     beginSmoothReturn,
     checkGoalCollisions,
     collectTouchedStars,
-    setPhase,
-    syncVisualsFromPhys,
+    spawnBurst,
   });
   loopFnsRef.current = {
     beginSmoothReturn,
     checkGoalCollisions,
     collectTouchedStars,
-    setPhase,
-    syncVisualsFromPhys,
+    spawnBurst,
   };
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
     let rafId = 0;
     let lastTs = performance.now();
+
+    const renderFrame = (ctx: CanvasRenderingContext2D, w: number, h: number, now: number, dt: number) => {
+      const p = physRef.current;
+      const diff = diffRef.current;
+      const tab = isTabletRef.current;
+      const r = ballRadiusRef.current;
+      const imgs = imgCacheRef.current;
+
+      // 1. OPAQUE BASE FILL (100% clears every single pixel — ZERO ghost balls ever!)
+      ctx.fillStyle = '#7DB55B';
+      ctx.fillRect(0, 0, w, h);
+
+      // Soft watercolor jungle clearing surround
+      const bgImg = imgs.bgClearing;
+      if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.42;
+        const scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight);
+        const dw = bgImg.naturalWidth * scale;
+        const dh = bgImg.naturalHeight * scale;
+        ctx.drawImage(bgImg, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        ctx.restore();
+      }
+
+      // 2. Mowed Green Soccer Pitch (10 crisp alternating stripes)
+      const padX = Math.max(14, Math.min(44, Math.round(w * (tab ? 0.05 : 0.04))));
+      const apronPadX = tab ? 12 : 8;
+      const apronTop = Math.max(8, Math.round(h * 0.11));
+      const apronBot = h - Math.max(8, Math.round(h * 0.025));
+      const apronH = Math.max(160, apronBot - apronTop);
+      const apronLeft = Math.max(4, padX - apronPadX);
+      const apronW = Math.max(200, w - apronLeft * 2);
+      const apronR = tab ? 22 : 16;
+
+      // Soft turf frame shadow
+      ctx.save();
+      roundedRectPath(ctx, apronLeft, apronTop + 4, apronW, apronH, apronR);
+      ctx.fillStyle = 'rgba(34, 68, 28, 0.24)';
+      ctx.fill();
+
+      // Clipped mowed stripes inside rounded apron
+      roundedRectPath(ctx, apronLeft, apronTop, apronW, apronH, apronR);
+      ctx.clip();
+      const stripeCount = 10;
+      const stripeH = apronH / stripeCount;
+      for (let i = 0; i < stripeCount; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#A3D670' : '#8CC360';
+        ctx.fillRect(apronLeft, apronTop + i * stripeH, apronW, stripeH + 1);
+      }
+      ctx.restore();
+
+      // Subtle apron border
+      roundedRectPath(ctx, apronLeft, apronTop, apronW, apronH, apronR);
+      ctx.strokeStyle = 'rgba(64, 96, 46, 0.34)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // 3. Crisp Chalk Pitch Lines
+      const lineTop = Math.max(24, Math.round(h * 0.155));
+      const lineBot = h - Math.max(16, Math.round(h * 0.042));
+      const pitchH = Math.max(160, lineBot - lineTop);
+      const pitchW = Math.max(180, w - padX * 2);
+      const midY = Math.round(h * 0.5);
+      const kickY = Math.round(h * 0.7);
+      const chalkW = tab ? 3.5 : 2.5;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 251, 238, 0.88)';
+      ctx.fillStyle = 'rgba(255, 251, 238, 0.88)';
+      ctx.lineWidth = chalkW;
+
+      // Outer touchline
+      ctx.strokeRect(padX, lineTop, pitchW, pitchH);
+
+      // Halfway line
+      ctx.beginPath();
+      ctx.moveTo(padX, midY);
+      ctx.lineTo(padX + pitchW, midY);
+      ctx.stroke();
+
+      // Center circle + center dot
+      const centerR = Math.round(Math.min(pitchW * 0.14, pitchH * 0.125));
+      ctx.beginPath();
+      ctx.arc(w * 0.5, midY, centerR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(w * 0.5, midY, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Upper attacking box & 6-yard box
+      const topBoxH = Math.round(pitchH * (diff === 1 ? 0.22 : 0.23));
+      const topBoxW =
+        diff === 1
+          ? Math.round(pitchW * 0.54)
+          : Math.round(pitchW * (w < 560 ? 0.94 : 0.86));
+      ctx.strokeRect(w * 0.5 - topBoxW / 2, lineTop, topBoxW, topBoxH);
+
+      const topSixH = Math.round(pitchH * 0.095);
+      const topSixW = Math.round(pitchW * 0.26);
+      ctx.strokeRect(w * 0.5 - topSixW / 2, lineTop, topSixW, topSixH);
+
+      // Lower box & keeper box around Whit
+      const botBoxTop = Math.min(lineBot - 32, Math.round(h * 0.755));
+      const botBoxH = Math.max(28, lineBot - botBoxTop);
+      const botBoxW = Math.round(pitchW * 0.52);
+      ctx.strokeRect(w * 0.5 - botBoxW / 2, botBoxTop, botBoxW, botBoxH);
+
+      const botSixH = Math.max(18, Math.round(botBoxH * 0.48));
+      const botSixW = Math.round(pitchW * 0.28);
+      ctx.strokeRect(w * 0.5 - botSixW / 2, lineBot - botSixH, botSixW, botSixH);
+
+      // Kick spot marker (50%, 70%)
+      ctx.fillStyle = 'rgba(255, 251, 230, 0.24)';
+      ctx.beginPath();
+      ctx.arc(w * 0.5, kickY, tab ? 20 : 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 251, 238, 0.5)';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 251, 238, 0.9)';
+      ctx.beginPath();
+      ctx.arc(w * 0.5, kickY, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Corner flags
+      drawCornerFlag(ctx, padX, lineTop, '#E6734E', false);
+      drawCornerFlag(ctx, w - padX, lineTop, '#F6CF58', true);
+      drawCornerFlag(ctx, padX, lineBot, '#F6CF58', false);
+      drawCornerFlag(ctx, w - padX, lineBot, '#E6734E', true);
+
+      // 4. Tap Ripples
+      const nextRipples: CanvasRipple[] = [];
+      for (const rip of ripplesRef.current) {
+        rip.age += dt;
+        if (rip.age < rip.duration) {
+          const t = rip.age / rip.duration;
+          ctx.save();
+          ctx.globalAlpha = 0.85 * (1 - t);
+          ctx.strokeStyle = '#FFF4B8';
+          ctx.fillStyle = 'rgba(255, 244, 180, 0.22)';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.arc(rip.x, rip.y, 12 + t * 38, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+          nextRipples.push(rip);
+        }
+      }
+      ripplesRef.current = nextRipples;
+
+      // 5. Aim Guide Dots & Slingshot Band
+      const aim = aimRef.current;
+      if (aim) {
+        const dx = aim.toX - aim.fromX;
+        const dy = aim.toY - aim.fromY;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= 14) {
+          const lockedTarget = aim.lockedGoalId === activeGoalRef.current.id;
+          ctx.save();
+          if (aim.isSlingshot) {
+            [0.25, 0.55, 0.85].forEach((t) => {
+              const sx = aim.fromX + (aim.anchorX - aim.fromX) * t;
+              const sy = aim.fromY + (aim.anchorY - aim.fromY) * t;
+              ctx.fillStyle = '#FFE27A';
+              ctx.strokeStyle = '#6A4822';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+            });
+          }
+
+          const dotCount = 7;
+          for (let i = 0; i < dotCount; i++) {
+            const t = (i + 1) / (dotCount + 0.6);
+            const x = aim.fromX + dx * t;
+            const y = aim.fromY + dy * t;
+            const dotR = 6 - i * 0.3;
+            ctx.globalAlpha = 0.95 - i * 0.06;
+            ctx.fillStyle = lockedTarget ? '#FFE066' : '#FFFBEA';
+            ctx.strokeStyle = lockedTarget ? '#6A4822' : 'rgba(54, 90, 42, 0.55)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, dotR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+
+          // Tip ring + arrow
+          const ang = Math.atan2(dy, dx);
+          ctx.globalAlpha = 1;
+          ctx.translate(aim.toX, aim.toY);
+          ctx.rotate(ang);
+          ctx.fillStyle = lockedTarget
+            ? 'rgba(255, 224, 102, 0.58)'
+            : 'rgba(255, 249, 224, 0.45)';
+          ctx.strokeStyle = lockedTarget ? '#FFE066' : '#FFFBEA';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, 15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#6A4822';
+          ctx.beginPath();
+          ctx.moveTo(7, 0);
+          ctx.lineTo(-4, -6);
+          ctx.lineTo(-4, 6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      // 6. Goals & Hand-Painted Zoo Animals
+      const goalW = diff === 1 ? (tab ? 196 : 152) : tab ? 146 : 108;
+      const goalH = Math.round(goalW * 0.68);
+      const animalSz = diff === 1 ? (tab ? 114 : 84) : tab ? 86 : 64;
+      const celeb = celebratingGoalRef.current;
+
+      goalsRef.current.forEach((g, idx) => {
+        const isTarget = g.id === activeGoalRef.current.id;
+        const isLocked = aim?.lockedGoalId === g.id;
+        const isCeleb = Boolean(celeb && celeb.id === g.id && now < celeb.until);
+        const cx = (g.baseXPct / 100) * w + (isTarget ? p.goalSwayOffsetPx : 0);
+        const cy = (g.yPct / 100) * h;
+
+        drawJungleGoal(ctx, cx, cy, goalW, goalH, isTarget || isLocked, isLocked);
+
+        if (isTarget && !wonRef.current) {
+          const bob = Math.sin(p.time * 6) * 5;
+          drawTargetArrow(ctx, cx, cy - goalH / 2 - 14, bob, tab);
+        }
+
+        // Draw animated animal inside the goal
+        const animalImg = imgs[g.animal];
+        if (animalImg && animalImg.complete && animalImg.naturalWidth > 0) {
+          const hopY = isCeleb
+            ? -Math.abs(Math.sin(p.time * 14)) * 18
+            : isTarget
+            ? -Math.abs(Math.sin(p.time * 4.5 + idx)) * 7
+            : Math.sin(p.time * 2.4 + idx * 1.7) * 2;
+          const breathScale = isCeleb
+            ? 1.08
+            : 1 + Math.sin(p.time * 2.8 + idx) * 0.025;
+          const drawSz = animalSz * breathScale;
+          const ax = cx - drawSz / 2;
+          const ay = cy + goalH * 0.5 - drawSz + 10 + hopY;
+          ctx.drawImage(animalImg, ax, ay, drawSz, drawSz);
+        }
+      });
+
+      // 7. Collectible Path Stars
+      starsRef.current.forEach((st, idx) => {
+        if (st.collected) return;
+        const sx = (st.xPct / 100) * w;
+        const sy = (st.yPct / 100) * h + Math.sin(p.time * 3.4 + idx * 1.4) * 3;
+        const outerR = tab ? 18 : 13.5;
+        ctx.save();
+        ctx.fillStyle = 'rgba(38, 72, 32, 0.22)';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy + outerR + 1, outerR * 0.65, 3.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        drawStarShape(ctx, sx, sy, outerR, outerR * 0.48);
+        ctx.fillStyle = '#FAD968';
+        ctx.strokeStyle = '#7D5938';
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // 8. Bouncy Mushroom Bumpers
+      bumpersRef.current.forEach((bmp) => {
+        const bx = (bmp.xPct / 100) * w;
+        const by = (bmp.yPct / 100) * h;
+        const currScale = boingScaleRef.current[bmp.id] ?? 1;
+        const relaxed = currScale + (1 - currScale) * Math.min(1, dt * 10);
+        boingScaleRef.current[bmp.id] = Math.abs(relaxed - 1) < 0.005 ? 1 : relaxed;
+        drawMushroomBumper(ctx, bx, by, bmp.rPx, relaxed);
+      });
+
+      // 9. Whit the Gorilla Kicker
+      const whitSize = isTabletLandscapeRef.current ? 132 : tab ? 124 : 96;
+      const isWhitCheering = now < whitCheerUntilRef.current;
+      const whitImg = isWhitCheering ? imgs.whitCheer || imgs.whitIdle : imgs.whitIdle;
+      if (whitImg && whitImg.complete && whitImg.naturalWidth > 0) {
+        const whitBob = isWhitCheering
+          ? -Math.abs(Math.sin(p.time * 12)) * 10
+          : Math.sin(p.time * 2.5) * 2.5;
+        const wx = w * 0.5 - whitSize / 2;
+        const wy = h * 0.77 + whitBob;
+        ctx.drawImage(whitImg, wx, wy, whitSize, whitSize);
+      }
+
+      // 10. Soft Comet Trail (while flying)
+      if (p.phase === 'flying') {
+        p.trail.forEach((pt, idx) => {
+          const trR = Math.max(5, r * (0.62 - idx * 0.11));
+          ctx.save();
+          ctx.globalAlpha = Math.max(0.1, 0.42 - idx * 0.09);
+          ctx.fillStyle = '#FFF7D6';
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, trR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        });
+      }
+
+      // 11. Inviting Ready / Dragging Golden Halo
+      if (p.phase === 'ready' || p.phase === 'dragging') {
+        const pulse = (Math.sin(p.time * 3.6) + 1) * 0.5;
+        const haloR =
+          p.phase === 'dragging'
+            ? r + 15
+            : (r + 12) * (0.96 + pulse * 0.12);
+        ctx.save();
+        ctx.globalAlpha = p.phase === 'dragging' ? 0.95 : 0.35 + pulse * 0.42;
+        ctx.fillStyle =
+          p.phase === 'dragging'
+            ? 'rgba(255, 232, 120, 0.28)'
+            : 'rgba(255, 245, 190, 0.16)';
+        ctx.strokeStyle = p.phase === 'dragging' ? '#FFE066' : 'rgba(255, 245, 190, 0.92)';
+        ctx.lineWidth = p.phase === 'dragging' ? 4 : 3.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, haloR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 12. Ball Ground Shadow (non-rotating)
+      ctx.save();
+      ctx.fillStyle = 'rgba(34, 68, 32, 0.28)';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + r * 0.86, r * 0.78, r * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 13. THE SINGLE CRISP ROTATING WATERCOLOR SOCCER BALL
+      const ballImg = imgs.jungleBall;
+      const drawBallR = r * p.kickScale;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rot * Math.PI) / 180);
+      if (ballImg && ballImg.complete && ballImg.naturalWidth > 0) {
+        ctx.drawImage(ballImg, -drawBallR, -drawBallR, drawBallR * 2, drawBallR * 2);
+      } else {
+        ctx.fillStyle = '#FFF7E4';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, drawBallR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 14. Confetti Sparkle Particles
+      const alive: CanvasParticle[] = [];
+      for (const pt of particlesRef.current) {
+        pt.life += dt;
+        if (pt.life < pt.maxLife) {
+          pt.x += pt.vx * dt;
+          pt.y += pt.vy * dt;
+          pt.vy += 260 * dt;
+          const alpha = 1 - pt.life / pt.maxLife;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = pt.color;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, pt.size * (0.5 + 0.5 * alpha), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          alive.push(pt);
+        }
+      }
+      particlesRef.current = alive;
+
+      // 15. Floating "⭐ GOAL! ⭐" Banner
+      const ban = bannerRef.current;
+      if (ban) {
+        ban.age += dt;
+        if (ban.age < ban.duration) {
+          const t = ban.age / ban.duration;
+          const alpha = t < 0.15 ? t / 0.15 : t > 0.72 ? (1 - t) / 0.28 : 1;
+          const bx = Math.max(82, Math.min(w - 82, ban.x));
+          const by = Math.max(26, ban.y - Math.min(1, t * 4) * 14);
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+          roundedRectPath(ctx, bx - 68, by - 18, 136, 36, 18);
+          ctx.fillStyle = '#FFF5C4';
+          ctx.fill();
+          ctx.strokeStyle = '#5C3D20';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          ctx.fillStyle = '#5C3D20';
+          ctx.font = '900 16px system-ui, -apple-system, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('⭐ GOAL! ⭐', bx, by + 1);
+          ctx.restore();
+        } else {
+          bannerRef.current = null;
+        }
+      }
+    };
 
     const step = (now: number) => {
       const dt = Math.min(0.032, Math.max(0.008, (now - lastTs) / 1000));
@@ -898,7 +1310,8 @@ export const BallPassGame: React.FC = () => {
       const g = activeGoalRef.current;
       const fns = loopFnsRef.current;
 
-      // Hard mode: smoothly sway the target goal via Animated.Value (zero React re-renders!)
+      p.time += dt;
+
       if (diff === 3 && !wonRef.current) {
         p.swayTime += dt;
         const maxSway = Math.min(68, f.w * 0.1);
@@ -907,7 +1320,6 @@ export const BallPassGame: React.FC = () => {
         p.goalSwayOffsetPx = 0;
       }
 
-      // Smoothly relax kick squash/pop scale
       const restScale = p.phase === 'scored' ? 0.84 : p.phase === 'dragging' ? 1.1 : 1;
       if (Math.abs(p.kickScale - restScale) > 0.004) {
         p.kickScale += (restScale - p.kickScale) * Math.min(1, dt * 12);
@@ -920,7 +1332,6 @@ export const BallPassGame: React.FC = () => {
         const goalX = (g.baseXPct / 100) * f.w + p.goalSwayOffsetPx;
         const goalY = (g.yPct / 100) * f.h;
 
-        // Generous magnetic aim-assist when moving upward toward the waving goal
         const toGoalX = goalX - p.x;
         const toGoalY = goalY - p.y;
         const distToGoal = Math.hypot(toGoalX, toGoalY);
@@ -938,7 +1349,6 @@ export const BallPassGame: React.FC = () => {
           }
         }
 
-        // Integrate smooth rolling motion
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         const friction = Math.pow(0.992, dt * 60);
@@ -946,14 +1356,12 @@ export const BallPassGame: React.FC = () => {
         p.vy *= friction;
         p.rot += (p.vx * 0.62 + Math.abs(p.vy) * 0.42) * dt;
 
-        // Soft comet trail
         p.trailTick += dt;
         if (p.trailTick >= 0.04) {
           p.trailTick = 0;
-          p.trail = [{ x: p.x, y: p.y }, ...p.trail].slice(0, TRAIL_COUNT);
+          p.trail = [{ x: p.x, y: p.y }, ...p.trail].slice(0, 4);
         }
 
-        // Elastic bounds
         const pad = r + 8;
         let hitTopWall = false;
         if (p.x < pad) {
@@ -972,7 +1380,6 @@ export const BallPassGame: React.FC = () => {
           soundEngine.playPop();
         }
 
-        // Bouncy Mushroom Bumpers
         for (const bmp of bumpersRef.current) {
           const bx = (bmp.xPct / 100) * f.w;
           const by = (bmp.yPct / 100) * f.h;
@@ -1000,8 +1407,9 @@ export const BallPassGame: React.FC = () => {
               p.vy = (p.vy / Math.max(1, spd)) * 330;
             }
             p.kickScale = 1.16;
+            boingScaleRef.current[bmp.id] = 0.72;
+            fns.spawnBurst(bx, by, 8);
             soundEngine.playBoing();
-            setBoingMap((prev) => ({ ...prev, [bmp.id]: Date.now() }));
           }
         }
 
@@ -1021,8 +1429,6 @@ export const BallPassGame: React.FC = () => {
             p.flightTime > 2.7 ||
             returningDown
           ) {
-            setMascotMood('encourage');
-            setTimeout(() => setMascotMood('wave'), 380);
             fns.beginSmoothReturn(true);
           }
         }
@@ -1039,18 +1445,25 @@ export const BallPassGame: React.FC = () => {
         if (p.returnT >= 1) {
           p.x = targetX;
           p.y = targetY;
-          fns.setPhase('ready');
+          p.phase = 'ready';
         }
       }
 
-      // Direct GPU transform sync — ZERO React re-renders!
-      fns.syncVisualsFromPhys();
-
-      // Throttle aim arrow React updates to ~30fps max ONLY while actively aiming
-      if (aimDirtyRef.current && now - lastAimFlushRef.current >= 32) {
-        aimDirtyRef.current = false;
-        lastAimFlushRef.current = now;
-        setAimVisual(aimRef.current);
+      // Draw frame cleanly onto single opaque 2D canvas
+      const canvas = canvasRef.current;
+      if (canvas && f.w > 0 && f.h > 0) {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const targetW = Math.round(f.w * dpr);
+        const targetH = Math.round(f.h * dpr);
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+        }
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (ctx) {
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          renderFrame(ctx, f.w, f.h, now, dt);
+        }
       }
 
       rafId = requestAnimationFrame(step);
@@ -1061,28 +1474,11 @@ export const BallPassGame: React.FC = () => {
   }, []);
 
   // =========================================================================
-  // ROCK-SOLID TOUCH ENGINE (Tap, Swipe, Slingshot, & Smooth Dribble)
+  // DIRECT NON-PASSIVE TOUCH & POINTER ENGINE ON THE SINGLE <canvas>
   // =========================================================================
   const gestureRef = useRef<ActiveGesture | null>(null);
-  const lastTouchAtRef = useRef<number>(0);
+  const lastTouchAtRef = useRef(0);
   const winCleanupRef = useRef<(() => void) | null>(null);
-  const fieldDomRef = useRef<HTMLElement | null>(null);
-  const [fieldDomNode, setFieldDomNode] = useState<HTMLElement | null>(null);
-
-  const handleFieldRef = useCallback((node: React.ComponentRef<typeof View> | null) => {
-    if (Platform.OS !== 'web') return;
-    const el = resolveDomElement(node);
-    fieldDomRef.current = el;
-    setFieldDomNode((prev) => (prev === el ? prev : el));
-  }, []);
-
-  const getLocalCoords = useCallback((clientX: number, clientY: number) => {
-    const rect = fieldDomRef.current?.getBoundingClientRect?.();
-    if (rect) {
-      return { x: clientX - rect.left, y: clientY - rect.top };
-    }
-    return { x: clientX, y: clientY };
-  }, []);
 
   const cleanupWinListeners = useCallback(() => {
     if (winCleanupRef.current) {
@@ -1093,35 +1489,33 @@ export const BallPassGame: React.FC = () => {
 
   useEffect(() => () => cleanupWinListeners(), [cleanupWinListeners]);
 
+  const getLocalCoords = useCallback((clientX: number, clientY: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect?.();
+    if (rect) {
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+    return { x: clientX, y: clientY };
+  }, []);
+
   const startGesture = useCallback(
-    (
-      mode: 'touch' | 'pointer' | 'native',
-      id: number,
-      pt: { x: number; y: number }
-    ): boolean => {
+    (mode: 'touch' | 'pointer', id: number, pt: { x: number; y: number }): boolean => {
       if (wonRef.current) return false;
       const p = physRef.current;
       if (p.phase === 'scored') return false;
-
-      // Never yank an active upward shot out of mid-air when a toddler double-taps!
-      if (p.phase === 'flying' && p.vy < 40) {
-        return false;
-      }
+      if (p.phase === 'flying' && p.vy < 40) return false;
 
       soundEngine.unlock();
       const f = fieldRef.current;
       const homeX = f.w * 0.5;
       const homeY = f.h * 0.7;
 
-      // If ball was returning after a miss, snap ready right away so touches feel instant
       if (p.phase === 'returning' || p.phase === 'flying') {
         p.x = homeX;
         p.y = homeY;
         p.vx = 0;
         p.vy = 0;
         p.trail = [];
-        setPhase('ready');
-        syncVisualsFromPhys();
+        p.phase = 'ready';
       }
 
       const grabR = ballRadiusRef.current * 2.4;
@@ -1130,11 +1524,11 @@ export const BallPassGame: React.FC = () => {
 
       const kind: DragKind = nearBall ? 'pending_ball' : 'aim';
       if (nearBall) {
+        p.phase = 'dragging';
         p.kickScale = 1.1;
-        setPhase('dragging');
         soundEngine.playPop();
       } else {
-        setTapRipple({ x: pt.x, y: pt.y, tick: Date.now() });
+        ripplesRef.current.push({ x: pt.x, y: pt.y, age: 0, duration: 0.36 });
       }
 
       gestureRef.current = {
@@ -1148,7 +1542,7 @@ export const BallPassGame: React.FC = () => {
       };
 
       if (!nearBall && pt.y < p.y - 12) {
-        setAimBuffered({
+        aimRef.current = {
           fromX: p.x,
           fromY: p.y,
           toX: pt.x,
@@ -1157,13 +1551,13 @@ export const BallPassGame: React.FC = () => {
           anchorX: p.x,
           anchorY: p.y,
           lockedGoalId: findAimedGoalId(p.x, p.y, pt.x, pt.y),
-        });
+        };
       } else {
-        setAimBuffered(null);
+        aimRef.current = null;
       }
       return true;
     },
-    [findAimedGoalId, setAimBuffered, setPhase, syncVisualsFromPhys]
+    [findAimedGoalId]
   );
 
   const moveGesture = useCallback(
@@ -1173,12 +1567,12 @@ export const BallPassGame: React.FC = () => {
       const p = physRef.current;
       if (p.phase === 'scored' || p.phase === 'returning') {
         gestureRef.current = null;
-        setAimBuffered(null);
+        aimRef.current = null;
         return;
       }
       if (g.kind !== 'aim' && p.phase !== 'dragging') {
         gestureRef.current = null;
-        setAimBuffered(null);
+        aimRef.current = null;
         return;
       }
 
@@ -1201,7 +1595,6 @@ export const BallPassGame: React.FC = () => {
       const stepDx = pt.x - g.last.x;
       const stepDy = pt.y - g.last.y;
 
-      // Lock ball gesture cleanly once movement crosses 14px so it NEVER flip-flops!
       if (g.kind === 'pending_ball' && travel >= 14) {
         g.kind =
           swipeDy >= 10 && swipeDy > Math.abs(swipeDx) * 0.55
@@ -1219,7 +1612,7 @@ export const BallPassGame: React.FC = () => {
         const aimLen = Math.min(f.h * 0.48, 120 + pullDist * 4.2);
         const toX = Math.max(20, Math.min(f.w - 20, homeX - Math.cos(pullAngle) * aimLen));
         const toY = Math.max(24, Math.min(homeY - 36, homeY - Math.sin(pullAngle) * aimLen));
-        setAimBuffered({
+        aimRef.current = {
           fromX: homeX,
           fromY: homeY,
           toX,
@@ -1228,19 +1621,16 @@ export const BallPassGame: React.FC = () => {
           anchorX: p.x,
           anchorY: p.y,
           lockedGoalId: findAimedGoalId(homeX, homeY, toX, toY),
-        });
+        };
       } else if (g.kind === 'dribble') {
         const pad = r + 10;
-        const nextX = Math.max(pad, Math.min(f.w - pad, p.x + stepDx));
-        const nextY = Math.max(pad, Math.min(f.h * 0.76, p.y + stepDy));
-        p.x = nextX;
-        p.y = nextY;
+        p.x = Math.max(pad, Math.min(f.w - pad, p.x + stepDx));
+        p.y = Math.max(pad, Math.min(f.h * 0.76, p.y + stepDy));
         p.rot += stepDx * 1.0 - stepDy * 0.45;
         p.kickScale = 1.1;
 
         collectTouchedStars(p.x, p.y);
 
-        // Smooth bumper push-out with 320ms boing cooldown (never machine-gun vibrates!)
         for (const bmp of bumpersRef.current) {
           const bx = (bmp.xPct / 100) * f.w;
           const by = (bmp.yPct / 100) * f.h;
@@ -1254,8 +1644,8 @@ export const BallPassGame: React.FC = () => {
             const nowMs = Date.now();
             if (nowMs - p.lastBumperBoingAt > 320) {
               p.lastBumperBoingAt = nowMs;
+              boingScaleRef.current[bmp.id] = 0.76;
               soundEngine.playBoing();
-              setBoingMap((prev) => ({ ...prev, [bmp.id]: nowMs }));
             }
           }
         }
@@ -1263,8 +1653,7 @@ export const BallPassGame: React.FC = () => {
         if (checkGoalCollisions(p.x, p.y)) {
           gestureRef.current = null;
           cleanupWinListeners();
-          setAimBuffered(null);
-          setAimVisual(null);
+          aimRef.current = null;
           return;
         }
 
@@ -1279,7 +1668,7 @@ export const BallPassGame: React.FC = () => {
           const guideLen = isTabletRef.current ? 160 : 120;
           const toX = Math.max(20, Math.min(f.w - 20, p.x + (ux / uNorm) * guideLen));
           const toY = Math.max(20, p.y + (uy / uNorm) * guideLen);
-          setAimBuffered({
+          aimRef.current = {
             fromX: p.x,
             fromY: p.y,
             toX,
@@ -1288,9 +1677,9 @@ export const BallPassGame: React.FC = () => {
             anchorX: p.x,
             anchorY: p.y,
             lockedGoalId: findAimedGoalId(p.x, p.y, toX, toY),
-          });
+          };
         } else {
-          setAimBuffered(null);
+          aimRef.current = null;
         }
       } else if (g.kind === 'aim') {
         let toX = pt.x;
@@ -1310,7 +1699,7 @@ export const BallPassGame: React.FC = () => {
             toY = Math.max(20, p.y - (swipeDy / len) * guideLen);
           }
         }
-        setAimBuffered({
+        aimRef.current = {
           fromX: p.x,
           fromY: p.y,
           toX,
@@ -1319,18 +1708,12 @@ export const BallPassGame: React.FC = () => {
           anchorX: p.x,
           anchorY: p.y,
           lockedGoalId: findAimedGoalId(p.x, p.y, toX, toY),
-        });
+        };
       }
 
       g.last = pt;
     },
-    [
-      checkGoalCollisions,
-      cleanupWinListeners,
-      collectTouchedStars,
-      findAimedGoalId,
-      setAimBuffered,
-    ]
+    [checkGoalCollisions, cleanupWinListeners, collectTouchedStars, findAimedGoalId]
   );
 
   const endGesture = useCallback(
@@ -1340,8 +1723,6 @@ export const BallPassGame: React.FC = () => {
       gestureRef.current = null;
       cleanupWinListeners();
       aimRef.current = null;
-      aimDirtyRef.current = false;
-      setAimVisual(null);
 
       const p = physRef.current;
       if (p.phase === 'scored' || p.phase === 'returning' || wonRef.current) return;
@@ -1351,7 +1732,6 @@ export const BallPassGame: React.FC = () => {
       const swipeDx = pt.x - g.start.x;
       const swipeDy = pt.y - g.start.y;
 
-      // 1. Short Tap (on ball OR anywhere on pitch)
       if (g.maxTravel < 22 || g.kind === 'pending_ball') {
         if (g.kind !== 'aim') {
           const tp = getGoalCenter(activeGoalRef.current);
@@ -1375,7 +1755,6 @@ export const BallPassGame: React.FC = () => {
         return;
       }
 
-      // 2. Slingshot Release — launch smoothly from current pulled spot (no teleport!)
       if (g.kind === 'slingshot') {
         const pullDist = Math.min(40, Math.hypot(swipeDx, swipeDy));
         const power = (tab ? 410 : 340) + (pullDist / 40) * (tab ? 140 : 110);
@@ -1383,7 +1762,6 @@ export const BallPassGame: React.FC = () => {
         return;
       }
 
-      // 3. Direct Dribble / Flick Release
       if (g.kind === 'dribble') {
         const oldest = g.samples[0];
         const newest = g.samples[g.samples.length - 1];
@@ -1407,7 +1785,6 @@ export const BallPassGame: React.FC = () => {
         return;
       }
 
-      // 4. Field-wide Swipe Release
       const oldest = g.samples[0];
       const newest = g.samples[g.samples.length - 1];
       const dtSec = Math.max(0.016, (newest.t - oldest.t) / 1000);
@@ -1428,15 +1805,10 @@ export const BallPassGame: React.FC = () => {
     [cleanupWinListeners, getGoalCenter, kickBallAlong]
   );
 
-  // Keep gesture handlers in refs so DOM touchstart & window listeners never rebind mid-game
-  const gestureFnsRef = useRef({
-    startGesture,
-    moveGesture,
-    endGesture,
-  });
+  const gestureFnsRef = useRef({ startGesture, moveGesture, endGesture });
   gestureFnsRef.current = { startGesture, moveGesture, endGesture };
 
-  const attachWebWindowListeners = useCallback(
+  const attachWinListeners = useCallback(
     (mode: 'touch' | 'pointer', id: number) => {
       cleanupWinListeners();
       if (typeof window === 'undefined') return;
@@ -1448,66 +1820,66 @@ export const BallPassGame: React.FC = () => {
           }
           return null;
         };
-        const onWinTouchMove = (ev: TouchEvent) => {
+        const onMove = (ev: TouchEvent) => {
           const t = findTouch(ev.touches) || findTouch(ev.changedTouches);
           if (!t) return;
           if (ev.cancelable) ev.preventDefault();
           gestureFnsRef.current.moveGesture(getLocalCoords(t.clientX, t.clientY));
         };
-        const onWinTouchEnd = (ev: TouchEvent) => {
+        const onEnd = (ev: TouchEvent) => {
           const t = findTouch(ev.changedTouches);
           if (!t) return;
           if (ev.cancelable) ev.preventDefault();
           lastTouchAtRef.current = Date.now();
           gestureFnsRef.current.endGesture(getLocalCoords(t.clientX, t.clientY));
         };
-        const onWinTouchCancel = (ev: TouchEvent) => {
+        const onCancel = (ev: TouchEvent) => {
           const t = findTouch(ev.changedTouches);
           lastTouchAtRef.current = Date.now();
           gestureFnsRef.current.endGesture(
             t ? getLocalCoords(t.clientX, t.clientY) : undefined
           );
         };
-        window.addEventListener('touchmove', onWinTouchMove, { passive: false });
-        window.addEventListener('touchend', onWinTouchEnd, { passive: false });
-        window.addEventListener('touchcancel', onWinTouchCancel);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onEnd, { passive: false });
+        window.addEventListener('touchcancel', onCancel);
         winCleanupRef.current = () => {
-          window.removeEventListener('touchmove', onWinTouchMove);
-          window.removeEventListener('touchend', onWinTouchEnd);
-          window.removeEventListener('touchcancel', onWinTouchCancel);
+          window.removeEventListener('touchmove', onMove);
+          window.removeEventListener('touchend', onEnd);
+          window.removeEventListener('touchcancel', onCancel);
         };
       } else {
-        const onWinPointerMove = (ev: PointerEvent) => {
+        const onMove = (ev: PointerEvent) => {
           if (ev.pointerId !== id) return;
           ev.preventDefault?.();
           gestureFnsRef.current.moveGesture(getLocalCoords(ev.clientX, ev.clientY));
         };
-        const onWinPointerUp = (ev: PointerEvent) => {
+        const onUp = (ev: PointerEvent) => {
           if (ev.pointerId !== id) return;
           gestureFnsRef.current.endGesture(getLocalCoords(ev.clientX, ev.clientY));
         };
-        const onWinPointerCancel = (ev: PointerEvent) => {
+        const onCancel = (ev: PointerEvent) => {
           if (ev.pointerId !== id) return;
           gestureFnsRef.current.endGesture(undefined);
         };
-        window.addEventListener('pointermove', onWinPointerMove, { passive: false });
-        window.addEventListener('pointerup', onWinPointerUp);
-        window.addEventListener('pointercancel', onWinPointerCancel);
+        window.addEventListener('pointermove', onMove, { passive: false });
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onCancel);
         winCleanupRef.current = () => {
-          window.removeEventListener('pointermove', onWinPointerMove);
-          window.removeEventListener('pointerup', onWinPointerUp);
-          window.removeEventListener('pointercancel', onWinPointerCancel);
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onCancel);
         };
       }
     },
     [cleanupWinListeners, getLocalCoords]
   );
 
-  // Direct non-passive DOM touchstart listener — mounts ONCE when field mounts
+  // Direct non-passive DOM touchstart & pointerdown on the single <canvas>
   useEffect(() => {
-    if (Platform.OS !== 'web' || !fieldDomNode) return;
+    if (Platform.OS !== 'web' || !canvasEl) return;
 
-    const onDomTouchStart = (ev: TouchEvent) => {
+    const onTouchStart = (ev: TouchEvent) => {
       const t = ev.changedTouches[0];
       if (!t) return;
       if (ev.cancelable) ev.preventDefault();
@@ -1527,8 +1899,7 @@ export const BallPassGame: React.FC = () => {
           const newPt = getLocalCoords(t.clientX, t.clientY);
           const oldDist = Math.hypot(curr.last.x - p.x, curr.last.y - p.y);
           const newDist = Math.hypot(newPt.x - p.x, newPt.y - p.y);
-          const oldStationary = curr.maxTravel < 16;
-          if (!oldStationary || newDist > oldDist) {
+          if (curr.maxTravel >= 16 || newDist > oldDist) {
             return;
           }
         }
@@ -1538,142 +1909,31 @@ export const BallPassGame: React.FC = () => {
 
       const pt = getLocalCoords(t.clientX, t.clientY);
       if (gestureFnsRef.current.startGesture('touch', t.identifier, pt)) {
-        attachWebWindowListeners('touch', t.identifier);
+        attachWinListeners('touch', t.identifier);
       }
     };
 
-    fieldDomNode.addEventListener('touchstart', onDomTouchStart, { passive: false });
-    return () => {
-      fieldDomNode.removeEventListener('touchstart', onDomTouchStart);
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.pointerType === 'touch') return;
+      if (Date.now() - lastTouchAtRef.current < 700) return;
+      if (gestureRef.current) return;
+      ev.preventDefault();
+      const pt = getLocalCoords(ev.clientX, ev.clientY);
+      if (gestureFnsRef.current.startGesture('pointer', ev.pointerId, pt)) {
+        attachWinListeners('pointer', ev.pointerId);
+      }
     };
-  }, [attachWebWindowListeners, cleanupWinListeners, fieldDomNode, getLocalCoords]);
 
-  const webFieldProps =
-    Platform.OS === 'web'
-      ? ({
-          onPointerDown: (e: {
-            pointerId: number;
-            pointerType?: string;
-            clientX: number;
-            clientY: number;
-            preventDefault?: () => void;
-          }) => {
-            if (e.pointerType === 'touch') return;
-            if (Date.now() - lastTouchAtRef.current < 700) return;
-            if (gestureRef.current) return;
-            e.preventDefault?.();
-            const pt = getLocalCoords(e.clientX, e.clientY);
-            if (gestureFnsRef.current.startGesture('pointer', e.pointerId, pt)) {
-              attachWebWindowListeners('pointer', e.pointerId);
-            }
-          },
-        } as Record<string, unknown>)
-      : {};
-
-  const nativePan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        gestureFnsRef.current.startGesture('native', 0, {
-          x: evt.nativeEvent.locationX,
-          y: evt.nativeEvent.locationY,
-        });
-      },
-      onPanResponderMove: (evt) => {
-        gestureFnsRef.current.moveGesture({
-          x: evt.nativeEvent.locationX,
-          y: evt.nativeEvent.locationY,
-        });
-      },
-      onPanResponderRelease: (evt) => {
-        gestureFnsRef.current.endGesture({
-          x: evt.nativeEvent.locationX,
-          y: evt.nativeEvent.locationY,
-        });
-      },
-      onPanResponderTerminate: () => {
-        gestureFnsRef.current.endGesture(undefined);
-      },
-    })
-  ).current;
-
-  const goalW = difficulty === 1 ? (isTablet ? 196 : 152) : isTablet ? 146 : 108;
-  const goalH = Math.round(goalW * 0.68);
-  const animalSz = difficulty === 1 ? (isTablet ? 116 : 86) : isTablet ? 88 : 66;
-  const whitSize = isTabletLandscape ? 132 : isTablet ? 124 : 96;
-
-  const renderAimDots = () => {
-    if (!aimVisual) return null;
-    const { fromX, fromY, toX, toY, isSlingshot, anchorX, anchorY, lockedGoalId } =
-      aimVisual;
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const dist = Math.hypot(dx, dy);
-    if (dist < 14) return null;
-    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    const isLockedTarget = lockedGoalId === activeGoal.id;
-    const dotCount = 7;
-
-    return (
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {isSlingshot &&
-          [0.25, 0.55, 0.85].map((t, i) => {
-            const sx = fromX + (anchorX - fromX) * t;
-            const sy = fromY + (anchorY - fromY) * t;
-            return (
-              <View
-                key={`sling-${i}`}
-                style={[styles.slingDot, { left: sx - 5, top: sy - 5 }]}
-              />
-            );
-          })}
-
-        {Array.from({ length: dotCount }).map((_, idx) => {
-          const t = (idx + 1) / (dotCount + 0.6);
-          const x = fromX + dx * t;
-          const y = fromY + dy * t;
-          const size = 12 - idx * 0.6;
-          return (
-            <View
-              key={`aim-${idx}`}
-              style={[
-                styles.aimDot,
-                isLockedTarget && styles.aimDotLocked,
-                {
-                  left: x - size / 2,
-                  top: y - size / 2,
-                  width: size,
-                  height: size,
-                  borderRadius: size / 2,
-                  opacity: 0.95 - idx * 0.06,
-                },
-              ]}
-            />
-          );
-        })}
-
-        <View
-          style={[
-            styles.aimTipRing,
-            isLockedTarget && styles.aimTipRingLocked,
-            {
-              left: toX - 16,
-              top: toY - 16,
-              transform: [{ rotate: `${Math.round(angleDeg)}deg` }],
-            },
-          ]}
-        >
-          <View style={styles.aimTipArrow} />
-        </View>
-      </View>
-    );
-  };
+    canvasEl.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvasEl.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      canvasEl.removeEventListener('touchstart', onTouchStart);
+      canvasEl.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [attachWinListeners, canvasEl, cleanupWinListeners, getLocalCoords]);
 
   return (
     <View style={styles.container}>
-      <JungleClearingBackdrop />
-
       <GameHeader
         totalSteps={GOALS_TO_WIN}
         completedSteps={goalsScored}
@@ -1682,13 +1942,7 @@ export const BallPassGame: React.FC = () => {
       />
 
       <View
-        ref={handleFieldRef}
-        style={[
-          styles.field,
-          Platform.OS === 'web'
-            ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
-            : null,
-        ]}
+        style={styles.field}
         onLayout={(e) => {
           const { width: w, height: h } = e.nativeEvent.layout;
           if (w > 100 && h > 100) {
@@ -1699,284 +1953,28 @@ export const BallPassGame: React.FC = () => {
             );
           }
         }}
-        {...(Platform.OS === 'web' ? webFieldProps : nativePan.panHandlers)}
       >
-        <JungleSoccerPitch
-          width={fieldSize.w}
-          height={fieldSize.h}
-          difficulty={difficulty}
-          isTablet={isTablet}
-        />
-
-        {renderAimDots()}
-
-        {tapRipple && (
-          <TapRipple key={tapRipple.tick} x={tapRipple.x} y={tapRipple.y} />
-        )}
-
-        {/* Wooden Jungle Goals & Animated Zoo Animals */}
-        {goals.map((g, idx) => {
-          const isTarget = idx === targetGoalIdx % goals.length;
-          const isAimLocked = aimVisual?.lockedGoalId === g.id;
-          const cx = (g.baseXPct / 100) * fieldSize.w;
-          const cy = (g.yPct / 100) * fieldSize.h;
-          const GoalContainer = isTarget ? Animated.View : View;
-
-          return (
-            <GoalContainer
-              key={`${difficulty}-${g.id}`}
-              pointerEvents="none"
-              style={[
-                styles.goalAnchor,
-                {
-                  left: cx - goalW / 2,
-                  top: cy - goalH / 2,
-                  width: goalW,
-                  height: goalH + 20,
-                  ...(isTarget ? { transform: [{ translateX: swayAnimX }] } : null),
-                },
-              ]}
-            >
-              {isTarget && !won && <TargetGoalPointer isTablet={isTablet} />}
-              {isAimLocked && (
-                <View
-                  style={[
-                    styles.goalLockHalo,
-                    {
-                      width: goalW + 18,
-                      height: goalH + 16,
-                      borderRadius: 28,
-                    },
-                  ]}
-                />
-              )}
-              <JungleGoalArchSvg
-                width={goalW}
-                height={goalH}
-                active={isTarget || isAimLocked}
-              />
-              <View style={styles.goalAnimalPos}>
-                <GoalAnimal
-                  animal={g.animal}
-                  size={animalSz}
-                  seed={idx + 1}
-                  isTarget={isTarget}
-                  isCelebrating={celebratingGoalId === g.id}
-                />
-              </View>
-            </GoalContainer>
-          );
-        })}
-
-        {/* Collectible Soft Honey-Gold Path Stars */}
-        {stars.map((st) => {
-          if (st.collected) return null;
-          const sx = (st.xPct / 100) * fieldSize.w;
-          const sy = (st.yPct / 100) * fieldSize.h;
-          const sz = isTablet ? 40 : 30;
-          return (
-            <View
-              key={st.id}
-              pointerEvents="none"
-              style={[styles.starAnchor, { left: sx - sz / 2, top: sy - sz / 2 }]}
-            >
-              <Svg width={sz} height={sz} viewBox="0 0 36 38">
-                <Ellipse
-                  cx="18"
-                  cy="33.5"
-                  rx="10"
-                  ry="3.2"
-                  fill="rgba(38, 72, 32, 0.24)"
-                />
-                <Path
-                  d="M18 3 L22.4 12.2 L32.5 13.6 L25.1 20.6 L26.9 30.6 L18 25.8 L9.1 30.6 L10.9 20.6 L3.5 13.6 L13.6 12.2 Z"
-                  fill="#FAD968"
-                  stroke="#7D5938"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-                <Path
-                  d="M18 7.5 L20.4 12.8 L26 13.6 L22 17.5"
-                  fill="none"
-                  stroke="#FFF7D4"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  opacity="0.7"
-                />
-              </Svg>
-            </View>
-          );
-        })}
-
-        {/* Bouncy Jungle Mushroom Bumpers */}
-        {bumpers.map((bmp) => {
-          const bx = (bmp.xPct / 100) * fieldSize.w;
-          const by = (bmp.yPct / 100) * fieldSize.h;
-          const sz = bmp.rPx * 2.15;
-          return (
-            <View
-              key={bmp.id}
-              pointerEvents="none"
-              style={[styles.bumperAnchor, { left: bx - sz / 2, top: by - sz / 2 }]}
-            >
-              <MushroomBumperSvg size={sz} boingTick={boingMap[bmp.id] || 0} />
-            </View>
-          );
-        })}
-
-        {/* Goal Confetti Burst & Floating GOAL! Banner */}
-        {burstPos && (
-          <>
-            <View
-              key={`burst-${burstPos.tick}`}
-              pointerEvents="none"
-              style={[styles.burstAnchor, { left: burstPos.x, top: burstPos.y }]}
-            >
-              <SnapBurst
-                size={burstPos.isGoal ? (isTablet ? 164 : 128) : isTablet ? 96 : 74}
-              />
-            </View>
-            {burstPos.isGoal && (
-              <GoalBannerPop
-                key={`banner-${burstPos.tick}`}
-                x={burstPos.x}
-                y={burstPos.y}
-                fieldW={fieldSize.w}
-              />
-            )}
-          </>
-        )}
-
-        {/* Whit the Gorilla Kicker */}
-        <View
-          pointerEvents="none"
-          style={[
-            styles.whitAnchor,
-            {
-              left: fieldSize.w * 0.5 - whitSize / 2,
-              top: fieldSize.h * 0.77,
-            },
-          ]}
-        >
-          <WhitMascot mood={mascotMood} size={whitSize} interactive={false} />
-        </View>
-
-        {/* Pre-mounted GPU-composited comet trail dots (zero mount/unmount churn!) */}
-        {trailAnims.map((tr, idx) => {
-          const sz = Math.max(10, ballRadius * (1.2 - idx * 0.22));
-          return (
-            <Animated.View
-              key={`trail-${idx}`}
-              pointerEvents="none"
-              style={[
-                styles.trailDot,
-                {
-                  left: 0,
-                  top: 0,
-                  width: sz,
-                  height: sz,
-                  borderRadius: sz / 2,
-                  opacity: tr.opacity,
-                  transform: [{ translateX: tr.x }, { translateY: tr.y }],
-                },
-              ]}
+        {Platform.OS === 'web' ? (
+          <canvas
+            ref={handleCanvasRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              touchAction: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+            }}
+          />
+        ) : (
+          <View style={styles.nativeFallback}>
+            <Image
+              source={STORYBOOK_ASSETS.jungleBall}
+              style={{ width: 72, height: 72 }}
             />
-          );
-        })}
-
-        {/* Ready / Dragging Golden Halo (GPU transform positioned) */}
-        {ballPhaseUI === 'ready' && (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.ballHalo,
-              {
-                left: 0,
-                top: 0,
-                width: (ballRadius + 14) * 2,
-                height: (ballRadius + 14) * 2,
-                borderRadius: ballRadius + 14,
-                opacity: readyPulse.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 0.76],
-                }),
-                transform: [
-                  { translateX: haloAnimX },
-                  { translateY: haloAnimY },
-                  {
-                    scale: readyPulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.96, 1.09],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
+            <Text style={styles.nativeFallbackText}>Jungle Ball Pass</Text>
+          </View>
         )}
-        {ballPhaseUI === 'dragging' && (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.ballHalo,
-              styles.ballHaloActive,
-              {
-                left: 0,
-                top: 0,
-                width: (ballRadius + 14) * 2,
-                height: (ballRadius + 14) * 2,
-                borderRadius: ballRadius + 14,
-                transform: [
-                  { translateX: haloAnimX },
-                  { translateY: haloAnimY },
-                  { scale: 1.08 },
-                ],
-              },
-            ]}
-          />
-        )}
-
-        {/* GPU-composited non-rotating ground shadow directly under the ball */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.ballGroundShadow,
-            {
-              left: 0,
-              top: 0,
-              width: ballRadius * 1.56,
-              height: Math.round(ballRadius * 0.44),
-              borderRadius: ballRadius,
-              transform: [{ translateX: shadowAnimX }, { translateY: shadowAnimY }],
-            },
-          ]}
-        />
-
-        {/* GPU-composited transparent circular PNG soccer ball (zero overflow clipping!) */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.ballAnchor,
-            {
-              left: 0,
-              top: 0,
-              width: ballRadius * 2,
-              height: ballRadius * 2,
-              transform: [
-                { translateX: ballAnimX },
-                { translateY: ballAnimY },
-                { scale: ballAnimScale },
-                { rotate: ballRotDeg },
-              ],
-            },
-          ]}
-        >
-          <Image
-            source={STORYBOOK_ASSETS.jungleBall}
-            style={{ width: ballRadius * 2, height: ballRadius * 2 }}
-            resizeMode="contain"
-          />
-        </Animated.View>
       </View>
 
       <CelebrationOverlay
@@ -1991,156 +1989,22 @@ export const BallPassGame: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#7DB55B',
   },
   field: {
     flex: 1,
     width: '100%',
-    position: 'relative',
-    overflow: 'hidden',
+    backgroundColor: '#7DB55B',
   },
-  goalAnchor: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    zIndex: 10,
-  },
-  goalLockHalo: {
-    position: 'absolute',
-    top: -8,
-    backgroundColor: 'rgba(255, 232, 118, 0.28)',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 240, 150, 0.9)',
-  },
-  goalAnimalPos: {
-    position: 'absolute',
-    bottom: 6,
+  nativeFallback: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
-  starAnchor: {
-    position: 'absolute',
-    zIndex: 14,
-  },
-  bumperAnchor: {
-    position: 'absolute',
-    zIndex: 15,
-  },
-  burstAnchor: {
-    position: 'absolute',
-    zIndex: 60,
-  },
-  goalBanner: {
-    position: 'absolute',
-    width: 132,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: '#FFF5C4',
-    borderWidth: 3,
-    borderColor: COLORS.woodDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 65,
-    shadowColor: '#4A3525',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  goalBannerText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: COLORS.woodDark,
-    letterSpacing: 0.6,
-  },
-  whitAnchor: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 12,
-  },
-  tapRipple: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 3.5,
-    borderColor: '#FFF4B8',
-    backgroundColor: 'rgba(255, 244, 180, 0.24)',
-    zIndex: 19,
-  },
-  slingDot: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FFE27A',
-    borderWidth: 2,
-    borderColor: '#6A4822',
-    zIndex: 20,
-  },
-  aimDot: {
-    position: 'absolute',
-    backgroundColor: '#FFFBEA',
-    borderWidth: 2,
-    borderColor: 'rgba(54, 90, 42, 0.55)',
-    zIndex: 20,
-  },
-  aimDotLocked: {
-    backgroundColor: '#FFE066',
-    borderColor: '#6A4822',
-  },
-  aimTipRing: {
-    position: 'absolute',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 249, 224, 0.45)',
-    borderWidth: 3,
-    borderColor: '#FFFBEA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 21,
-  },
-  aimTipRingLocked: {
-    backgroundColor: 'rgba(255, 224, 102, 0.55)',
-    borderColor: '#FFE066',
-  },
-  aimTipArrow: {
-    width: 0,
-    height: 0,
-    marginLeft: 3,
-    borderTopWidth: 6,
-    borderBottomWidth: 6,
-    borderLeftWidth: 10,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderLeftColor: '#6A4822',
-  },
-  trailDot: {
-    position: 'absolute',
-    backgroundColor: '#FFF7D6',
-    zIndex: 21,
-  },
-  ballHalo: {
-    position: 'absolute',
-    borderWidth: 3.5,
-    borderColor: 'rgba(255, 245, 190, 0.92)',
-    backgroundColor: 'rgba(255, 245, 190, 0.16)',
-    zIndex: 23,
-  },
-  ballHaloActive: {
-    borderWidth: 4,
-    borderColor: '#FFE066',
-    backgroundColor: 'rgba(255, 232, 120, 0.28)',
-  },
-  ballGroundShadow: {
-    position: 'absolute',
-    zIndex: 22,
-    backgroundColor: 'rgba(34, 68, 32, 0.28)',
-  },
-  ballAnchor: {
-    position: 'absolute',
-    zIndex: 25,
+  nativeFallbackText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF9EC',
   },
 });

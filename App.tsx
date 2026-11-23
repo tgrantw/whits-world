@@ -68,19 +68,27 @@ const RootNavigator: React.FC = () => {
     }
   };
 
+  const content = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar style="dark" />
+      <View style={styles.screenHost}>{renderScreen()}</View>
+      <ParentalGateModal
+        visible={parentGateVisible}
+        onClose={closeParentGate}
+        onPassed={onParentGatePassed}
+      />
+      <PaywallModal />
+      <StarJarModal />
+    </SafeAreaView>
+  );
+
+  if (activeGame === 'ball-pass') {
+    return <View style={styles.ballPassRoot}>{content}</View>;
+  }
+
   return (
     <JungleBackground variant={activeGame ? 'clearing' : 'home'}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <StatusBar style="dark" />
-        <View style={styles.screenHost}>{renderScreen()}</View>
-        <ParentalGateModal
-          visible={parentGateVisible}
-          onClose={closeParentGate}
-          onPassed={onParentGatePassed}
-        />
-        <PaywallModal />
-        <StarJarModal />
-      </SafeAreaView>
+      {content}
     </JungleBackground>
   );
 };
@@ -96,6 +104,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  ballPassRoot: {
+    flex: 1,
+    backgroundColor: '#7DB55B',
+  },
   safeArea: {
     flex: 1,
   },
