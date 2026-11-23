@@ -327,6 +327,22 @@ class SoundEngine {
     this.playTone(1046.5, 0.17, 0.24, 0.15, 'sine'); // C6
   }
 
+  /** Playful rubber-stamp boop + sparkle chime when placing a coloring sticker */
+  public playStamp(): void {
+    this.playTone(300, 0, 0.07, 0.16, 'sine', 520);
+    this.playTone(783.99, 0.04, 0.14, 0.14, 'triangle');
+    this.playTone(1174.66, 0.09, 0.18, 0.09, 'sine');
+  }
+
+  /** Glittering fairy-harp ascending arpeggio for the Magic Wand in Zoo Coloring */
+  public playMagicWand(): void {
+    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+    notes.forEach((freq, idx) => {
+      this.playTone(freq, idx * 0.045, 0.2, 0.12, 'sine');
+      this.playTone(freq * 1.5, idx * 0.045 + 0.015, 0.14, 0.05, 'triangle');
+    });
+  }
+
   /** Celebratory xylophone fanfare when a puzzle is solved */
   public playWin(): void {
     const notes = [

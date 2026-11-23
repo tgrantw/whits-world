@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Easing,
   Image,
   PanResponder,
   Platform,
@@ -28,8 +27,19 @@ const INK = '#4A3525';
 const PAPER_WHITE = '#FFFDF7';
 const CANVAS_VB = 320;
 const SAVED_PAGES_KEY = 'whits_world_colored_pages_v1';
+const SAVED_ARTWORK_KEY = 'whits_world_coloring_art_v2';
 
-type ToolMode = 'fill' | 'draw';
+type ToolMode = 'fill' | 'draw' | 'stamp';
+type BrushSizeKey = 'sm' | 'md' | 'lg';
+type StampKind =
+  | 'star'
+  | 'heart'
+  | 'flower'
+  | 'butterfly'
+  | 'rainbow'
+  | 'sun'
+  | 'crown'
+  | 'paw';
 
 interface CrayonColor {
   id: string;
@@ -70,6 +80,23 @@ const RAINBOW_CYCLE = [
   '#F082A8',
 ];
 
+const BRUSH_SIZES: { key: BrushSizeKey; label: string; width: number; dotPx: number }[] = [
+  { key: 'sm', label: 'Small crayon', width: 11, dotPx: 12 },
+  { key: 'md', label: 'Medium crayon', width: 20, dotPx: 19 },
+  { key: 'lg', label: 'Big crayon', width: 32, dotPx: 26 },
+];
+
+const STAMPS: { kind: StampKind; name: string }[] = [
+  { kind: 'star', name: 'Star' },
+  { kind: 'heart', name: 'Heart' },
+  { kind: 'flower', name: 'Flower' },
+  { kind: 'butterfly', name: 'Butterfly' },
+  { kind: 'rainbow', name: 'Rainbow' },
+  { kind: 'sun', name: 'Sun' },
+  { kind: 'crown', name: 'Crown' },
+  { kind: 'paw', name: 'Paw' },
+];
+
 type ShapeSpec =
   | { kind: 'path'; d: string }
   | { kind: 'circle'; cx: number; cy: number; r: number }
@@ -80,6 +107,8 @@ interface ColoringRegion {
   label: string;
   cx: number;
   cy: number;
+  /** Natural storybook color used when tapping the Magic Wand */
+  defaultColor: string;
   shapes: ShapeSpec[];
 }
 
@@ -90,7 +119,7 @@ interface ColoringPageSpec {
   badgeColor: string;
   backdrop: typeof STORYBOOK_ASSETS.bgClearing;
   regions: ColoringRegion[];
-  /** Fixed charming facial details drawn on top of fills & strokes */
+  /** Fixed charming facial details drawn on top of fills, outlines & strokes */
   renderFaceOverlay: () => React.ReactNode;
 }
 
@@ -101,11 +130,30 @@ interface DrawStroke {
   points: { x: number; y: number }[];
 }
 
+interface PlacedStamp {
+  id: string;
+  kind: StampKind;
+  x: number;
+  y: number;
+  rotation: number;
+  scale: number;
+}
+
 interface HistoryEntry {
-  kind: 'fill' | 'stroke';
+  kind: 'fill' | 'stroke' | 'stamp' | 'clear';
   regionId?: string;
   prevColor?: string;
   strokeId?: string;
+  stampId?: string;
+  prevFills?: Record<string, string>;
+  prevStrokes?: DrawStroke[];
+  prevStamps?: PlacedStamp[];
+}
+
+interface SavedArtworkState {
+  fillsByPage: Record<string, Record<string, string>>;
+  strokesByPage: Record<string, DrawStroke[]>;
+  stampsByPage: Record<string, PlacedStamp[]>;
 }
 
 const COLORING_PAGES: ColoringPageSpec[] = [
@@ -121,6 +169,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Sun',
         cx: 266,
         cy: 52,
+        defaultColor: '#FAD44A',
         shapes: [{ kind: 'circle', cx: 266, cy: 52, r: 28 }],
       },
       {
@@ -128,6 +177,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Grass',
         cx: 160,
         cy: 292,
+        defaultColor: '#5BB55E',
         shapes: [
           {
             kind: 'path',
@@ -140,6 +190,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Tail Tuft',
         cx: 264,
         cy: 214,
+        defaultColor: '#F39237',
         shapes: [
           {
             kind: 'path',
@@ -152,6 +203,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Body',
         cx: 160,
         cy: 228,
+        defaultColor: '#FAD44A',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 228, rx: 64, ry: 54 }],
       },
       {
@@ -159,6 +211,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Belly',
         cx: 160,
         cy: 234,
+        defaultColor: '#F39237',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 234, rx: 36, ry: 34 }],
       },
       {
@@ -166,6 +219,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Paws',
         cx: 160,
         cy: 274,
+        defaultColor: '#F39237',
         shapes: [
           { kind: 'ellipse', cx: 122, cy: 274, rx: 24, ry: 15 },
           { kind: 'ellipse', cx: 198, cy: 274, rx: 24, ry: 15 },
@@ -176,6 +230,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Mane',
         cx: 160,
         cy: 124,
+        defaultColor: '#F39237',
         shapes: [
           {
             kind: 'path',
@@ -188,6 +243,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Ears',
         cx: 160,
         cy: 78,
+        defaultColor: '#FAD44A',
         shapes: [
           { kind: 'circle', cx: 112, cy: 78, r: 17 },
           { kind: 'circle', cx: 208, cy: 78, r: 17 },
@@ -198,24 +254,22 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Face',
         cx: 160,
         cy: 126,
+        defaultColor: '#FAD44A',
         shapes: [{ kind: 'circle', cx: 160, cy: 126, r: 52 }],
       },
     ],
     renderFaceOverlay: () => (
       <G pointerEvents="none">
-        {/* Sun rays */}
         <Path
           d="M 266 14 L 266 6 M 298 52 L 306 52 M 234 52 L 226 52 M 290 28 L 296 22 M 242 28 L 236 22 M 290 76 L 296 82"
           stroke={INK}
           strokeWidth="3.2"
           strokeLinecap="round"
         />
-        {/* Cute eyes */}
         <Circle cx="141" cy="118" r="6.5" fill={INK} />
         <Circle cx="179" cy="118" r="6.5" fill={INK} />
         <Circle cx="143" cy="115.5" r="2.2" fill="#FFFFFF" />
         <Circle cx="181" cy="115.5" r="2.2" fill="#FFFFFF" />
-        {/* Triangle nose & happy smile */}
         <Path d="M 151 130 Q 160 125 169 130 L 160 140 Z" fill={INK} />
         <Path
           d="M 160 140 L 160 147 M 146 147 Q 153 155 160 147 Q 167 155 174 147"
@@ -225,7 +279,6 @@ const COLORING_PAGES: ColoringPageSpec[] = [
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Whiskers */}
         <Path
           d="M 122 134 L 136 136 M 120 143 L 136 142 M 198 134 L 184 136 M 200 143 L 184 142"
           stroke={INK}
@@ -247,6 +300,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Water Drops',
         cx: 266,
         cy: 78,
+        defaultColor: '#4DAAD8',
         shapes: [
           { kind: 'path', d: 'M 252 46 Q 266 64 252 74 Q 238 64 252 46 Z' },
           { kind: 'path', d: 'M 284 68 Q 298 86 284 96 Q 270 86 284 68 Z' },
@@ -257,6 +311,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Meadow',
         cx: 160,
         cy: 292,
+        defaultColor: '#5BB55E',
         shapes: [
           {
             kind: 'path',
@@ -269,6 +324,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Left Ear',
         cx: 74,
         cy: 122,
+        defaultColor: '#F082A8',
         shapes: [
           {
             kind: 'path',
@@ -281,6 +337,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Right Ear',
         cx: 246,
         cy: 122,
+        defaultColor: '#F082A8',
         shapes: [
           {
             kind: 'path',
@@ -293,6 +350,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Body',
         cx: 160,
         cy: 224,
+        defaultColor: '#4DAAD8',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 224, rx: 68, ry: 56 }],
       },
       {
@@ -300,6 +358,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Tummy',
         cx: 160,
         cy: 230,
+        defaultColor: '#9B74D4',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 230, rx: 38, ry: 34 }],
       },
       {
@@ -307,6 +366,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Feet',
         cx: 160,
         cy: 274,
+        defaultColor: '#9B74D4',
         shapes: [
           { kind: 'ellipse', cx: 118, cy: 274, rx: 24, ry: 16 },
           { kind: 'ellipse', cx: 202, cy: 274, rx: 24, ry: 16 },
@@ -317,6 +377,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Head & Trunk',
         cx: 160,
         cy: 126,
+        defaultColor: '#4DAAD8',
         shapes: [
           {
             kind: 'path',
@@ -331,10 +392,8 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         <Circle cx="182" cy="116" r="6.5" fill={INK} />
         <Circle cx="140" cy="113.5" r="2.2" fill="#FFFFFF" />
         <Circle cx="184" cy="113.5" r="2.2" fill="#FFFFFF" />
-        {/* Rosy cheeks */}
         <Circle cx="122" cy="134" r="7" fill="rgba(240, 130, 168, 0.35)" />
         <Circle cx="198" cy="134" r="7" fill="rgba(240, 130, 168, 0.35)" />
-        {/* Trunk creases */}
         <Path
           d="M 192 178 Q 202 174 206 180 M 214 176 Q 222 170 226 176"
           stroke={INK}
@@ -357,8 +416,12 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Water Spout',
         cx: 158,
         cy: 64,
+        defaultColor: '#4DAAD8',
         shapes: [
-          { kind: 'path', d: 'M 156 108 Q 148 74 126 62 Q 112 56 118 44 Q 134 36 154 64 Q 160 40 176 40 Q 192 44 184 62 Q 168 74 164 108 Z' },
+          {
+            kind: 'path',
+            d: 'M 156 108 Q 148 74 126 62 Q 112 56 118 44 Q 134 36 154 64 Q 160 40 176 40 Q 192 44 184 62 Q 168 74 164 108 Z',
+          },
         ],
       },
       {
@@ -366,6 +429,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Ocean Wave',
         cx: 160,
         cy: 280,
+        defaultColor: '#4DAAD8',
         shapes: [
           {
             kind: 'path',
@@ -378,6 +442,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Tail Fin',
         cx: 266,
         cy: 150,
+        defaultColor: '#9B74D4',
         shapes: [
           {
             kind: 'path',
@@ -390,6 +455,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Whale Body',
         cx: 146,
         cy: 184,
+        defaultColor: '#4DAAD8',
         shapes: [
           {
             kind: 'path',
@@ -402,6 +468,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Belly',
         cx: 118,
         cy: 230,
+        defaultColor: '#FAD44A',
         shapes: [
           {
             kind: 'path',
@@ -414,6 +481,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Flipper',
         cx: 196,
         cy: 224,
+        defaultColor: '#9B74D4',
         shapes: [
           {
             kind: 'path',
@@ -426,6 +494,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Bubbles',
         cx: 62,
         cy: 94,
+        defaultColor: '#F082A8',
         shapes: [
           { kind: 'circle', cx: 64, cy: 84, r: 16 },
           { kind: 'circle', cx: 44, cy: 116, r: 11 },
@@ -437,7 +506,6 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         <Circle cx="94" cy="176" r="7" fill={INK} />
         <Circle cx="96.5" cy="173.5" r="2.4" fill="#FFFFFF" />
         <Circle cx="112" cy="190" r="8" fill="rgba(240, 130, 168, 0.35)" />
-        {/* Happy wide whale smile */}
         <Path
           d="M 48 204 Q 78 216 108 202"
           fill="none"
@@ -445,7 +513,6 @@ const COLORING_PAGES: ColoringPageSpec[] = [
           strokeWidth="4"
           strokeLinecap="round"
         />
-        {/* Belly stripe lines */}
         <Path
           d="M 80 224 L 78 248 M 106 222 L 106 252 M 134 220 L 136 248"
           stroke={INK}
@@ -467,6 +534,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Snow Hill',
         cx: 160,
         cy: 288,
+        defaultColor: '#4DAAD8',
         shapes: [
           {
             kind: 'path',
@@ -479,6 +547,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Left Wing',
         cx: 74,
         cy: 186,
+        defaultColor: '#9B74D4',
         shapes: [
           {
             kind: 'path',
@@ -491,6 +560,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Right Wing',
         cx: 246,
         cy: 186,
+        defaultColor: '#9B74D4',
         shapes: [
           {
             kind: 'path',
@@ -503,6 +573,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Body',
         cx: 160,
         cy: 166,
+        defaultColor: '#4DAAD8',
         shapes: [
           {
             kind: 'path',
@@ -515,6 +586,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Belly',
         cx: 160,
         cy: 204,
+        defaultColor: '#FAD44A',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 204, rx: 44, ry: 52 }],
       },
       {
@@ -522,6 +594,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Cozy Scarf',
         cx: 160,
         cy: 146,
+        defaultColor: '#E85A50',
         shapes: [
           {
             kind: 'path',
@@ -538,6 +611,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Beak',
         cx: 160,
         cy: 120,
+        defaultColor: '#F39237',
         shapes: [
           { kind: 'path', d: 'M 144 114 Q 160 106 176 114 L 160 134 Z' },
         ],
@@ -547,6 +621,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Feet',
         cx: 160,
         cy: 274,
+        defaultColor: '#F39237',
         shapes: [
           { kind: 'ellipse', cx: 126, cy: 274, rx: 24, ry: 13 },
           { kind: 'ellipse', cx: 194, cy: 274, rx: 24, ry: 13 },
@@ -576,6 +651,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Tree Leaves',
         cx: 266,
         cy: 64,
+        defaultColor: '#5BB55E',
         shapes: [
           { kind: 'circle', cx: 260, cy: 52, r: 24 },
           { kind: 'circle', cx: 286, cy: 70, r: 22 },
@@ -587,6 +663,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Grass',
         cx: 160,
         cy: 292,
+        defaultColor: '#5BB55E',
         shapes: [
           { kind: 'path', d: 'M 8 276 Q 160 264 312 276 L 312 312 L 8 312 Z' },
         ],
@@ -596,6 +673,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Horns',
         cx: 138,
         cy: 42,
+        defaultColor: '#9C6844',
         shapes: [
           { kind: 'circle', cx: 120, cy: 40, r: 12 },
           { kind: 'circle', cx: 158, cy: 40, r: 12 },
@@ -606,6 +684,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Ears',
         cx: 138,
         cy: 76,
+        defaultColor: '#F39237',
         shapes: [
           { kind: 'ellipse', cx: 88, cy: 76, rx: 18, ry: 10 },
           { kind: 'ellipse', cx: 188, cy: 76, rx: 18, ry: 10 },
@@ -616,6 +695,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Neck & Body',
         cx: 146,
         cy: 196,
+        defaultColor: '#FAD44A',
         shapes: [
           {
             kind: 'path',
@@ -628,6 +708,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Giraffe Spots',
         cx: 164,
         cy: 224,
+        defaultColor: '#9C6844',
         shapes: [
           { kind: 'circle', cx: 140, cy: 156, r: 13 },
           { kind: 'circle', cx: 146, cy: 214, r: 17 },
@@ -640,6 +721,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Head',
         cx: 138,
         cy: 92,
+        defaultColor: '#FAD44A',
         shapes: [{ kind: 'ellipse', cx: 138, cy: 92, rx: 42, ry: 34 }],
       },
       {
@@ -647,18 +729,22 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Snout',
         cx: 138,
         cy: 112,
+        defaultColor: '#F39237',
         shapes: [{ kind: 'ellipse', cx: 138, cy: 112, rx: 28, ry: 18 }],
       },
     ],
     renderFaceOverlay: () => (
       <G pointerEvents="none">
-        {/* Horn stalks */}
-        <Path d="M 122 52 L 126 62 M 156 52 L 152 62" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+        <Path
+          d="M 122 52 L 126 62 M 156 52 L 152 62"
+          stroke={INK}
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
         <Circle cx="122" cy="84" r="6" fill={INK} />
         <Circle cx="154" cy="84" r="6" fill={INK} />
         <Circle cx="124" cy="82" r="2" fill="#FFFFFF" />
         <Circle cx="156" cy="82" r="2" fill="#FFFFFF" />
-        {/* Nostrils & smile */}
         <Circle cx="129" cy="108" r="2.6" fill={INK} />
         <Circle cx="147" cy="108" r="2.6" fill={INK} />
         <Path
@@ -683,6 +769,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Banana',
         cx: 266,
         cy: 112,
+        defaultColor: '#FAD44A',
         shapes: [
           {
             kind: 'path',
@@ -695,6 +782,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Jungle Grass',
         cx: 160,
         cy: 292,
+        defaultColor: '#5BB55E',
         shapes: [
           { kind: 'path', d: 'M 8 276 Q 160 264 312 276 L 312 312 L 8 312 Z' },
         ],
@@ -704,6 +792,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Left Arm',
         cx: 76,
         cy: 192,
+        defaultColor: '#9C6844',
         shapes: [
           {
             kind: 'path',
@@ -716,6 +805,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Right Arm',
         cx: 242,
         cy: 174,
+        defaultColor: '#9C6844',
         shapes: [
           {
             kind: 'path',
@@ -728,6 +818,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Body',
         cx: 160,
         cy: 218,
+        defaultColor: '#9C6844',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 218, rx: 64, ry: 58 }],
       },
       {
@@ -735,6 +826,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Belly',
         cx: 160,
         cy: 222,
+        defaultColor: '#F39237',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 222, rx: 38, ry: 36 }],
       },
       {
@@ -742,6 +834,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Feet',
         cx: 160,
         cy: 274,
+        defaultColor: '#F39237',
         shapes: [
           { kind: 'ellipse', cx: 122, cy: 274, rx: 24, ry: 15 },
           { kind: 'ellipse', cx: 198, cy: 274, rx: 24, ry: 15 },
@@ -752,6 +845,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Ears',
         cx: 160,
         cy: 112,
+        defaultColor: '#F39237',
         shapes: [
           { kind: 'circle', cx: 100, cy: 112, r: 16 },
           { kind: 'circle', cx: 220, cy: 112, r: 16 },
@@ -762,6 +856,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Head',
         cx: 160,
         cy: 112,
+        defaultColor: '#9C6844',
         shapes: [{ kind: 'circle', cx: 160, cy: 112, r: 54 }],
       },
       {
@@ -769,6 +864,7 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         label: 'Face',
         cx: 160,
         cy: 124,
+        defaultColor: '#F39237',
         shapes: [{ kind: 'ellipse', cx: 160, cy: 124, rx: 38, ry: 30 }],
       },
     ],
@@ -780,7 +876,6 @@ const COLORING_PAGES: ColoringPageSpec[] = [
         <Circle cx="179" cy="109.5" r="2.2" fill="#FFFFFF" />
         <Circle cx="128" cy="126" r="6.5" fill="rgba(240, 130, 168, 0.35)" />
         <Circle cx="192" cy="126" r="6.5" fill="rgba(240, 130, 168, 0.35)" />
-        {/* Gorilla nose & warm smile */}
         <Circle cx="154" cy="124" r="2.4" fill={INK} />
         <Circle cx="166" cy="124" r="2.4" fill={INK} />
         <Path
@@ -788,6 +883,528 @@ const COLORING_PAGES: ColoringPageSpec[] = [
           fill="none"
           stroke={INK}
           strokeWidth="3.8"
+          strokeLinecap="round"
+        />
+      </G>
+    ),
+  },
+  // === NEW PAGE 7: PLAYFUL MONKEY ===
+  {
+    id: 'monkey',
+    title: 'Playful Monkey',
+    animal: 'monkey',
+    badgeColor: '#F3C78F',
+    backdrop: STORYBOOK_ASSETS.bgClearing,
+    regions: [
+      {
+        id: 'leaf',
+        label: 'Jungle Leaf',
+        cx: 54,
+        cy: 56,
+        defaultColor: '#5BB55E',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 22 46 Q 58 20 88 54 Q 60 88 22 46 Z',
+          },
+        ],
+      },
+      {
+        id: 'banana',
+        label: 'Banana',
+        cx: 268,
+        cy: 74,
+        defaultColor: '#FAD44A',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 254 38 C 282 52 292 84 274 108 C 262 114 252 106 258 94 C 266 78 262 58 246 48 Z',
+          },
+        ],
+      },
+      {
+        id: 'grass',
+        label: 'Grass',
+        cx: 160,
+        cy: 292,
+        defaultColor: '#5BB55E',
+        shapes: [
+          { kind: 'path', d: 'M 8 276 Q 160 264 312 276 L 312 312 L 8 312 Z' },
+        ],
+      },
+      {
+        id: 'tail',
+        label: 'Curly Tail',
+        cx: 256,
+        cy: 204,
+        defaultColor: '#9C6844',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 212 238 C 254 246 290 218 282 182 C 276 158 250 156 244 176 C 242 188 256 196 264 188 C 270 202 252 222 214 220 Z',
+          },
+        ],
+      },
+      {
+        id: 'ears',
+        label: 'Big Ears',
+        cx: 160,
+        cy: 112,
+        defaultColor: '#F39237',
+        shapes: [
+          { kind: 'circle', cx: 96, cy: 112, r: 22 },
+          { kind: 'circle', cx: 224, cy: 112, r: 22 },
+        ],
+      },
+      {
+        id: 'body',
+        label: 'Body',
+        cx: 160,
+        cy: 224,
+        defaultColor: '#9C6844',
+        shapes: [{ kind: 'ellipse', cx: 160, cy: 224, rx: 56, ry: 52 }],
+      },
+      {
+        id: 'belly',
+        label: 'Belly',
+        cx: 160,
+        cy: 228,
+        defaultColor: '#FAD44A',
+        shapes: [{ kind: 'ellipse', cx: 160, cy: 228, rx: 32, ry: 32 }],
+      },
+      {
+        id: 'paws',
+        label: 'Paws',
+        cx: 160,
+        cy: 274,
+        defaultColor: '#F39237',
+        shapes: [
+          { kind: 'ellipse', cx: 124, cy: 274, rx: 22, ry: 14 },
+          { kind: 'ellipse', cx: 196, cy: 274, rx: 22, ry: 14 },
+        ],
+      },
+      {
+        id: 'head',
+        label: 'Head',
+        cx: 160,
+        cy: 114,
+        defaultColor: '#9C6844',
+        shapes: [{ kind: 'circle', cx: 160, cy: 114, r: 52 }],
+      },
+      {
+        id: 'face',
+        label: 'Face',
+        cx: 160,
+        cy: 126,
+        defaultColor: '#FAD44A',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 160 100 C 174 88 196 96 196 116 C 196 122 194 128 198 134 C 202 150 184 162 160 162 C 136 162 118 150 122 134 C 126 128 124 122 124 116 C 124 96 146 88 160 100 Z',
+          },
+        ],
+      },
+    ],
+    renderFaceOverlay: () => (
+      <G pointerEvents="none">
+        {/* Hair tuft */}
+        <Path
+          d="M 156 62 Q 160 44 170 56 Q 178 48 174 64"
+          fill="none"
+          stroke={INK}
+          strokeWidth="3.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle cx="142" cy="116" r="6.5" fill={INK} />
+        <Circle cx="178" cy="116" r="6.5" fill={INK} />
+        <Circle cx="144" cy="113.5" r="2.2" fill="#FFFFFF" />
+        <Circle cx="180" cy="113.5" r="2.2" fill="#FFFFFF" />
+        <Circle cx="130" cy="134" r="6.5" fill="rgba(240, 130, 168, 0.4)" />
+        <Circle cx="190" cy="134" r="6.5" fill="rgba(240, 130, 168, 0.4)" />
+        <Circle cx="155" cy="130" r="2.2" fill={INK} />
+        <Circle cx="165" cy="130" r="2.2" fill={INK} />
+        <Path
+          d="M 142 142 Q 160 156 178 142"
+          fill="none"
+          stroke={INK}
+          strokeWidth="3.8"
+          strokeLinecap="round"
+        />
+      </G>
+    ),
+  },
+  // === NEW PAGE 8: BOUNCY FROG ===
+  {
+    id: 'frog',
+    title: 'Bouncy Frog',
+    animal: 'frog',
+    badgeColor: '#A8E29B',
+    backdrop: STORYBOOK_ASSETS.bgClearing,
+    regions: [
+      {
+        id: 'pond',
+        label: 'Pond Water',
+        cx: 160,
+        cy: 292,
+        defaultColor: '#4DAAD8',
+        shapes: [
+          { kind: 'path', d: 'M 8 264 Q 160 256 312 264 L 312 312 L 8 312 Z' },
+        ],
+      },
+      {
+        id: 'lilypad',
+        label: 'Lily Pad',
+        cx: 160,
+        cy: 266,
+        defaultColor: '#5BB55E',
+        shapes: [{ kind: 'ellipse', cx: 160, cy: 266, rx: 120, ry: 26 }],
+      },
+      {
+        id: 'flower',
+        label: 'Lotus Flower',
+        cx: 58,
+        cy: 234,
+        defaultColor: '#F082A8',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 58 206 C 68 220 74 236 58 248 C 42 236 48 220 58 206 Z',
+          },
+          {
+            kind: 'path',
+            d: 'M 32 222 C 48 224 60 236 54 248 C 36 248 28 236 32 222 Z',
+          },
+          {
+            kind: 'path',
+            d: 'M 84 222 C 68 224 56 236 62 248 C 80 248 88 236 84 222 Z',
+          },
+        ],
+      },
+      {
+        id: 'left-leg',
+        label: 'Left Leg',
+        cx: 88,
+        cy: 226,
+        defaultColor: '#5BB55E',
+        shapes: [{ kind: 'ellipse', cx: 92, cy: 228, rx: 32, ry: 26 }],
+      },
+      {
+        id: 'right-leg',
+        label: 'Right Leg',
+        cx: 232,
+        cy: 226,
+        defaultColor: '#5BB55E',
+        shapes: [{ kind: 'ellipse', cx: 228, cy: 228, rx: 32, ry: 26 }],
+      },
+      {
+        id: 'body',
+        label: 'Body',
+        cx: 160,
+        cy: 204,
+        defaultColor: '#5BB55E',
+        shapes: [{ kind: 'ellipse', cx: 160, cy: 204, rx: 66, ry: 52 }],
+      },
+      {
+        id: 'belly',
+        label: 'Tummy',
+        cx: 160,
+        cy: 212,
+        defaultColor: '#FAD44A',
+        shapes: [{ kind: 'ellipse', cx: 160, cy: 212, rx: 42, ry: 34 }],
+      },
+      {
+        id: 'head',
+        label: 'Frog Head',
+        cx: 160,
+        cy: 134,
+        defaultColor: '#5BB55E',
+        shapes: [{ kind: 'ellipse', cx: 160, cy: 134, rx: 66, ry: 44 }],
+      },
+      {
+        id: 'eyes',
+        label: 'Pop-up Eyes',
+        cx: 160,
+        cy: 86,
+        defaultColor: '#FAD44A',
+        shapes: [
+          { kind: 'circle', cx: 120, cy: 88, r: 25 },
+          { kind: 'circle', cx: 200, cy: 88, r: 25 },
+        ],
+      },
+    ],
+    renderFaceOverlay: () => (
+      <G pointerEvents="none">
+        <Circle cx="120" cy="88" r="14" fill="#FFFFFF" stroke={INK} strokeWidth="2.8" />
+        <Circle cx="200" cy="88" r="14" fill="#FFFFFF" stroke={INK} strokeWidth="2.8" />
+        <Circle cx="122" cy="88" r="7.5" fill={INK} />
+        <Circle cx="198" cy="88" r="7.5" fill={INK} />
+        <Circle cx="124.5" cy="85" r="2.6" fill="#FFFFFF" />
+        <Circle cx="200.5" cy="85" r="2.6" fill="#FFFFFF" />
+        <Circle cx="112" cy="140" r="8.5" fill="rgba(240, 130, 168, 0.4)" />
+        <Circle cx="208" cy="140" r="8.5" fill="rgba(240, 130, 168, 0.4)" />
+        <Circle cx="152" cy="124" r="2.4" fill={INK} />
+        <Circle cx="168" cy="124" r="2.4" fill={INK} />
+        <Path
+          d="M 122 142 Q 160 166 198 142"
+          fill="none"
+          stroke={INK}
+          strokeWidth="4.2"
+          strokeLinecap="round"
+        />
+      </G>
+    ),
+  },
+  // === NEW PAGE 9: SWEET PANDA ===
+  {
+    id: 'panda',
+    title: 'Sweet Panda',
+    animal: 'panda',
+    badgeColor: '#C9E6C5',
+    backdrop: STORYBOOK_ASSETS.bgSanctuary,
+    regions: [
+      {
+        id: 'bamboo',
+        label: 'Bamboo',
+        cx: 274,
+        cy: 138,
+        defaultColor: '#5BB55E',
+        shapes: [
+          { kind: 'path', d: 'M 268 38 L 284 38 L 284 268 L 268 268 Z' },
+          { kind: 'path', d: 'M 268 78 Q 240 60 232 82 Q 248 96 268 86 Z' },
+          { kind: 'path', d: 'M 284 114 Q 308 98 312 118 Q 298 130 284 122 Z' },
+        ],
+      },
+      {
+        id: 'meadow',
+        label: 'Meadow',
+        cx: 160,
+        cy: 292,
+        defaultColor: '#5BB55E',
+        shapes: [
+          { kind: 'path', d: 'M 8 276 Q 160 264 312 276 L 312 312 L 8 312 Z' },
+        ],
+      },
+      {
+        id: 'ears',
+        label: 'Panda Ears',
+        cx: 152,
+        cy: 68,
+        defaultColor: '#9B74D4',
+        shapes: [
+          { kind: 'circle', cx: 102, cy: 70, r: 22 },
+          { kind: 'circle', cx: 202, cy: 70, r: 22 },
+        ],
+      },
+      {
+        id: 'arms',
+        label: 'Panda Arms',
+        cx: 152,
+        cy: 204,
+        defaultColor: '#9B74D4',
+        shapes: [
+          { kind: 'ellipse', cx: 88, cy: 204, rx: 26, ry: 34 },
+          { kind: 'ellipse', cx: 216, cy: 204, rx: 26, ry: 34 },
+        ],
+      },
+      {
+        id: 'body',
+        label: 'Body',
+        cx: 152,
+        cy: 222,
+        defaultColor: '#FFFDF7',
+        shapes: [{ kind: 'ellipse', cx: 152, cy: 222, rx: 60, ry: 54 }],
+      },
+      {
+        id: 'belly',
+        label: 'Belly',
+        cx: 152,
+        cy: 228,
+        defaultColor: '#F082A8',
+        shapes: [{ kind: 'ellipse', cx: 152, cy: 228, rx: 34, ry: 32 }],
+      },
+      {
+        id: 'paws',
+        label: 'Paws',
+        cx: 152,
+        cy: 274,
+        defaultColor: '#9B74D4',
+        shapes: [
+          { kind: 'ellipse', cx: 114, cy: 274, rx: 24, ry: 16 },
+          { kind: 'ellipse', cx: 190, cy: 274, rx: 24, ry: 16 },
+        ],
+      },
+      {
+        id: 'head',
+        label: 'Head',
+        cx: 152,
+        cy: 120,
+        defaultColor: '#FFFDF7',
+        shapes: [{ kind: 'circle', cx: 152, cy: 120, r: 54 }],
+      },
+      {
+        id: 'patches',
+        label: 'Eye Patches',
+        cx: 152,
+        cy: 118,
+        defaultColor: '#9B74D4',
+        shapes: [
+          { kind: 'ellipse', cx: 128, cy: 118, rx: 17, ry: 20 },
+          { kind: 'ellipse', cx: 176, cy: 118, rx: 17, ry: 20 },
+        ],
+      },
+    ],
+    renderFaceOverlay: () => (
+      <G pointerEvents="none">
+        <Circle cx="130" cy="116" r="7.5" fill={INK} stroke="#FFFFFF" strokeWidth="2.4" />
+        <Circle cx="174" cy="116" r="7.5" fill={INK} stroke="#FFFFFF" strokeWidth="2.4" />
+        <Circle cx="132" cy="113.5" r="2.4" fill="#FFFFFF" />
+        <Circle cx="176" cy="113.5" r="2.4" fill="#FFFFFF" />
+        <Circle cx="114" cy="136" r="7" fill="rgba(240, 130, 168, 0.45)" />
+        <Circle cx="190" cy="136" r="7" fill="rgba(240, 130, 168, 0.45)" />
+        <Ellipse cx="152" cy="134" rx="9" ry="6" fill={INK} />
+        <Path
+          d="M 152 140 L 152 146 M 139 147 Q 145 154 152 146 Q 159 154 165 147"
+          fill="none"
+          stroke={INK}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </G>
+    ),
+  },
+  // === NEW PAGE 10: RAINBOW TURTLE (Chunky Mosaic Shell!) ===
+  {
+    id: 'turtle',
+    title: 'Rainbow Turtle',
+    animal: 'turtle',
+    badgeColor: '#96DFD0',
+    backdrop: STORYBOOK_ASSETS.bgAquarium,
+    regions: [
+      {
+        id: 'bubbles',
+        label: 'Bubbles',
+        cx: 60,
+        cy: 76,
+        defaultColor: '#4DAAD8',
+        shapes: [
+          { kind: 'circle', cx: 66, cy: 62, r: 16 },
+          { kind: 'circle', cx: 44, cy: 96, r: 12 },
+          { kind: 'circle', cx: 88, cy: 92, r: 9 },
+        ],
+      },
+      {
+        id: 'sand',
+        label: 'Ocean Floor',
+        cx: 160,
+        cy: 288,
+        defaultColor: '#FAD44A',
+        shapes: [
+          { kind: 'path', d: 'M 8 268 Q 160 254 312 268 L 312 312 L 8 312 Z' },
+        ],
+      },
+      {
+        id: 'head',
+        label: 'Turtle Head',
+        cx: 262,
+        cy: 176,
+        defaultColor: '#5BB55E',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 218 192 C 232 162 252 144 274 148 C 298 152 308 176 296 198 C 284 218 256 222 222 214 Z',
+          },
+        ],
+      },
+      {
+        id: 'flippers',
+        label: 'Flippers',
+        cx: 152,
+        cy: 248,
+        defaultColor: '#5BB55E',
+        shapes: [
+          { kind: 'ellipse', cx: 92, cy: 248, rx: 28, ry: 17 },
+          { kind: 'ellipse', cx: 204, cy: 248, rx: 32, ry: 18 },
+          { kind: 'path', d: 'M 54 206 Q 28 214 38 228 Q 52 232 62 220 Z' },
+        ],
+      },
+      {
+        id: 'shell-rim',
+        label: 'Shell Rim',
+        cx: 146,
+        cy: 224,
+        defaultColor: '#FAD44A',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 52 212 Q 146 204 236 212 Q 240 232 222 236 Q 146 244 64 236 Q 48 232 52 212 Z',
+          },
+        ],
+      },
+      {
+        id: 'shell-left',
+        label: 'Left Shell',
+        cx: 86,
+        cy: 182,
+        defaultColor: '#E85A50',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 56 210 C 56 164 82 134 114 128 L 116 208 Z',
+          },
+        ],
+      },
+      {
+        id: 'shell-right',
+        label: 'Right Shell',
+        cx: 204,
+        cy: 182,
+        defaultColor: '#9B74D4',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 232 210 C 232 164 206 134 174 128 L 172 208 Z',
+          },
+        ],
+      },
+      {
+        id: 'shell-center',
+        label: 'Center Shell',
+        cx: 144,
+        cy: 184,
+        defaultColor: '#4DAAD8',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 114 156 L 174 156 L 174 208 L 114 208 Z',
+          },
+        ],
+      },
+      {
+        id: 'shell-top',
+        label: 'Top Shell',
+        cx: 144,
+        cy: 132,
+        defaultColor: '#F39237',
+        shapes: [
+          {
+            kind: 'path',
+            d: 'M 114 128 Q 144 108 174 128 L 174 156 L 114 156 Z',
+          },
+        ],
+      },
+    ],
+    renderFaceOverlay: () => (
+      <G pointerEvents="none">
+        <Circle cx="272" cy="172" r="6.5" fill={INK} />
+        <Circle cx="274.2" cy="169.5" r="2.2" fill="#FFFFFF" />
+        <Circle cx="282" cy="188" r="6.5" fill="rgba(240, 130, 168, 0.45)" />
+        <Path
+          d="M 254 194 Q 272 206 288 194"
+          fill="none"
+          stroke={INK}
+          strokeWidth="3.6"
           strokeLinecap="round"
         />
       </G>
@@ -815,6 +1432,36 @@ function saveCompletedPages(ids: string[]): void {
     window.localStorage.setItem(SAVED_PAGES_KEY, JSON.stringify(ids));
   } catch {
     // Ignore storage errors
+  }
+}
+
+function loadSavedArtwork(): SavedArtworkState {
+  const empty: SavedArtworkState = {
+    fillsByPage: {},
+    strokesByPage: {},
+    stampsByPage: {},
+  };
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return empty;
+  try {
+    const raw = window.localStorage.getItem(SAVED_ARTWORK_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as Partial<SavedArtworkState>;
+    return {
+      fillsByPage: parsed.fillsByPage && typeof parsed.fillsByPage === 'object' ? parsed.fillsByPage : {},
+      strokesByPage: parsed.strokesByPage && typeof parsed.strokesByPage === 'object' ? parsed.strokesByPage : {},
+      stampsByPage: parsed.stampsByPage && typeof parsed.stampsByPage === 'object' ? parsed.stampsByPage : {},
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function saveArtworkState(art: SavedArtworkState): void {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SAVED_ARTWORK_KEY, JSON.stringify(art));
+  } catch {
+    // Ignore quota errors
   }
 }
 
@@ -847,48 +1494,212 @@ function resolveDomElement(node: unknown): HTMLElement | null {
   return null;
 }
 
-/** Tactile storybook crayon button */
+/** Crisp zero-gradient storybook SVG sticker artwork (centered at 0,0 in ~48x48 space) */
+function renderStampGraphic(kind: StampKind) {
+  switch (kind) {
+    case 'star':
+      return (
+        <G>
+          <Path
+            d="M 0 -20 L 5.8 -6.6 L 20 -5.2 L 9.2 4.2 L 12.4 18.4 L 0 11 L -12.4 18.4 L -9.2 4.2 L -20 -5.2 L -5.8 -6.6 Z"
+            fill="#FAD44A"
+            stroke={INK}
+            strokeWidth="2.8"
+            strokeLinejoin="round"
+          />
+          <Circle cx="-4.5" cy="-3" r="1.8" fill={INK} />
+          <Circle cx="4.5" cy="-3" r="1.8" fill={INK} />
+          <Path
+            d="M -3.5 3 Q 0 6.5 3.5 3"
+            fill="none"
+            stroke={INK}
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </G>
+      );
+    case 'heart':
+      return (
+        <G>
+          <Path
+            d="M 0 16 C -16 6 -22 -4 -18 -13 C -14 -20 -4 -19 0 -11 C 4 -19 14 -20 18 -13 C 22 -4 16 6 0 16 Z"
+            fill="#F06A94"
+            stroke={INK}
+            strokeWidth="2.8"
+            strokeLinejoin="round"
+          />
+          <Ellipse cx="-7" cy="-9" rx="3.2" ry="2" fill="rgba(255,255,255,0.6)" />
+        </G>
+      );
+    case 'flower':
+      return (
+        <G>
+          <Circle cx="0" cy="-12" r="8" fill="#F082A8" stroke={INK} strokeWidth="2.4" />
+          <Circle cx="11.5" cy="-3.5" r="8" fill="#F082A8" stroke={INK} strokeWidth="2.4" />
+          <Circle cx="7" cy="10" r="8" fill="#F082A8" stroke={INK} strokeWidth="2.4" />
+          <Circle cx="-7" cy="10" r="8" fill="#F082A8" stroke={INK} strokeWidth="2.4" />
+          <Circle cx="-11.5" cy="-3.5" r="8" fill="#F082A8" stroke={INK} strokeWidth="2.4" />
+          <Circle cx="0" cy="0" r="8" fill="#FAD44A" stroke={INK} strokeWidth="2.4" />
+        </G>
+      );
+    case 'butterfly':
+      return (
+        <G>
+          <Ellipse cx="-11" cy="-6" rx="10" ry="9" fill="#4DAAD8" stroke={INK} strokeWidth="2.4" />
+          <Ellipse cx="11" cy="-6" rx="10" ry="9" fill="#4DAAD8" stroke={INK} strokeWidth="2.4" />
+          <Ellipse cx="-8" cy="8" rx="7.5" ry="7" fill="#9B74D4" stroke={INK} strokeWidth="2.4" />
+          <Ellipse cx="8" cy="8" rx="7.5" ry="7" fill="#9B74D4" stroke={INK} strokeWidth="2.4" />
+          <Circle cx="-11" cy="-6" r="3" fill="#FAD44A" />
+          <Circle cx="11" cy="-6" r="3" fill="#FAD44A" />
+          <Ellipse cx="0" cy="2" rx="3.5" ry="12" fill={INK} />
+          <Path
+            d="M -1 -10 Q -6 -18 -10 -16 M 1 -10 Q 6 -18 10 -16"
+            fill="none"
+            stroke={INK}
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        </G>
+      );
+    case 'rainbow':
+      return (
+        <G>
+          <Path d="M -18 8 A 18 18 0 0 1 18 8" fill="none" stroke="#E85A50" strokeWidth="6" strokeLinecap="round" />
+          <Path d="M -13 8 A 13 13 0 0 1 13 8" fill="none" stroke="#FAD44A" strokeWidth="5.5" strokeLinecap="round" />
+          <Path d="M -8 8 A 8 8 0 0 1 8 8" fill="none" stroke="#4DAAD8" strokeWidth="5" strokeLinecap="round" />
+          <Circle cx="-16" cy="10" r="6" fill="#FFFDF7" stroke={INK} strokeWidth="2.2" />
+          <Circle cx="16" cy="10" r="6" fill="#FFFDF7" stroke={INK} strokeWidth="2.2" />
+        </G>
+      );
+    case 'sun':
+      return (
+        <G>
+          <Path
+            d="M 0 -20 L 0 -15 M 0 15 L 0 20 M -20 0 L -15 0 M 15 0 L 20 0 M -14 -14 L -10.5 -10.5 M 10.5 10.5 L 14 14 M 14 -14 L 10.5 -10.5 M -10.5 10.5 L -14 14"
+            stroke="#F39237"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+          />
+          <Circle cx="0" cy="0" r="12" fill="#FAD44A" stroke={INK} strokeWidth="2.6" />
+          <Circle cx="-4" cy="-2" r="1.7" fill={INK} />
+          <Circle cx="4" cy="-2" r="1.7" fill={INK} />
+          <Path d="M -4 3.5 Q 0 7 4 3.5" fill="none" stroke={INK} strokeWidth="2" strokeLinecap="round" />
+        </G>
+      );
+    case 'crown':
+      return (
+        <G>
+          <Path
+            d="M -18 12 L -19 -8 L -7 2 L 0 -14 L 7 2 L 19 -8 L 18 12 Z"
+            fill="#FAD44A"
+            stroke={INK}
+            strokeWidth="2.6"
+            strokeLinejoin="round"
+          />
+          <Circle cx="0" cy="4" r="3" fill="#E85A50" />
+          <Circle cx="-10" cy="6" r="2.2" fill="#4DAAD8" />
+          <Circle cx="10" cy="6" r="2.2" fill="#5BB55E" />
+        </G>
+      );
+    case 'paw':
+      return (
+        <G>
+          <Ellipse cx="0" cy="6" rx="10" ry="8.5" fill="#9C6844" stroke={INK} strokeWidth="2.4" />
+          <Circle cx="-12" cy="-5" r="4.6" fill="#9C6844" stroke={INK} strokeWidth="2.2" />
+          <Circle cx="-4.2" cy="-12" r="4.8" fill="#9C6844" stroke={INK} strokeWidth="2.2" />
+          <Circle cx="4.2" cy="-12" r="4.8" fill="#9C6844" stroke={INK} strokeWidth="2.2" />
+          <Circle cx="12" cy="-5" r="4.6" fill="#9C6844" stroke={INK} strokeWidth="2.2" />
+        </G>
+      );
+  }
+}
+
+/** Tactile storybook SVG Crayon button with pointed wax tip + paper wrapper */
 const CrayonButton: React.FC<{
   crayon: CrayonColor;
   active: boolean;
   size: number;
   onPress: () => void;
-}> = React.memo(({ crayon, active, size, onPress }) => (
-  <TactileButton
-    onPress={onPress}
-    accessibilityLabel={`${crayon.name} crayon`}
-    style={{ width: size }}
-  >
-    <View
-      style={[
-        styles.crayonSwatch,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderColor: active ? COLORS.woodDark : crayon.border,
-          backgroundColor: crayon.isRainbow ? '#FFF8E2' : crayon.hex,
-        },
-        active && styles.crayonSwatchActive,
-      ]}
+}> = React.memo(({ crayon, active, size, onPress }) => {
+  const w = size;
+  const h = Math.round(size * 1.18);
+  return (
+    <TactileButton
+      onPress={onPress}
+      accessibilityLabel={`${crayon.name} crayon`}
+      style={{ width: w }}
     >
-      {crayon.isRainbow ? (
-        <Text style={{ fontSize: Math.round(size * 0.54) }}>🌈</Text>
-      ) : (
-        <View
-          style={{
-            width: Math.round(size * 0.34),
-            height: Math.round(size * 0.16),
-            borderRadius: 99,
-            backgroundColor: 'rgba(255,255,255,0.45)',
-            position: 'absolute',
-            top: Math.round(size * 0.16),
-          }}
-        />
-      )}
-    </View>
-  </TactileButton>
-));
+      <View
+        style={[
+          styles.crayonWrap,
+          { width: w, height: h },
+          active && styles.crayonWrapActive,
+        ]}
+      >
+        <Svg width={w} height={h} viewBox="0 0 44 52">
+          {/* Active glow pill behind selected crayon */}
+          {active && (
+            <Path
+              d="M 8 50 L 8 18 L 22 2 L 36 18 L 36 50 Z"
+              fill="#FFF4BE"
+              stroke={COLORS.woodDark}
+              strokeWidth="4.5"
+              strokeLinejoin="round"
+            />
+          )}
+          {/* Wax tip */}
+          <Path
+            d="M 11 19 L 20 5 Q 22 3 24 5 L 33 19 Z"
+            fill={crayon.isRainbow ? '#E85A50' : crayon.hex}
+            stroke={INK}
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          {/* Crayon body */}
+          {crayon.isRainbow ? (
+            <G>
+              <Path d="M 10 19 L 34 19 L 34 27 L 10 27 Z" fill="#F39237" />
+              <Path d="M 10 27 L 34 27 L 34 35 L 10 35 Z" fill="#FAD44A" />
+              <Path d="M 10 35 L 34 35 L 34 42 L 10 42 Z" fill="#5BB55E" />
+              <Path d="M 10 42 L 34 42 L 34 49 L 10 49 Z" fill="#4DAAD8" />
+              <Path
+                d="M 10 19 L 34 19 L 34 48 Q 34 50 32 50 L 12 50 Q 10 50 10 48 Z"
+                fill="none"
+                stroke={INK}
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+              />
+            </G>
+          ) : (
+            <G>
+              <Path
+                d="M 10 19 L 34 19 L 34 48 Q 34 50 32 50 L 12 50 Q 10 50 10 48 Z"
+                fill={crayon.hex}
+                stroke={INK}
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+              />
+              {/* Paper wrapper band */}
+              <Path
+                d="M 11 26 L 33 26 L 33 41 L 11 41 Z"
+                fill="rgba(255,253,247,0.42)"
+              />
+              <Path d="M 11 26 L 33 26 M 11 41 L 33 41" stroke={INK} strokeWidth="2.2" />
+              <Ellipse cx="22" cy="33.5" rx="6" ry="3.5" fill={INK} opacity={0.28} />
+            </G>
+          )}
+          {/* Specular shine on left edge */}
+          <Path
+            d="M 14.5 21 L 14.5 46"
+            stroke="rgba(255,255,255,0.52)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        </Svg>
+      </View>
+    </TactileButton>
+  );
+});
 
 /** Floating celebratory "Masterpiece!" banner when all regions on a page are colored */
 const MasterpieceBanner: React.FC<{ title: string }> = React.memo(({ title }) => {
@@ -903,7 +1714,7 @@ const MasterpieceBanner: React.FC<{ title: string }> = React.memo(({ title }) =>
         tension: 170,
         useNativeDriver: true,
       }),
-      Animated.delay(1400),
+      Animated.delay(1600),
       Animated.timing(fade, {
         toValue: 0,
         duration: 360,
@@ -936,23 +1747,37 @@ const MasterpieceBanner: React.FC<{ title: string }> = React.memo(({ title }) =>
 });
 
 /**
- * Zoo Coloring (Free Tier):
- * - 6 chunky storybook coloring pages (Lion, Elephant, Whale, Penguin, Giraffe, Whit!)
- * - Two toddler-friendly modes: instant Tap-to-Fill (0ms touchstart!) + Freehand Crayon Draw
- *   (with outlines layered cleanly on top so scribbles always look neat!)
- * - 10 vibrant crayons including a 🌈 Magic Rainbow Crayon + spoken color names
- * - Tablet top page selector so resting wrists never switch pages accidentally
- * - Zero SVG ClipPaths or RadialGradients for rock-solid Android & iPad rendering
+ * Zoo Coloring 2.0 (Free Tier):
+ * - 10 chunky storybook coloring pages across all zoo habitats
+ * - Three toddler-friendly modes:
+ *   1. 🪣 Tap & Slide-to-Fill (0ms touchstart + drag finger across shapes!)
+ *   2. 🖍️ Crayon Draw with Small/Med/Big sizes & crisp outlines layered ABOVE strokes
+ *   3. ⭐ Storybook Sticker Stamps (8 crisp SVG stickers!)
+ * - 🪄 Magic Wand (colors next blank spot in its storybook color, or rainbow sparkle!)
+ * - Auto-saves all artwork to localStorage + undoable Clear button
+ * - Musical crayon notes + Hear Animal button for interactive animal bounce & sound
+ * - Zero SVG ClipPaths or Gradients for rock-solid Android & iPad rendering
  */
 export const ZooColoringGame: React.FC = () => {
   const { addStar, collectSticker } = useApp();
   const { isTablet, isTabletLandscape, width, height } = useResponsive();
 
+  const initialArt = useMemo(() => loadSavedArtwork(), []);
   const [pageIdx, setPageIdx] = useState(0);
   const [tool, setTool] = useState<ToolMode>('fill');
+  const [brushSizeKey, setBrushSizeKey] = useState<BrushSizeKey>('md');
   const [selectedCrayonId, setSelectedCrayonId] = useState<string>('yellow');
-  const [fillsByPage, setFillsByPage] = useState<Record<string, Record<string, string>>>({});
-  const [strokesByPage, setStrokesByPage] = useState<Record<string, DrawStroke[]>>({});
+  const [selectedStamp, setSelectedStamp] = useState<StampKind>('star');
+
+  const [fillsByPage, setFillsByPage] = useState<Record<string, Record<string, string>>>(
+    initialArt.fillsByPage
+  );
+  const [strokesByPage, setStrokesByPage] = useState<Record<string, DrawStroke[]>>(
+    initialArt.strokesByPage
+  );
+  const [stampsByPage, setStampsByPage] = useState<Record<string, PlacedStamp[]>>(
+    initialArt.stampsByPage
+  );
   const [historyByPage, setHistoryByPage] = useState<Record<string, HistoryEntry[]>>({});
   const [completedPages, setCompletedPages] = useState<string[]>(() =>
     loadSavedCompletedPages()
@@ -969,9 +1794,20 @@ export const ZooColoringGame: React.FC = () => {
   const page = COLORING_PAGES[pageIdx % COLORING_PAGES.length];
   const currentFills = fillsByPage[page.id] || {};
   const currentStrokes = strokesByPage[page.id] || [];
+  const currentStamps = stampsByPage[page.id] || [];
   const currentHistory = historyByPage[page.id] || [];
   const selectedCrayon =
     CRAYONS.find((c) => c.id === selectedCrayonId) || CRAYONS[2];
+  const activeBrushWidth =
+    BRUSH_SIZES.find((b) => b.key === brushSizeKey)?.width ?? 20;
+
+  // Persist artwork gently whenever fills, strokes, or stamps change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveArtworkState({ fillsByPage, strokesByPage, stampsByPage });
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [fillsByPage, strokesByPage, stampsByPage]);
 
   const coloredRegionCount = useMemo(
     () =>
@@ -981,15 +1817,15 @@ export const ZooColoringGame: React.FC = () => {
     [currentFills, page.regions]
   );
 
-  // Canvas dimensions adapted cleanly to tablet landscape, tablet portrait, and phone
+  // Larger, immersive coloring paper on tablets while keeping zero overflow on phones
   const canvasSize = useMemo(() => {
     if (isTabletLandscape) {
-      return Math.min(450, Math.max(300, Math.min(height - 196, width - 360)));
+      return Math.min(500, Math.max(320, Math.min(height - 210, width - 390)));
     }
     if (isTablet) {
-      return Math.min(460, Math.max(300, Math.min(width - 64, height - 375)));
+      return Math.min(480, Math.max(300, Math.min(width - 64, height - 385)));
     }
-    return Math.min(340, Math.max(244, Math.min(width - 36, height - 340)));
+    return Math.min(336, Math.max(232, Math.min(width - 32, height - 356)));
   }, [height, isTablet, isTabletLandscape, width]);
 
   const nextActiveColor = useCallback(() => {
@@ -1001,12 +1837,23 @@ export const ZooColoringGame: React.FC = () => {
     return selectedCrayon.hex;
   }, [selectedCrayon]);
 
+  const bouncePageJoyfully = useCallback(() => {
+    pageCelebrateAnim.setValue(0.95);
+    Animated.spring(pageCelebrateAnim, {
+      toValue: 1,
+      friction: 3.6,
+      tension: 185,
+      useNativeDriver: true,
+    }).start();
+  }, [pageCelebrateAnim]);
+
   const triggerPageMasterpiece = useCallback(
     (p: ColoringPageSpec) => {
       setCelebratedThisVisit((prev) => ({ ...prev, [p.id]: true }));
       setMasterpieceTick(Date.now());
       soundEngine.playWin();
       setTimeout(() => soundEngine.playAnimalSound(p.animal), 280);
+      setTimeout(() => soundEngine.speakWord(`Great job! ${p.title}!`), 620);
       addStar(1);
       collectSticker(p.animal);
 
@@ -1017,22 +1864,18 @@ export const ZooColoringGame: React.FC = () => {
         return next;
       });
 
-      pageCelebrateAnim.setValue(0.95);
-      Animated.spring(pageCelebrateAnim, {
-        toValue: 1,
-        friction: 3.6,
-        tension: 180,
-        useNativeDriver: true,
-      }).start();
+      bouncePageJoyfully();
     },
-    [addStar, collectSticker, pageCelebrateAnim]
+    [addStar, bouncePageJoyfully, collectSticker]
   );
 
   const fillRegion = useCallback(
-    (region: ColoringRegion) => {
+    (region: ColoringRegion, overrideColor?: string, silentNote = false) => {
       soundEngine.unlock();
-      const color = nextActiveColor();
-      soundEngine.playPop();
+      const color = overrideColor ?? nextActiveColor();
+      if (!silentNote) {
+        soundEngine.playNote(selectedCrayon.noteFreq);
+      }
 
       const scale = canvasSize / CANVAS_VB;
       setBurstPos({
@@ -1041,26 +1884,110 @@ export const ZooColoringGame: React.FC = () => {
         tick: Date.now(),
       });
 
-      const prevColor = (fillsByPage[page.id] || {})[region.id];
-      const nextPageMap = { ...(fillsByPage[page.id] || {}), [region.id]: color };
-      setFillsByPage((prev) => ({ ...prev, [page.id]: nextPageMap }));
+      setFillsByPage((prev) => {
+        const pageMap = prev[page.id] || {};
+        const prevColor = pageMap[region.id];
+        const nextPageMap = { ...pageMap, [region.id]: color };
 
-      const entry: HistoryEntry = { kind: 'fill', regionId: region.id, prevColor };
-      setHistoryByPage((hPrev) => ({
-        ...hPrev,
-        [page.id]: [...(hPrev[page.id] || []), entry].slice(-30),
-      }));
+        setHistoryByPage((hPrev) => ({
+          ...hPrev,
+          [page.id]: [
+            ...(hPrev[page.id] || []),
+            { kind: 'fill' as const, regionId: region.id, prevColor },
+          ].slice(-36),
+        }));
 
-      // Check if every region on this page now has color!
-      const allColored = page.regions.every(
-        (r) => Boolean(nextPageMap[r.id]) && nextPageMap[r.id] !== PAPER_WHITE
-      );
-      if (allColored && !celebratedThisVisit[page.id]) {
-        setTimeout(() => triggerPageMasterpiece(page), 180);
-      }
+        const allColored = page.regions.every(
+          (r) => Boolean(nextPageMap[r.id]) && nextPageMap[r.id] !== PAPER_WHITE
+        );
+        if (allColored && !celebratedThisVisit[page.id]) {
+          setTimeout(() => triggerPageMasterpiece(page), 180);
+        }
+
+        return { ...prev, [page.id]: nextPageMap };
+      });
     },
-    [canvasSize, celebratedThisVisit, fillsByPage, nextActiveColor, page, triggerPageMasterpiece]
+    [
+      canvasSize,
+      celebratedThisVisit,
+      nextActiveColor,
+      page,
+      selectedCrayon.noteFreq,
+      triggerPageMasterpiece,
+    ]
   );
+
+  const placeStampAt = useCallback(
+    (vbPt: { x: number; y: number }) => {
+      soundEngine.unlock();
+      soundEngine.playStamp();
+      const stampId = `st-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const rotation = Math.round((Math.random() - 0.5) * 26);
+      const scaleVal = isTablet ? 0.96 : 0.92;
+
+      const newStamp: PlacedStamp = {
+        id: stampId,
+        kind: selectedStamp,
+        x: vbPt.x,
+        y: vbPt.y,
+        rotation,
+        scale: scaleVal,
+      };
+
+      const scale = canvasSize / CANVAS_VB;
+      setBurstPos({
+        x: vbPt.x * scale,
+        y: vbPt.y * scale,
+        tick: Date.now(),
+      });
+
+      setStampsByPage((prev) => ({
+        ...prev,
+        [page.id]: [...(prev[page.id] || []), newStamp].slice(-28),
+      }));
+      setHistoryByPage((prev) => ({
+        ...prev,
+        [page.id]: [
+          ...(prev[page.id] || []),
+          { kind: 'stamp' as const, stampId },
+        ].slice(-36),
+      }));
+    },
+    [canvasSize, isTablet, page.id, selectedStamp]
+  );
+
+  const handleMagicWand = useCallback(() => {
+    soundEngine.unlock();
+    soundEngine.playMagicWand();
+    const pageMap = fillsByPage[page.id] || {};
+    const nextBlank = page.regions.find(
+      (r) => !pageMap[r.id] || pageMap[r.id] === PAPER_WHITE
+    );
+    if (nextBlank) {
+      fillRegion(nextBlank, nextBlank.defaultColor, true);
+      return;
+    }
+    // Page already full! Give a playful rainbow sparkle celebration + animal sound!
+    const pick = page.regions[Math.floor(Math.random() * page.regions.length)];
+    const funHex = RAINBOW_CYCLE[rainbowIdxRef.current % RAINBOW_CYCLE.length];
+    rainbowIdxRef.current += 1;
+    fillRegion(pick, funHex, true);
+    bouncePageJoyfully();
+    setTimeout(() => soundEngine.playAnimalSound(page.animal), 180);
+  }, [bouncePageJoyfully, fillRegion, fillsByPage, page]);
+
+  const handleHearAnimal = useCallback(() => {
+    soundEngine.unlock();
+    soundEngine.playAnimalSound(page.animal);
+    soundEngine.speakWord(page.title);
+    bouncePageJoyfully();
+    const scale = canvasSize / CANVAS_VB;
+    setBurstPos({
+      x: 160 * scale,
+      y: 120 * scale,
+      tick: Date.now(),
+    });
+  }, [bouncePageJoyfully, canvasSize, page.animal, page.title]);
 
   const handleUndo = useCallback(() => {
     soundEngine.playCardFlip();
@@ -1087,19 +2014,52 @@ export const ZooColoringGame: React.FC = () => {
         ...prev,
         [page.id]: (prev[page.id] || []).filter((s) => s.id !== last.strokeId),
       }));
+    } else if (last.kind === 'stamp' && last.stampId) {
+      setStampsByPage((prev) => ({
+        ...prev,
+        [page.id]: (prev[page.id] || []).filter((s) => s.id !== last.stampId),
+      }));
+    } else if (last.kind === 'clear') {
+      setFillsByPage((prev) => ({ ...prev, [page.id]: last.prevFills || {} }));
+      setStrokesByPage((prev) => ({ ...prev, [page.id]: last.prevStrokes || [] }));
+      setStampsByPage((prev) => ({ ...prev, [page.id]: last.prevStamps || [] }));
     }
   }, [historyByPage, page.id]);
 
   const handleClearPage = useCallback(() => {
+    const prevFills = fillsByPage[page.id] || {};
+    const prevStrokes = strokesByPage[page.id] || [];
+    const prevStamps = stampsByPage[page.id] || [];
+    const hasAnything =
+      Object.keys(prevFills).length > 0 ||
+      prevStrokes.length > 0 ||
+      prevStamps.length > 0;
+    if (!hasAnything) return;
+
     soundEngine.playGentleBounce();
+    setHistoryByPage((prev) => ({
+      ...prev,
+      [page.id]: [
+        ...(prev[page.id] || []),
+        {
+          kind: 'clear' as const,
+          prevFills: { ...prevFills },
+          prevStrokes: [...prevStrokes],
+          prevStamps: [...prevStamps],
+        },
+      ].slice(-36),
+    }));
     setFillsByPage((prev) => ({ ...prev, [page.id]: {} }));
     setStrokesByPage((prev) => ({ ...prev, [page.id]: [] }));
-    setHistoryByPage((prev) => ({ ...prev, [page.id]: [] }));
+    setStampsByPage((prev) => ({ ...prev, [page.id]: [] }));
     setCelebratedThisVisit((prev) => ({ ...prev, [page.id]: false }));
-  }, [page.id]);
+  }, [fillsByPage, page.id, stampsByPage, strokesByPage]);
 
   // =========================================================================
-  // DIRECT NON-PASSIVE DOM TOUCH ENGINE (Instant Tap-to-Fill + Smooth Drawing)
+  // DIRECT NON-PASSIVE DOM TOUCH ENGINE
+  // - Tap & Slide-to-Paint in Fill mode
+  // - Smooth Crayon Strokes in Draw mode
+  // - Instant Sticker Stamping in Stamp mode
   // =========================================================================
   const canvasDomRef = useRef<HTMLElement | null>(null);
   const [canvasDomNode, setCanvasDomNode] = useState<HTMLElement | null>(null);
@@ -1113,6 +2073,12 @@ export const ZooColoringGame: React.FC = () => {
     strokeId: string;
     lastPt: { x: number; y: number };
     distSinceHue: number;
+  } | null>(null);
+
+  const fillSlideRef = useRef<{
+    mode: 'touch' | 'pointer';
+    id: number;
+    lastRegionId: string | null;
   } | null>(null);
 
   const handleCanvasRef = useCallback((node: React.ComponentRef<typeof View> | null) => {
@@ -1139,13 +2105,13 @@ export const ZooColoringGame: React.FC = () => {
     const x = ((clientX - rect.left) / rect.width) * CANVAS_VB;
     const y = ((clientY - rect.top) / rect.height) * CANVAS_VB;
     return {
-      x: Math.max(4, Math.min(CANVAS_VB - 4, x)),
-      y: Math.max(4, Math.min(CANVAS_VB - 4, y)),
+      x: Math.max(6, Math.min(CANVAS_VB - 6, x)),
+      y: Math.max(6, Math.min(CANVAS_VB - 6, y)),
     };
   }, []);
 
   const findRegionFromClientPoint = useCallback(
-    (clientX: number, clientY: number): ColoringRegion | null => {
+    (clientX: number, clientY: number, allowFallback = true): ColoringRegion | null => {
       if (typeof document !== 'undefined') {
         let el = document.elementFromPoint(clientX, clientY) as Element | null;
         let depth = 0;
@@ -1160,7 +2126,7 @@ export const ZooColoringGame: React.FC = () => {
           depth++;
         }
       }
-      // Fallback: nearest region center within generous radius if toddler tapped on a border line
+      if (!allowFallback) return null;
       const vb = clientToViewBox(clientX, clientY);
       let best: ColoringRegion | null = null;
       let bestDist = 52;
@@ -1184,7 +2150,7 @@ export const ZooColoringGame: React.FC = () => {
       const newStroke: DrawStroke = {
         id: strokeId,
         color,
-        width: isTablet ? 20 : 18,
+        width: activeBrushWidth,
         points: [vbPt],
       };
 
@@ -1201,13 +2167,15 @@ export const ZooColoringGame: React.FC = () => {
         ...prev,
         [page.id]: [...(prev[page.id] || []), newStroke],
       }));
-      const startEntry: HistoryEntry = { kind: 'stroke', strokeId };
       setHistoryByPage((prev) => ({
         ...prev,
-        [page.id]: [...(prev[page.id] || []), startEntry].slice(-30),
+        [page.id]: [
+          ...(prev[page.id] || []),
+          { kind: 'stroke' as const, strokeId },
+        ].slice(-36),
       }));
     },
-    [isTablet, nextActiveColor, page.id]
+    [activeBrushWidth, nextActiveColor, page.id]
   );
 
   const extendStrokeTo = useCallback(
@@ -1217,7 +2185,6 @@ export const ZooColoringGame: React.FC = () => {
       const stepDist = Math.hypot(vbPt.x - dr.lastPt.x, vbPt.y - dr.lastPt.y);
       if (stepDist < 2.5) return;
 
-      // In Rainbow mode, smoothly transition hue every ~24 viewBox units!
       if (selectedCrayon.isRainbow && dr.distSinceHue + stepDist >= 24) {
         const prevPt = dr.lastPt;
         const nextColor = nextActiveColor();
@@ -1233,15 +2200,17 @@ export const ZooColoringGame: React.FC = () => {
             {
               id: nextId,
               color: nextColor,
-              width: isTablet ? 20 : 18,
+              width: activeBrushWidth,
               points: [prevPt, vbPt],
             },
           ],
         }));
-        const segEntry: HistoryEntry = { kind: 'stroke', strokeId: nextId };
         setHistoryByPage((prev) => ({
           ...prev,
-          [page.id]: [...(prev[page.id] || []), segEntry].slice(-30),
+          [page.id]: [
+            ...(prev[page.id] || []),
+            { kind: 'stroke' as const, strokeId: nextId },
+          ].slice(-36),
         }));
         return;
       }
@@ -1263,37 +2232,55 @@ export const ZooColoringGame: React.FC = () => {
         return { ...prev, [page.id]: nextList };
       });
     },
-    [isTablet, nextActiveColor, page.id, selectedCrayon.isRainbow]
+    [activeBrushWidth, nextActiveColor, page.id, selectedCrayon.isRainbow]
   );
 
-  const finishStroke = useCallback(() => {
+  const finishInteraction = useCallback(() => {
     drawingRef.current = null;
+    fillSlideRef.current = null;
     cleanupWinListeners();
   }, [cleanupWinListeners]);
 
   const handlersRef = useRef({
     tool,
     fillRegion,
+    placeStampAt,
     findRegionFromClientPoint,
     clientToViewBox,
     startStrokeAt,
     extendStrokeTo,
-    finishStroke,
+    finishInteraction,
   });
   handlersRef.current = {
     tool,
     fillRegion,
+    placeStampAt,
     findRegionFromClientPoint,
     clientToViewBox,
     startStrokeAt,
     extendStrokeTo,
-    finishStroke,
+    finishInteraction,
   };
 
-  const attachDrawWindowListeners = useCallback(
-    (mode: 'touch' | 'pointer', id: number) => {
+  const attachWindowDragListeners = useCallback(
+    (mode: 'touch' | 'pointer', id: number, action: 'draw' | 'fill-slide') => {
       cleanupWinListeners();
       if (typeof window === 'undefined') return;
+
+      const handleMoveCoords = (clientX: number, clientY: number) => {
+        const h = handlersRef.current;
+        if (action === 'draw') {
+          h.extendStrokeTo(h.clientToViewBox(clientX, clientY));
+        } else {
+          const slide = fillSlideRef.current;
+          if (!slide) return;
+          const region = h.findRegionFromClientPoint(clientX, clientY, false);
+          if (region && region.id !== slide.lastRegionId) {
+            slide.lastRegionId = region.id;
+            h.fillRegion(region);
+          }
+        }
+      };
 
       if (mode === 'touch') {
         const findTouch = (list: TouchList) => {
@@ -1306,16 +2293,14 @@ export const ZooColoringGame: React.FC = () => {
           const t = findTouch(ev.touches) || findTouch(ev.changedTouches);
           if (!t) return;
           if (ev.cancelable) ev.preventDefault();
-          handlersRef.current.extendStrokeTo(
-            handlersRef.current.clientToViewBox(t.clientX, t.clientY)
-          );
+          handleMoveCoords(t.clientX, t.clientY);
         };
         const onEnd = (ev: TouchEvent) => {
           const t = findTouch(ev.changedTouches);
           if (!t) return;
           if (ev.cancelable) ev.preventDefault();
           lastTouchAtRef.current = Date.now();
-          handlersRef.current.finishStroke();
+          handlersRef.current.finishInteraction();
         };
         window.addEventListener('touchmove', onMove, { passive: false });
         window.addEventListener('touchend', onEnd, { passive: false });
@@ -1329,13 +2314,11 @@ export const ZooColoringGame: React.FC = () => {
         const onMove = (ev: PointerEvent) => {
           if (ev.pointerId !== id) return;
           ev.preventDefault?.();
-          handlersRef.current.extendStrokeTo(
-            handlersRef.current.clientToViewBox(ev.clientX, ev.clientY)
-          );
+          handleMoveCoords(ev.clientX, ev.clientY);
         };
         const onUp = (ev: PointerEvent) => {
           if (ev.pointerId !== id) return;
-          handlersRef.current.finishStroke();
+          handlersRef.current.finishInteraction();
         };
         window.addEventListener('pointermove', onMove, { passive: false });
         window.addEventListener('pointerup', onUp);
@@ -1350,7 +2333,7 @@ export const ZooColoringGame: React.FC = () => {
     [cleanupWinListeners]
   );
 
-  // Direct non-passive DOM touchstart listener for instant iPad/Android response
+  // Direct non-passive DOM touchstart listener for instant tablet response
   useEffect(() => {
     if (Platform.OS !== 'web' || !canvasDomNode) return;
 
@@ -1361,24 +2344,34 @@ export const ZooColoringGame: React.FC = () => {
       lastTouchAtRef.current = Date.now();
 
       const h = handlersRef.current;
+      if (h.tool === 'stamp') {
+        h.placeStampAt(h.clientToViewBox(t.clientX, t.clientY));
+        return;
+      }
       if (h.tool === 'fill') {
-        const region = h.findRegionFromClientPoint(t.clientX, t.clientY);
+        const region = h.findRegionFromClientPoint(t.clientX, t.clientY, true);
         if (region) {
           h.fillRegion(region);
         }
+        fillSlideRef.current = {
+          mode: 'touch',
+          id: t.identifier,
+          lastRegionId: region?.id ?? null,
+        };
+        attachWindowDragListeners('touch', t.identifier, 'fill-slide');
         return;
       }
 
       const vbPt = h.clientToViewBox(t.clientX, t.clientY);
       h.startStrokeAt('touch', t.identifier, vbPt);
-      attachDrawWindowListeners('touch', t.identifier);
+      attachWindowDragListeners('touch', t.identifier, 'draw');
     };
 
     canvasDomNode.addEventListener('touchstart', onDomTouchStart, { passive: false });
     return () => {
       canvasDomNode.removeEventListener('touchstart', onDomTouchStart);
     };
-  }, [attachDrawWindowListeners, canvasDomNode]);
+  }, [attachWindowDragListeners, canvasDomNode]);
 
   const webCanvasProps =
     Platform.OS === 'web'
@@ -1395,36 +2388,51 @@ export const ZooColoringGame: React.FC = () => {
             e.preventDefault?.();
 
             const h = handlersRef.current;
+            if (h.tool === 'stamp') {
+              h.placeStampAt(h.clientToViewBox(e.clientX, e.clientY));
+              return;
+            }
             if (h.tool === 'fill') {
-              const region = h.findRegionFromClientPoint(e.clientX, e.clientY);
+              const region = h.findRegionFromClientPoint(e.clientX, e.clientY, true);
               if (region) {
                 h.fillRegion(region);
               }
+              fillSlideRef.current = {
+                mode: 'pointer',
+                id: e.pointerId,
+                lastRegionId: region?.id ?? null,
+              };
+              attachWindowDragListeners('pointer', e.pointerId, 'fill-slide');
               return;
             }
             const vbPt = h.clientToViewBox(e.clientX, e.clientY);
             h.startStrokeAt('pointer', e.pointerId, vbPt);
-            attachDrawWindowListeners('pointer', e.pointerId);
+            attachWindowDragListeners('pointer', e.pointerId, 'draw');
           },
         } as Record<string, unknown>)
       : {};
 
   const nativePan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => handlersRef.current.tool === 'draw',
+      onStartShouldSetPanResponder: () => handlersRef.current.tool !== 'fill',
       onMoveShouldSetPanResponder: () => handlersRef.current.tool === 'draw',
       onPanResponderGrant: (evt) => {
         const x = (evt.nativeEvent.locationX / Math.max(1, canvasSize)) * CANVAS_VB;
         const y = (evt.nativeEvent.locationY / Math.max(1, canvasSize)) * CANVAS_VB;
-        handlersRef.current.startStrokeAt('native', 0, { x, y });
+        if (handlersRef.current.tool === 'stamp') {
+          handlersRef.current.placeStampAt({ x, y });
+        } else {
+          handlersRef.current.startStrokeAt('native', 0, { x, y });
+        }
       },
       onPanResponderMove: (evt) => {
+        if (handlersRef.current.tool !== 'draw') return;
         const x = (evt.nativeEvent.locationX / Math.max(1, canvasSize)) * CANVAS_VB;
         const y = (evt.nativeEvent.locationY / Math.max(1, canvasSize)) * CANVAS_VB;
         handlersRef.current.extendStrokeTo({ x, y });
       },
-      onPanResponderRelease: () => handlersRef.current.finishStroke(),
-      onPanResponderTerminate: () => handlersRef.current.finishStroke(),
+      onPanResponderRelease: () => handlersRef.current.finishInteraction(),
+      onPanResponderTerminate: () => handlersRef.current.finishInteraction(),
     })
   ).current;
 
@@ -1505,7 +2513,9 @@ export const ZooColoringGame: React.FC = () => {
             <TactileButton
               key={pg.id}
               onPress={() => {
-                soundEngine.playPop();
+                soundEngine.unlock();
+                soundEngine.playAnimalSound(pg.animal);
+                soundEngine.speakWord(pg.title);
                 setPageIdx(idx);
                 setBurstPos(null);
                 setMasterpieceTick(0);
@@ -1543,93 +2553,120 @@ export const ZooColoringGame: React.FC = () => {
   );
 
   const renderCanvas = () => (
-    <Animated.View
-      style={[
-        styles.paperFrame,
-        {
-          transform: [{ scale: pageCelebrateAnim }],
-        },
-      ]}
-    >
-      <View
-        ref={handleCanvasRef}
+    <View style={styles.canvasColumn}>
+      <Animated.View
         style={[
-          styles.paperInner,
-          { width: canvasSize, height: canvasSize },
-          Platform.OS === 'web'
-            ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
-            : null,
+          styles.paperFrame,
+          {
+            transform: [{ scale: pageCelebrateAnim }],
+          },
         ]}
-        {...(Platform.OS === 'web' ? webCanvasProps : nativePan.panHandlers)}
       >
-        <Svg
-          width={canvasSize}
-          height={canvasSize}
-          viewBox={`0 0 ${CANVAS_VB} ${CANVAS_VB}`}
+        <View
+          ref={handleCanvasRef}
+          style={[
+            styles.paperInner,
+            { width: canvasSize, height: canvasSize },
+            Platform.OS === 'web'
+              ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
+              : null,
+          ]}
+          {...(Platform.OS === 'web' ? webCanvasProps : nativePan.panHandlers)}
         >
-          {/* Layer 1: Tappable fillable regions */}
-          <G>
-            {page.regions.map((region) => {
-              const fillColor = currentFills[region.id] || PAPER_WHITE;
-              return (
-                <G key={region.id} id={`fill-region-${region.id}`}>
-                  {region.shapes.map((shape, sIdx) =>
-                    renderShapePrimitive(shape, `${region.id}-${sIdx}`, {
-                      id: `fill-region-${region.id}`,
-                      fill: fillColor,
-                      stroke: INK,
-                      strokeWidth: 4.5,
-                      onPress:
-                        Platform.OS !== 'web' && tool === 'fill'
-                          ? () => fillRegion(region)
-                          : undefined,
-                    })
-                  )}
-                </G>
-              );
-            })}
-          </G>
-
-          {/* Layer 2: Translucent waxy crayon strokes letting crisp outlines show through */}
-          <G pointerEvents="none">
-            {currentStrokes.map((st) => (
-              <Path
-                key={st.id}
-                d={buildStrokePathD(st.points)}
-                fill="none"
-                stroke={st.color}
-                strokeWidth={st.width}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={0.72}
-              />
-            ))}
-          </G>
-
-          {/* Layer 3: Adorable facial details & highlights always sharp on top */}
-          {page.renderFaceOverlay()}
-        </Svg>
-
-        {/* Sparkle pop when filling a region */}
-        {burstPos && (
-          <View
-            key={burstPos.tick}
-            pointerEvents="none"
-            style={{ position: 'absolute', left: burstPos.x, top: burstPos.y, zIndex: 20 }}
+          <Svg
+            width={canvasSize}
+            height={canvasSize}
+            viewBox={`0 0 ${CANVAS_VB} ${CANVAS_VB}`}
           >
-            <SnapBurst size={isTablet ? 96 : 74} />
-          </View>
-        )}
+            {/* Layer 1: Tappable fillable regions with clean occluded storybook outlines */}
+            <G>
+              {page.regions.map((region) => {
+                const fillColor = currentFills[region.id] || PAPER_WHITE;
+                return (
+                  <G key={region.id} id={`fill-region-${region.id}`}>
+                    {region.shapes.map((shape, sIdx) =>
+                      renderShapePrimitive(shape, `${region.id}-${sIdx}`, {
+                        id: `fill-region-${region.id}`,
+                        fill: fillColor,
+                        stroke: INK,
+                        strokeWidth: 4.5,
+                        onPress:
+                          Platform.OS !== 'web' && tool === 'fill'
+                            ? () => fillRegion(region)
+                            : undefined,
+                      })
+                    )}
+                  </G>
+                );
+              })}
+            </G>
 
-        {/* Celebratory Masterpiece Banner */}
-        {masterpieceTick > 0 && (
-          <MasterpieceBanner key={masterpieceTick} title={page.title} />
-        )}
-      </View>
-    </Animated.View>
+            {/* Layer 2: Soft translucent waxy crayon strokes letting crisp outlines show through */}
+            <G pointerEvents="none">
+              {currentStrokes.map((st) => (
+                <Path
+                  key={st.id}
+                  d={buildStrokePathD(st.points)}
+                  fill="none"
+                  stroke={st.color}
+                  strokeWidth={st.width}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={0.7}
+                />
+              ))}
+            </G>
+
+            {/* Layer 3: Adorable facial details & highlights always sharp on top */}
+            {page.renderFaceOverlay()}
+
+            {/* Layer 4: Placed storybook sticker stamps */}
+            <G pointerEvents="none">
+              {currentStamps.map((st) => (
+                <G
+                  key={st.id}
+                  transform={`translate(${st.x.toFixed(1)}, ${st.y.toFixed(1)}) rotate(${st.rotation}) scale(${st.scale})`}
+                >
+                  {renderStampGraphic(st.kind)}
+                </G>
+              ))}
+            </G>
+          </Svg>
+
+          {/* Sparkle pop when filling or stamping */}
+          {burstPos && (
+            <View
+              key={burstPos.tick}
+              pointerEvents="none"
+              style={{ position: 'absolute', left: burstPos.x, top: burstPos.y, zIndex: 20 }}
+            >
+              <SnapBurst size={isTablet ? 96 : 74} />
+            </View>
+          )}
+
+          {/* Celebratory Masterpiece Banner */}
+          {masterpieceTick > 0 && (
+            <MasterpieceBanner key={masterpieceTick} title={page.title} />
+          )}
+        </View>
+
+        {/* Interactive Hear Animal Badge floating cleanly on paper frame (outside canvas touch listener) */}
+        <View style={styles.hearAnimalWrap}>
+          <TactileButton
+            onPress={handleHearAnimal}
+            accessibilityLabel={`Hear ${page.title}`}
+          >
+            <View style={styles.hearAnimalPill}>
+              <Text style={styles.hearAnimalText}>🔊 {page.title}</Text>
+            </View>
+          </TactileButton>
+        </View>
+      </Animated.View>
+    </View>
   );
 
-  const crayonSize = isTabletLandscape ? 48 : isTablet ? 46 : 36;
+  const crayonSize = isTabletLandscape ? 46 : isTablet ? 44 : 36;
+  const activeDotColor = selectedCrayon.isRainbow ? '#9B74D4' : selectedCrayon.hex;
 
   const renderPaletteAndTools = () => (
     <View
@@ -1639,26 +2676,17 @@ export const ZooColoringGame: React.FC = () => {
         isTabletLandscape && styles.paletteDockLandscape,
       ]}
     >
-      {/* Tool mode switcher + Undo & Clear */}
-      <View
-        style={[
-          styles.toolsRow,
-          isTabletLandscape && styles.toolsRowLandscape,
-        ]}
-      >
+      {/* Row 1: Primary Mode Switcher (Fill | Draw | Stamp) */}
+      <View style={styles.toolsRow}>
         <TactileButton
           onPress={() => {
             soundEngine.playPop();
+            soundEngine.speakWord('Fill');
             setTool('fill');
           }}
           accessibilityLabel="Tap to Fill mode"
         >
-          <View
-            style={[
-              styles.toolPill,
-              tool === 'fill' && styles.toolPillActive,
-            ]}
-          >
+          <View style={[styles.toolPill, tool === 'fill' && styles.toolPillActive]}>
             <Text style={[styles.toolText, tool === 'fill' && styles.toolTextActive]}>
               🪣 Fill
             </Text>
@@ -1668,16 +2696,12 @@ export const ZooColoringGame: React.FC = () => {
         <TactileButton
           onPress={() => {
             soundEngine.playPop();
+            soundEngine.speakWord('Draw');
             setTool('draw');
           }}
           accessibilityLabel="Crayon Draw mode"
         >
-          <View
-            style={[
-              styles.toolPill,
-              tool === 'draw' && styles.toolPillActive,
-            ]}
-          >
+          <View style={[styles.toolPill, tool === 'draw' && styles.toolPillActive]}>
             <Text style={[styles.toolText, tool === 'draw' && styles.toolTextActive]}>
               🖍️ Draw
             </Text>
@@ -1685,8 +2709,35 @@ export const ZooColoringGame: React.FC = () => {
         </TactileButton>
 
         <TactileButton
+          onPress={() => {
+            soundEngine.playPop();
+            soundEngine.speakWord('Stickers');
+            setTool('stamp');
+          }}
+          accessibilityLabel="Sticker Stamp mode"
+        >
+          <View style={[styles.toolPill, tool === 'stamp' && styles.toolPillActive]}>
+            <Text style={[styles.toolText, tool === 'stamp' && styles.toolTextActive]}>
+              ⭐ Stamp
+            </Text>
+          </View>
+        </TactileButton>
+      </View>
+
+      {/* Row 2: Action Tools (Magic Wand | Undo | Clear) + Brush Sizes when in Draw mode */}
+      <View style={styles.actionsRow}>
+        <TactileButton
+          onPress={handleMagicWand}
+          accessibilityLabel="Magic color helper"
+        >
+          <View style={styles.magicBtn}>
+            <Text style={styles.magicBtnText}>🪄 Magic</Text>
+          </View>
+        </TactileButton>
+
+        <TactileButton
           onPress={handleUndo}
-          accessibilityLabel="Undo last color"
+          accessibilityLabel="Undo last step"
           disabled={currentHistory.length === 0}
         >
           <View
@@ -1707,30 +2758,111 @@ export const ZooColoringGame: React.FC = () => {
             <Text style={styles.iconToolText}>✨</Text>
           </View>
         </TactileButton>
+
+        {tool === 'draw' && (
+          <View style={styles.brushGroup}>
+            {BRUSH_SIZES.map((b) => {
+              const active = brushSizeKey === b.key;
+              return (
+                <TactileButton
+                  key={b.key}
+                  onPress={() => {
+                    soundEngine.playPop();
+                    setBrushSizeKey(b.key);
+                  }}
+                  accessibilityLabel={b.label}
+                >
+                  <View
+                    style={[
+                      styles.brushDotBtn,
+                      active && styles.brushDotBtnActive,
+                    ]}
+                  >
+                    <View
+                      style={{
+                        width: b.dotPx,
+                        height: b.dotPx,
+                        borderRadius: b.dotPx / 2,
+                        backgroundColor:
+                          activeDotColor === PAPER_WHITE ? '#C8B8A4' : activeDotColor,
+                        borderWidth: 1.8,
+                        borderColor: INK,
+                      }}
+                    />
+                  </View>
+                </TactileButton>
+              );
+            })}
+          </View>
+        )}
       </View>
 
-      {/* Crayon Color Swatches */}
-      <View
-        style={[
-          styles.crayonsGrid,
-          isTabletLandscape && styles.crayonsGridLandscape,
-        ]}
-      >
-        {CRAYONS.map((crayon) => (
-          <CrayonButton
-            key={crayon.id}
-            crayon={crayon}
-            active={selectedCrayonId === crayon.id}
-            size={crayonSize}
-            onPress={() => {
-              soundEngine.unlock();
-              soundEngine.playNote(crayon.noteFreq);
-              soundEngine.speakWord(crayon.name);
-              setSelectedCrayonId(crayon.id);
-            }}
-          />
-        ))}
-      </View>
+      {/* Row 3: Either 8 SVG Sticker Stamps (Stamp mode) or 10 SVG Crayons (Fill / Draw) */}
+      {tool === 'stamp' ? (
+        <View
+          style={[
+            styles.stampsGrid,
+            isTabletLandscape && styles.stampsGridLandscape,
+          ]}
+        >
+          {STAMPS.map((st) => {
+            const active = selectedStamp === st.kind;
+            const btnSz = isTabletLandscape ? 60 : isTablet ? 56 : 48;
+            return (
+              <TactileButton
+                key={st.kind}
+                onPress={() => {
+                  soundEngine.unlock();
+                  soundEngine.playPop();
+                  soundEngine.speakWord(st.name);
+                  setSelectedStamp(st.kind);
+                }}
+                accessibilityLabel={`${st.name} sticker`}
+                style={{ width: btnSz }}
+              >
+                <View
+                  style={[
+                    styles.stampTile,
+                    { width: btnSz, height: btnSz, borderRadius: 18 },
+                    active && styles.stampTileActive,
+                  ]}
+                >
+                  <Svg
+                    width={Math.round(btnSz * 0.78)}
+                    height={Math.round(btnSz * 0.78)}
+                    viewBox="-24 -24 48 48"
+                  >
+                    {renderStampGraphic(st.kind)}
+                  </Svg>
+                </View>
+              </TactileButton>
+            );
+          })}
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.crayonsGrid,
+            isTablet && !isTabletLandscape && styles.crayonsGridTablet,
+            isTabletLandscape && styles.crayonsGridLandscape,
+          ]}
+        >
+          {CRAYONS.map((crayon) => (
+            <CrayonButton
+              key={crayon.id}
+              crayon={crayon}
+              active={selectedCrayonId === crayon.id}
+              size={crayonSize}
+              onPress={() => {
+                soundEngine.unlock();
+                soundEngine.playNote(crayon.noteFreq);
+                soundEngine.speakWord(crayon.name);
+                setSelectedCrayonId(crayon.id);
+              }}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 
@@ -1787,7 +2919,7 @@ const styles = StyleSheet.create({
   landscapePickerWrap: {
     width: '100%',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 2,
     zIndex: 20,
   },
@@ -1798,13 +2930,13 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'space-evenly',
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   playAreaTabletPortrait: {
     maxWidth: 760,
     paddingHorizontal: 24,
-    paddingBottom: 18,
+    paddingBottom: 16,
   },
   playAreaLandscape: {
     flex: 1,
@@ -1814,9 +2946,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+    gap: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
   },
   landscapeLeft: {
     alignItems: 'center',
@@ -1826,8 +2958,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  canvasColumn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   paperFrame: {
-    padding: 10,
+    position: 'relative',
+    padding: 9,
     borderRadius: 30,
     backgroundColor: '#FFFDF7',
     borderWidth: 3,
@@ -1844,9 +2981,33 @@ const styles = StyleSheet.create({
     backgroundColor: PAPER_WHITE,
     position: 'relative',
   },
+  hearAnimalWrap: {
+    position: 'absolute',
+    top: 15,
+    left: 15,
+    zIndex: 25,
+  },
+  hearAnimalPill: {
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 249, 232, 0.92)',
+    borderWidth: 2,
+    borderColor: 'rgba(122, 82, 44, 0.38)',
+    shadowColor: '#4A3525',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  hearAnimalText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.woodDark,
+  },
   masterpieceBanner: {
     position: 'absolute',
-    top: 12,
+    bottom: 12,
     left: 16,
     right: 16,
     paddingVertical: 8,
@@ -1873,15 +3034,15 @@ const styles = StyleSheet.create({
   paletteDock: {
     width: '98%',
     maxWidth: 520,
-    backgroundColor: 'rgba(248, 228, 186, 0.92)',
-    borderRadius: 34,
+    backgroundColor: 'rgba(248, 228, 186, 0.94)',
+    borderRadius: 32,
     borderWidth: 2,
     borderColor: 'rgba(138, 92, 50, 0.34)',
     borderBottomWidth: 5,
     borderBottomColor: 'rgba(138, 92, 50, 0.44)',
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    gap: 10,
+    paddingHorizontal: 10,
+    gap: 8,
     alignItems: 'center',
     shadowColor: '#4A3525',
     shadowOffset: { width: 0, height: 6 },
@@ -1891,33 +3052,37 @@ const styles = StyleSheet.create({
   },
   paletteDockTablet: {
     maxWidth: 680,
-    borderRadius: 38,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    gap: 12,
+    borderRadius: 36,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
   },
   paletteDockLandscape: {
-    width: 306,
-    borderRadius: 38,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-    gap: 14,
+    width: 328,
+    borderRadius: 36,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    gap: 12,
   },
   toolsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
     flexWrap: 'wrap',
   },
-  toolsRowLandscape: {
-    gap: 7,
-  },
   toolPill: {
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 250, 236, 0.85)',
+    backgroundColor: 'rgba(255, 250, 236, 0.88)',
     borderWidth: 2,
     borderColor: 'rgba(122, 82, 44, 0.3)',
   },
@@ -1927,67 +3092,130 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
   },
   toolText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '800',
     color: COLORS.inkMuted,
   },
   toolTextActive: {
     color: COLORS.woodDark,
   },
+  magicBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#F6E2FF',
+    borderWidth: 2,
+    borderColor: '#7E57C2',
+  },
+  magicBtnText: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#512DA8',
+  },
   iconToolBtn: {
     width: 38,
-    height: 36,
+    height: 35,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 250, 236, 0.88)',
+    backgroundColor: 'rgba(255, 250, 236, 0.9)',
     borderWidth: 2,
     borderColor: 'rgba(122, 82, 44, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconToolText: {
-    fontSize: 17,
+    fontSize: 16,
+  },
+  brushGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 250, 236, 0.72)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: 'rgba(122, 82, 44, 0.25)',
+  },
+  brushDotBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brushDotBtnActive: {
+    backgroundColor: '#FFF0A8',
+    borderWidth: 2,
+    borderColor: COLORS.woodDark,
   },
   crayonsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 8,
+    maxWidth: 240,
+  },
+  crayonsGridTablet: {
+    gap: 10,
+    maxWidth: 320,
   },
   crayonsGridLandscape: {
-    gap: 12,
+    gap: 8,
+    maxWidth: 290,
   },
-  crayonSwatch: {
-    borderWidth: 3,
+  crayonWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  crayonWrapActive: {
+    transform: [{ scale: 1.14 }, { translateY: -5 }],
+  },
+  stampsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: 440,
+  },
+  stampsGridLandscape: {
+    gap: 10,
+    maxWidth: 290,
+  },
+  stampTile: {
+    backgroundColor: 'rgba(255, 253, 247, 0.92)',
+    borderWidth: 2.5,
+    borderColor: 'rgba(122, 82, 44, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
     shadowColor: '#4A3525',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.14,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
-  crayonSwatchActive: {
-    borderWidth: 4,
-    transform: [{ scale: 1.15 }, { translateY: -3 }],
-    shadowOpacity: 0.3,
+  stampTileActive: {
+    backgroundColor: '#FFF4BE',
+    borderColor: COLORS.woodDark,
+    borderWidth: 3.5,
+    transform: [{ scale: 1.09 }, { translateY: -3 }],
   },
   pagePickerShell: {
     maxWidth: '96%',
-    backgroundColor: 'rgba(255, 249, 236, 0.58)',
+    backgroundColor: 'rgba(255, 249, 236, 0.62)',
     borderRadius: 999,
     paddingVertical: 4,
     paddingHorizontal: 6,
     zIndex: 15,
   },
   pagePickerShellLandscape: {
-    maxWidth: 680,
+    maxWidth: 780,
   },
   pagePickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 9,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
@@ -1996,7 +3224,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(74, 53, 37, 0.28)',
     alignItems: 'center',
     justifyContent: 'center',
-    opacity: 0.82,
+    opacity: 0.84,
     position: 'relative',
     shadowColor: '#4A3525',
     shadowOffset: { width: 0, height: 3 },
