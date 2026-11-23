@@ -6,6 +6,7 @@ import {
   StyleProp,
   ViewStyle,
 } from 'react-native';
+import { markWebTouchHandled, wasRecentWebTouch } from '../utils/webTouch';
 
 interface TactileButtonProps {
   children: React.ReactNode;
@@ -29,22 +30,19 @@ interface WebTouchEvent {
   stopPropagation?: () => void;
 }
 
-const TOUCH_TAP_SLOP_PX = 24;
-
-// Shared across all TactileButton instances so when a touch tap unmounts one screen
-// (e.g. Home button -> HomeScreen) and mounts a new button in the same spot (Star Jar),
-// the browser's delayed synthetic `click` event never ghost-clicks the newly mounted button.
-let lastGlobalTouchPressAt = 0;
+const TOUCH_TAP_SLOP_PX = 30;
 
 /**
  * Playful spring-bounce button wrapper inspired by Sago Mini / Khan Academy Kids.
  *
- * iPad / iOS Safari reliability notes:
+ * iPad / Android tablet reliability notes:
  * - Wraps children in `pointerEvents="none"` so animated SVGs/animals inside buttons
  *   never steal or shift the touch target mid-tap.
- * - On Web, tracks touchstart -> touchend directly with generous 24px toddler tap slop
- *   so WebKit never drops taps when a finger wiggles or the button squishes, while
- *   still allowing vertical ScrollView drags (>24px) to scroll naturally.
+ * - On Web, tracks touchstart -> touchend directly with generous 30px toddler tap slop
+ *   so browsers never drop taps when a finger wiggles or the button squishes, while
+ *   still allowing ScrollView drags (>30px) to scroll naturally.
+ * - Shares `markWebTouchHandled()` with `webTouch.ts` so transitioning between screens
+ *   never lets a browser's trailing synthetic `click` ghost-tap the newly mounted game.
  */
 export const TactileButton: React.FC<TactileButtonProps> = ({
   children,
@@ -82,8 +80,8 @@ export const TactileButton: React.FC<TactileButtonProps> = ({
 
   const handlePress = useCallback(() => {
     if (disabled) return;
-    // Deduplicate trailing synthetic click after any direct web touchend tap
-    if (Platform.OS === 'web' && Date.now() - lastGlobalTouchPressAt < 500) {
+    // Deduplicate trailing synthetic click after any direct web touch tap
+    if (wasRecentWebTouch(550)) {
       return;
     }
     onPress?.();
@@ -96,6 +94,19 @@ export const TactileButton: React.FC<TactileButtonProps> = ({
             if (disabled) return;
             const t = e.changedTouches?.[0];
             if (!t) return;
+            // If a previous touch on this button is still active, keep tracking it;
+            // otherwise replace any stale state cleanly.
+            const prev = touchRef.current;
+            if (prev && e.touches) {
+              let stillDown = false;
+              for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === prev.id) {
+                  stillDown = true;
+                  break;
+                }
+              }
+              if (stillDown) return;
+            }
             touchRef.current = {
               id: t.identifier,
               startX: t.clientX,
@@ -123,30 +134,36 @@ export const TactileButton: React.FC<TactileButtonProps> = ({
           },
           onTouchEnd: (e: WebTouchEvent) => {
             const st = touchRef.current;
-            touchRef.current = null;
-            animateOut();
-            if (!st || st.moved || disabled) return;
+            if (!st) return;
 
-            // Verify final finger lift is also within forgiving slop
+            // Only finish if our tracked finger was lifted
+            let matchedTouch: WebTouch | null = null;
             const list = e.changedTouches;
             if (list) {
               for (let i = 0; i < list.length; i++) {
-                const t = list[i];
-                if (t.identifier === st.id) {
-                  if (
-                    Math.hypot(t.clientX - st.startX, t.clientY - st.startY) >
-                    TOUCH_TAP_SLOP_PX
-                  ) {
-                    return;
-                  }
+                if (list[i].identifier === st.id) {
+                  matchedTouch = list[i];
                   break;
                 }
               }
             }
+            if (!matchedTouch) return;
 
-            e.preventDefault?.();
+            touchRef.current = null;
+            animateOut();
+            if (st.moved || disabled) return;
+
+            if (
+              Math.hypot(
+                matchedTouch.clientX - st.startX,
+                matchedTouch.clientY - st.startY
+              ) > TOUCH_TAP_SLOP_PX
+            ) {
+              return;
+            }
+
             e.stopPropagation?.();
-            lastGlobalTouchPressAt = Date.now();
+            markWebTouchHandled();
             onPress?.();
           },
           onTouchCancel: () => {

@@ -33,6 +33,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
+import { makeInstantTapProps } from '../utils/webTouch';
 
 /** All 24 storybook zoo, aquarium, arctic & farm animals interleaved across all 6 watercolor worlds */
 const JIGSAW_ANIMALS: ZooAnimalKind[] = [
@@ -445,22 +446,26 @@ export const JungleJigsawGame: React.FC = () => {
                   hintTile === tileIdx ||
                   selectedTile === tileIdx;
 
+                const cellTap = makeInstantTapProps(() => handleCellTap(tileIdx));
+
                 return (
                   <Pressable
                     key={tileIdx}
-                    onPress={() => handleCellTap(tileIdx)}
+                    onPress={cellTap.onPress}
                     accessibilityRole="button"
                     accessibilityLabel={
                       allComplete
                         ? `Tap completed ${animal}`
                         : `Puzzle tile ${tileIdx + 1}`
                     }
-                    style={{ width: tileSize, height: tileSize }}
+                    style={[{ width: tileSize, height: tileSize }, cellTap.webStyle]}
+                    {...cellTap.webProps}
                   >
                     <View
                       ref={(node) => {
                         slotRefs.current[tileIdx] = node;
                       }}
+                      pointerEvents="none"
                       style={[styles.cell, { width: tileSize, height: tileSize }]}
                     >
                       <ZooAnimalSvg

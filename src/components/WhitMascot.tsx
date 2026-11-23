@@ -12,6 +12,7 @@ import Svg, { Path } from 'react-native-svg';
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import { useOptionalApp } from '../context/AppContext';
 import { soundEngine } from '../services/sound';
+import { makeInstantTapProps } from '../utils/webTouch';
 import { WhitAccessoryId, WhitAccessoryOverlay } from './WhitAccessories';
 
 export type WhitMood = 'idle' | 'wave' | 'happy' | 'cheer' | 'encourage';
@@ -489,15 +490,21 @@ export const WhitMascot: React.FC<WhitMascotProps> = ({
 
   const starSz = Math.max(18, Math.round(size * 0.16));
 
+  const tap = makeInstantTapProps(interactive ? handlePress : undefined, !interactive);
+
   return (
     <Pressable
-      onPress={interactive ? handlePress : undefined}
+      onPress={tap.onPress}
       disabled={!interactive}
       accessibilityRole={interactive ? 'button' : 'image'}
       accessibilityLabel="Whit the Gorilla"
-      style={styles.pressWrap}
+      style={[styles.pressWrap, tap.webStyle]}
+      {...tap.webProps}
     >
-      <View style={[styles.stage, { width: size, height: size }]}>
+      <View
+        pointerEvents="none"
+        style={[styles.stage, { width: size, height: size }]}
+      >
         {/* Floating celebration / giggle stars */}
         {isCheering && (
           <>

@@ -360,11 +360,7 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
   const webBubbleTouchProps =
     Platform.OS === 'web'
       ? ({
-          onTouchStart: (e: {
-            preventDefault?: () => void;
-            stopPropagation?: () => void;
-          }) => {
-            e.preventDefault?.();
+          onTouchStart: (e: { stopPropagation?: () => void }) => {
             e.stopPropagation?.();
             triggerPop();
           },
@@ -397,7 +393,7 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
       >
         <Pressable
           onPressIn={Platform.OS !== 'web' ? triggerPop : undefined}
-          onPress={triggerPop}
+          onPress={Platform.OS !== 'web' ? triggerPop : undefined}
           hitSlop={14}
           accessibilityRole="button"
           accessibilityLabel={

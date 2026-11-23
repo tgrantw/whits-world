@@ -9,6 +9,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { soundEngine } from '../services/sound';
+import { markWebTouchHandled } from '../utils/webTouch';
 
 export interface WindowRect {
   x: number;
@@ -239,6 +240,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = ({
 
       if (mode === 'touch') {
         lastTouchEndRef.current = Date.now();
+        markWebTouchHandled();
       }
 
       const endX = Number.isFinite(clientX) ? clientX : st.lastX;
@@ -247,7 +249,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = ({
       const dy = endY - st.startY;
       const movedDist = Math.hypot(dx, dy);
 
-      if (movedDist < 12) {
+      if (movedDist < 16) {
         springBack();
         if (!cancelled) {
           callbacksRef.current.onTap?.();
@@ -255,7 +257,7 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = ({
         return;
       }
 
-      // Even if iOS Safari fired touchcancel after the child dragged onto a target,
+      // Even if iOS/Android fired touchcancel after the child dragged onto a target,
       // check the drop position so the toddler's effort is rewarded!
       const matched = await callbacksRef.current.onDrop({
         fingerX: endX,
@@ -265,6 +267,12 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = ({
       });
 
       if (!matched) {
+        if (!cancelled && movedDist < 30 && callbacksRef.current.onTap) {
+          // Slightly wiggly toddler tap that didn't reach a target -> treat as helpful tap-to-select!
+          springBack();
+          callbacksRef.current.onTap();
+          return;
+        }
         if (!cancelled) {
           soundEngine.playGentleBounce();
           callbacksRef.current.onGentleReturn?.();
@@ -429,7 +437,24 @@ export const DraggablePiece: React.FC<DraggablePieceProps> = ({
 
     const onDomTouchStart = (ev: TouchEvent) => {
       if (callbacksRef.current.disabled) return;
-      if (pointerStateRef.current?.active) return;
+      const active = pointerStateRef.current;
+      if (active?.active) {
+        if (active.mode === 'touch') {
+          let stillDown = false;
+          for (let i = 0; i < ev.touches.length; i++) {
+            if (ev.touches[i].identifier === active.id) {
+              stillDown = true;
+              break;
+            }
+          }
+          if (stillDown) return;
+          // Stale touch vanished without touchend — clean up and allow new drag!
+          pointerStateRef.current = null;
+          cleanupWindowListeners();
+        } else {
+          return;
+        }
+      }
       const t = ev.changedTouches[0];
       if (!t) return;
       if (ev.cancelable) ev.preventDefault();

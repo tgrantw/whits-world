@@ -11,6 +11,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { soundEngine } from '../services/sound';
+import { makeInstantTapProps } from '../utils/webTouch';
 
 export type ZooAnimalAnimState =
   | 'idle'
@@ -640,13 +641,17 @@ export const AnimatedZooAnimal: React.FC<AnimatedZooAnimalProps> = ({
 
   // Only wrap in Pressable when onTap is explicitly supplied (so drag containers never fight Pressable)
   if (onTap && state !== 'static' && state !== 'dragging') {
+    const tap = makeInstantTapProps(handleTap);
     return (
       <Pressable
-        onPress={handleTap}
+        onPress={tap.onPress}
         accessibilityRole="button"
-        style={styles.outer}
+        style={[styles.outer, tap.webStyle]}
+        {...tap.webProps}
       >
-        {animatedInner}
+        <View pointerEvents="none" style={styles.outer}>
+          {animatedInner}
+        </View>
       </Pressable>
     );
   }

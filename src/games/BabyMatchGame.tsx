@@ -20,6 +20,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
+import { makeInstantTapProps } from '../utils/webTouch';
 
 interface NurserySet {
   animals: ExhibitAnimalKind[];
@@ -223,7 +224,11 @@ export const BabyMatchGame: React.FC = () => {
 
   const handleMamaTap = useCallback(
     (animal: ExhibitAnimalKind) => {
-      if (matched.includes(animal)) return;
+      soundEngine.unlock();
+      if (matched.includes(animal)) {
+        soundEngine.playAnimalSound(animal);
+        return;
+      }
       if (selectedBaby === animal) {
         reuniteBaby(animal);
       } else if (selectedBaby) {
@@ -234,6 +239,8 @@ export const BabyMatchGame: React.FC = () => {
           setHintMama((prev) => (prev === selectedBaby ? null : prev));
           setMascotMood('idle');
         }, 900);
+      } else {
+        soundEngine.playAnimalSound(animal);
       }
     },
     [matched, selectedBaby, reuniteBaby]
@@ -294,19 +301,23 @@ export const BabyMatchGame: React.FC = () => {
               hoveredMama === animal ||
               hintMama === animal ||
               selectedBaby === animal;
+            const mamaTap = makeInstantTapProps(() => handleMamaTap(animal));
 
             return (
               <Pressable
                 key={animal}
-                onPress={() => handleMamaTap(animal)}
+                onPress={mamaTap.onPress}
+                hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={`Mama ${animal}`}
-                style={{ flex: 1 }}
+                style={[{ flex: 1 }, mamaTap.webStyle]}
+                {...mamaTap.webProps}
               >
                 <View
                   ref={(node) => {
                     mamaRefs.current[animal] = node;
                   }}
+                  pointerEvents="none"
                   style={[
                     styles.mamaCushion,
                     {

@@ -25,6 +25,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
+import { makeInstantTapProps } from '../utils/webTouch';
 
 interface BandBar {
   index: number;
@@ -203,17 +204,24 @@ const XylophoneBarButton: React.FC<XylophoneBarButtonProps> = ({
   }, [isTargetNext, starPulse]);
 
   const barH = Math.round((bar.heightPct / 100) * maxBarHeight);
+  const animalTap = makeInstantTapProps(() => onTapAnimal(bar));
+  const barTap = makeInstantTapProps(() => onTapBar(bar));
 
   return (
     <View style={styles.barColumn}>
       {/* Tappable Living Zoo Musician perched above each xylophone bar */}
       <Pressable
-        onPress={() => onTapAnimal(bar)}
+        onPress={animalTap.onPress}
+        hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={`Tap ${bar.animal} band musician`}
-        style={styles.musicianWrap}
+        style={[styles.musicianWrap, animalTap.webStyle]}
+        {...animalTap.webProps}
       >
-        <Animated.View style={{ transform: [{ translateY: hopAnim }] }}>
+        <Animated.View
+          pointerEvents="none"
+          style={{ transform: [{ translateY: hopAnim }] }}
+        >
           <AnimatedZooAnimal
             state={celebrating ? 'celebrate' : isTargetNext ? 'calling' : 'idle'}
             size={animalSize}
@@ -232,10 +240,11 @@ const XylophoneBarButton: React.FC<XylophoneBarButtonProps> = ({
       </Pressable>
 
       <Pressable
-        onPress={() => onTapBar(bar)}
+        onPress={barTap.onPress}
+        hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={`Play ${bar.animal} xylophone note`}
-        style={({ pressed }) => [
+        style={[
           styles.xyloBar,
           {
             width: barWidth,
@@ -246,10 +255,11 @@ const XylophoneBarButton: React.FC<XylophoneBarButtonProps> = ({
           },
           (isDemoLit || isPressedPop) && styles.xyloBarLit,
           isTargetNext && styles.xyloBarTarget,
-          pressed && styles.xyloBarPressed,
+          barTap.webStyle,
         ]}
+        {...barTap.webProps}
       >
-        <View style={styles.woodPin} />
+        <View style={styles.woodPin} pointerEvents="none" />
 
         {isTargetNext ? (
           <Animated.View
@@ -264,12 +274,13 @@ const XylophoneBarButton: React.FC<XylophoneBarButtonProps> = ({
               styles.barNoteLabel,
               { fontSize: barWidth >= 82 ? 18 : 13 },
             ]}
+            pointerEvents="none"
           >
             {bar.noteLabel}
           </Text>
         )}
 
-        <View style={styles.woodPin} />
+        <View style={styles.woodPin} pointerEvents="none" />
       </Pressable>
     </View>
   );

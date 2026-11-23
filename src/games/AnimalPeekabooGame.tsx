@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, ImageSourcePropType, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Animated,
+  Image,
+  ImageSourcePropType,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import {
   AnimatedZooAnimal,
@@ -14,6 +22,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
+import { makeInstantTapProps } from '../utils/webTouch';
 
 interface PeekCard {
   uid: string;
@@ -93,9 +102,19 @@ const BushCard: React.FC<BushCardProps> = ({
   const rustleAnim = useRef(new Animated.Value(0)).current;
   const popScale = useRef(new Animated.Value(1)).current;
 
+  const triggerBounce = useCallback(() => {
+    popScale.setValue(0.88);
+    Animated.spring(popScale, {
+      toValue: 1,
+      friction: 4.5,
+      tension: 190,
+      useNativeDriver: true,
+    }).start();
+  }, [popScale]);
+
   useEffect(() => {
     if (isRevealed) {
-      popScale.setValue(0.76);
+      popScale.setValue(0.78);
       Animated.spring(popScale, {
         toValue: 1,
         friction: 4.8,
@@ -130,22 +149,35 @@ const BushCard: React.FC<BushCardProps> = ({
 
   const radius = size >= 150 ? 34 : size >= 115 ? 26 : 22;
 
+  const handleActivate = useCallback(() => {
+    if (isMatched) {
+      triggerBounce();
+    }
+    onPress();
+  }, [isMatched, onPress, triggerBounce]);
+
+  const tap = makeInstantTapProps(handleActivate);
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={tap.onPress}
+      hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel={
         isRevealed ? `Zoo animal ${card.animal}` : 'Rustling jungle bush'
       }
-      style={({ pressed }) => [
+      style={[
         styles.cardBase,
         { width: size, height: size, borderRadius: radius },
         isRevealed ? styles.cardRevealed : styles.cardBush,
         isMatched && styles.cardMatched,
-        pressed && !isRevealed && styles.cardPressed,
+        tap.webStyle,
       ]}
+      {...tap.webProps}
     >
+      {/* pointerEvents="none" guarantees inner SVGs & animations NEVER steal tablet touches */}
       <Animated.View
+        pointerEvents="none"
         style={{
           transform: [{ scale: popScale }, { rotate }],
           alignItems: 'center',
@@ -159,7 +191,6 @@ const BushCard: React.FC<BushCardProps> = ({
               size={size - 14}
               seed={seed}
               weight={getAnimalWeight(card.animal)}
-              onTap={isMatched ? () => {} : undefined}
             >
               <ZooAnimalSvg animal={card.animal} size={size - 14} />
             </AnimatedZooAnimal>
@@ -173,7 +204,11 @@ const BushCard: React.FC<BushCardProps> = ({
           <JungleBushCoverSvg size={size - 12} />
         )}
       </Animated.View>
-      {isMatched && <SnapBurst size={Math.round(size * 0.9)} />}
+      {isMatched && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <SnapBurst size={Math.round(size * 0.9)} />
+        </View>
+      )}
     </Pressable>
   );
 };
@@ -181,8 +216,10 @@ const BushCard: React.FC<BushCardProps> = ({
 /**
  * Jungle Bush Peek-a-Boo (Paid Tier):
  * Frameless rustling jungle bushes set directly in the full-bleed meadow!
- * Revealed animals pop out and gently breathe; matched pairs celebrate together.
- * Defaults to Medium (2 — 3x2) with labeled Easy | Med | Hard toggle.
+ * - Instant 0ms `touchstart` flipping on tablets (zero dropped taps from wiggle or palm rest)
+ * - Fast toddler-friendly mismatch skip: tapping a new bush while two non-matching cards are open
+ *   immediately flips the mismatch closed and reveals the newly tapped bush!
+ * - Defaults to Medium (2 — 3x2) with labeled Easy | Med | Hard toggle.
  */
 export const AnimalPeekabooGame: React.FC = () => {
   const { addStar, collectSticker, goHome } = useApp();
@@ -198,24 +235,57 @@ export const AnimalPeekabooGame: React.FC = () => {
   const [celebratingAnimal, setCelebratingAnimal] = useState<ZooAnimalKind | null>(
     null
   );
-  const [busy, setBusy] = useState(false);
   const [won, setWon] = useState(false);
+
+  // Refs keep rapid two-finger or back-to-back toddler taps 100% consistent without stale closures
+  const deckRef = useRef(deck);
+  deckRef.current = deck;
+  const flippedRef = useRef<string[]>(flippedUids);
+  flippedRef.current = flippedUids;
+  const matchedRef = useRef<ZooAnimalKind[]>(matchedAnimals);
+  matchedRef.current = matchedAnimals;
+  const matchLockRef = useRef(false);
+  const mismatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const matchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebrateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCardTimers = useCallback(() => {
+    if (mismatchTimerRef.current) {
+      clearTimeout(mismatchTimerRef.current);
+      mismatchTimerRef.current = null;
+    }
+    if (matchTimerRef.current) {
+      clearTimeout(matchTimerRef.current);
+      matchTimerRef.current = null;
+    }
+    if (celebrateTimerRef.current) {
+      clearTimeout(celebrateTimerRef.current);
+      celebrateTimerRef.current = null;
+    }
+    matchLockRef.current = false;
+  }, []);
+
+  useEffect(() => () => clearCardTimers(), [clearCardTimers]);
 
   const currentPool = getRoundPool(roundIdx);
   const animalsInRound = getRoundAnimals(roundIdx, difficulty);
 
   const loadRound = useCallback(
     (idx: number, nextDiff: Difficulty = difficulty) => {
+      clearCardTimers();
       const animals = getRoundAnimals(idx, nextDiff);
+      const nextDeck = createDeck(animals);
+      deckRef.current = nextDeck;
+      flippedRef.current = [];
+      matchedRef.current = [];
       setRoundIdx(idx);
-      setDeck(createDeck(animals));
+      setDeck(nextDeck);
       setFlippedUids([]);
       setMatchedAnimals([]);
       setCelebratingAnimal(null);
-      setBusy(false);
       setWon(false);
     },
-    [difficulty]
+    [clearCardTimers, difficulty]
   );
 
   const handleDifficultyChange = useCallback(
@@ -240,48 +310,77 @@ export const AnimalPeekabooGame: React.FC = () => {
     }
   }, [matchedAnimals.length, animalsInRound.length, addStar]);
 
-  const handleCardPress = (card: PeekCard) => {
-    if (busy) return;
-    if (matchedAnimals.includes(card.animal)) {
-      soundEngine.unlock();
-      soundEngine.playAnimalSound(card.animal);
-      return;
-    }
-    if (flippedUids.includes(card.uid)) return;
-
-    soundEngine.unlock();
-    soundEngine.playCardFlip();
-
-    const nextFlipped = [...flippedUids, card.uid];
-    setFlippedUids(nextFlipped);
-
-    if (nextFlipped.length === 2) {
-      setBusy(true);
-      const first = deck.find((c) => c.uid === nextFlipped[0]);
-      const second = deck.find((c) => c.uid === nextFlipped[1]);
-
-      if (first && second && first.animal === second.animal) {
-        setTimeout(() => {
-          soundEngine.playMatch();
-          soundEngine.playAnimalSound(first.animal);
-          collectSticker(first.animal);
-          setMatchedAnimals((prev) => [...prev, first.animal]);
-          setCelebratingAnimal(first.animal);
-          setFlippedUids([]);
-          setBusy(false);
-          setTimeout(() => {
-            setCelebratingAnimal((prev) => (prev === first.animal ? null : prev));
-          }, 950);
-        }, 300);
-      } else {
-        setTimeout(() => {
-          soundEngine.playGentleBounce();
-          setFlippedUids([]);
-          setBusy(false);
-        }, 1000);
+  const handleCardPress = useCallback(
+    (card: PeekCard) => {
+      // Matched card: playful animal sound anytime!
+      if (matchedRef.current.includes(card.animal)) {
+        soundEngine.unlock();
+        soundEngine.playAnimalSound(card.animal);
+        return;
       }
-    }
-  };
+
+      // Brief 280ms lock only while a confirmed matching pair is snapping in
+      if (matchLockRef.current) return;
+
+      let currentFlipped = flippedRef.current;
+
+      // If 2 non-matching cards are currently waiting to flip back and the child taps
+      // a fresh hidden bush, immediately close the old pair and open the new bush!
+      if (mismatchTimerRef.current) {
+        if (currentFlipped.includes(card.uid)) return;
+        clearTimeout(mismatchTimerRef.current);
+        mismatchTimerRef.current = null;
+        currentFlipped = [];
+      }
+
+      if (currentFlipped.includes(card.uid)) return;
+
+      soundEngine.unlock();
+      soundEngine.playCardFlip();
+
+      const nextFlipped = [...currentFlipped, card.uid];
+      flippedRef.current = nextFlipped;
+      setFlippedUids(nextFlipped);
+
+      if (nextFlipped.length === 2) {
+        const first = deckRef.current.find((c) => c.uid === nextFlipped[0]);
+        const second = deckRef.current.find((c) => c.uid === nextFlipped[1]);
+
+        if (first && second && first.animal === second.animal) {
+          matchLockRef.current = true;
+          matchTimerRef.current = setTimeout(() => {
+            matchTimerRef.current = null;
+            matchLockRef.current = false;
+            soundEngine.playMatch();
+            soundEngine.playAnimalSound(first.animal);
+            collectSticker(first.animal);
+            const nextMatched = matchedRef.current.includes(first.animal)
+              ? matchedRef.current
+              : [...matchedRef.current, first.animal];
+            matchedRef.current = nextMatched;
+            flippedRef.current = [];
+            setMatchedAnimals(nextMatched);
+            setCelebratingAnimal(first.animal);
+            setFlippedUids([]);
+            if (celebrateTimerRef.current) clearTimeout(celebrateTimerRef.current);
+            celebrateTimerRef.current = setTimeout(() => {
+              setCelebratingAnimal((prev) =>
+                prev === first.animal ? null : prev
+              );
+            }, 950);
+          }, 260);
+        } else {
+          mismatchTimerRef.current = setTimeout(() => {
+            mismatchTimerRef.current = null;
+            soundEngine.playGentleBounce();
+            flippedRef.current = [];
+            setFlippedUids([]);
+          }, 950);
+        }
+      }
+    },
+    [collectSticker]
+  );
 
   const count = deck.length;
   const cardSize = isTabletLandscape
@@ -323,7 +422,14 @@ export const AnimalPeekabooGame: React.FC = () => {
         onDifficultyChange={handleDifficultyChange}
       />
 
-      <View style={styles.playArea}>
+      <View
+        style={[
+          styles.playArea,
+          Platform.OS === 'web'
+            ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
+            : null,
+        ]}
+      >
         <View style={[styles.grid, { gap, maxWidth: gridMaxWidth }]}>
           {deck.map((card, idx) => {
             const isMatched = matchedAnimals.includes(card.animal);
@@ -396,21 +502,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.sunGold,
     backgroundColor: '#FFF7D6',
   },
-  cardPressed: {
-    transform: [{ scale: 0.94 }],
-  },
   animalFace: {
-    overflow: 'hidden',
-    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   matchStar: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: 'rgba(255, 249, 236, 0.92)',
-    borderRadius: 16,
-    padding: 2,
+    top: -4,
+    right: -4,
   },
 });

@@ -34,6 +34,11 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
+import {
+  makeInstantTapProps,
+  markWebTouchHandled,
+  wasRecentWebTouch,
+} from '../utils/webTouch';
 
 type ExhibitId = 'monkeys' | 'aquarium' | 'savanna' | 'sanctuary' | 'arctic' | 'farm';
 
@@ -1369,9 +1374,34 @@ export const ShapeSorterGame: React.FC = () => {
     >
       {/* Tappable habitat background behind animal spots for playful scenery surprises */}
       <Pressable
-        onPress={handleStageBackdropTap}
-        style={StyleSheet.absoluteFill}
+        onPress={(e) => {
+          if (wasRecentWebTouch()) return;
+          handleStageBackdropTap(e);
+        }}
+        style={[
+          StyleSheet.absoluteFill,
+          Platform.OS === 'web'
+            ? ({ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as unknown as object)
+            : null,
+        ]}
         accessibilityLabel={`Explore ${currentExhibit.title}`}
+        {...(Platform.OS === 'web'
+          ? ({
+              onTouchStart: (e: {
+                changedTouches?: ArrayLike<{ clientX: number; clientY: number }>;
+              }) => {
+                const t = e.changedTouches?.[0];
+                if (!t) return;
+                markWebTouchHandled();
+                handleStageBackdropTap({
+                  nativeEvent: {
+                    pageX: t.clientX,
+                    pageY: t.clientY,
+                  },
+                });
+              },
+            } as Record<string, unknown>)
+          : {})}
       />
 
       {/* Scenery tap surprise burst */}
@@ -1420,11 +1450,15 @@ export const ShapeSorterGame: React.FC = () => {
             : spot;
         const left = Math.round((resolvedPos.xPct / 100) * stageW - animalPx / 2);
         const top = Math.round((resolvedPos.yPct / 100) * stageH - animalPx / 2);
+        const slotTap = makeInstantTapProps(
+          isPlaced ? undefined : () => handleSlotTap(spot.id),
+          isPlaced
+        );
 
         return (
           <Pressable
             key={spot.id}
-            onPress={isPlaced ? undefined : () => handleSlotTap(spot.id)}
+            onPress={isPlaced ? undefined : slotTap.onPress}
             accessibilityRole="button"
             accessibilityLabel={
               isPlaced
@@ -1434,12 +1468,15 @@ export const ShapeSorterGame: React.FC = () => {
             style={[
               styles.spotAnchor,
               { left, top, width: animalPx, height: animalPx },
+              !isPlaced ? slotTap.webStyle : null,
             ]}
+            {...(!isPlaced ? slotTap.webProps : {})}
           >
             <View
               ref={(node) => {
                 slotRefs.current[spot.id] = node;
               }}
+              pointerEvents={isPlaced ? 'auto' : 'none'}
               style={[
                 styles.shapeSpot,
                 { width: animalPx, height: animalPx },

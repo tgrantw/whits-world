@@ -23,6 +23,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
+import { makeInstantTapProps } from '../utils/webTouch';
 
 type SizeTier = 'tiny' | 'small' | 'medium' | 'big';
 
@@ -339,18 +340,30 @@ export const SizeSorterGame: React.FC = () => {
             const podH = Math.round(slot.podiumHeight * sizeMult);
             const podiumWeight = weightForSizeTier(slot.tier);
 
+            const podiumTap = makeInstantTapProps(() => {
+              if (isPlaced) {
+                soundEngine.unlock();
+                soundEngine.playAnimalSound(slot.animal);
+                return;
+              }
+              handlePodiumTap(slot.tier);
+            });
+
             return (
               <Pressable
                 key={slot.tier}
-                onPress={() => handlePodiumTap(slot.tier)}
+                onPress={podiumTap.onPress}
+                hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={`${slot.tier} podium`}
-                style={{ flex: 1 }}
+                style={[{ flex: 1 }, podiumTap.webStyle]}
+                {...podiumTap.webProps}
               >
                 <View
                   ref={(node) => {
                     slotRefs.current[slot.tier] = node;
                   }}
+                  pointerEvents="none"
                   style={[styles.column, isGlow && styles.columnHighlight]}
                 >
                   <View
@@ -369,8 +382,6 @@ export const SizeSorterGame: React.FC = () => {
                         size={animalPx}
                         seed={idx + 1}
                         weight={podiumWeight}
-                        silentTap
-                        onTap={() => soundEngine.playAnimalSound(slot.animal)}
                       >
                         <ZooExhibitAnimalSvg
                           animal={slot.animal}
