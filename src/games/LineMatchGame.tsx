@@ -52,10 +52,10 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'red',
     leftMain: 'RED',
-    lineColor: '#E54B42',
-    textColor: '#D63830',
-    pillBg: '#FFF4F3',
-    pillBorder: '#C7423B',
+    lineColor: '#E51A1A',
+    textColor: '#E51A1A',
+    pillBg: '#FFFFFF',
+    pillBorder: '#E51A1A',
     speakLeft: 'Red',
     speakMatch: 'Red! Red Apple!',
     rightKind: 'color-art',
@@ -65,10 +65,10 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'blue',
     leftMain: 'BLUE',
-    lineColor: '#3A9ED4',
-    textColor: '#217EB0',
-    pillBg: '#F0FAFF',
-    pillBorder: '#2979A6',
+    lineColor: '#1578E8',
+    textColor: '#1578E8',
+    pillBg: '#FFFFFF',
+    pillBorder: '#1578E8',
     speakLeft: 'Blue',
     speakMatch: 'Blue! Blue Whale!',
     animalSound: 'whale',
@@ -79,10 +79,10 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'green',
     leftMain: 'GREEN',
-    lineColor: '#4BA850',
-    textColor: '#2F8A34',
-    pillBg: '#F1FBF0',
-    pillBorder: '#347D38',
+    lineColor: '#1FA838',
+    textColor: '#1FA838',
+    pillBg: '#FFFFFF',
+    pillBorder: '#1FA838',
     speakLeft: 'Green',
     speakMatch: 'Green! Green Frog!',
     animalSound: 'frog',
@@ -93,10 +93,10 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'yellow',
     leftMain: 'YELLOW',
-    lineColor: '#E8B31A',
-    textColor: '#C48E00',
-    pillBg: '#FFFBE6',
-    pillBorder: '#BA8710',
+    lineColor: '#FFD500',
+    textColor: '#FFD500',
+    pillBg: '#FFFFFF',
+    pillBorder: '#E6B800',
     speakLeft: 'Yellow',
     speakMatch: 'Yellow! Yellow Sun!',
     rightKind: 'color-art',
@@ -106,10 +106,10 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'orange',
     leftMain: 'ORANGE',
-    lineColor: '#EE8324',
-    textColor: '#D1680F',
-    pillBg: '#FFF5EB',
-    pillBorder: '#BA5D12',
+    lineColor: '#FF7A00',
+    textColor: '#FF7A00',
+    pillBg: '#FFFFFF',
+    pillBorder: '#FF7A00',
     speakLeft: 'Orange',
     speakMatch: 'Orange! Juicy Orange!',
     rightKind: 'color-art',
@@ -119,10 +119,10 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'purple',
     leftMain: 'PURPLE',
-    lineColor: '#8F62CC',
-    textColor: '#6D41AD',
-    pillBg: '#F7F2FF',
-    pillBorder: '#673FA1',
+    lineColor: '#7E2CE0',
+    textColor: '#7E2CE0',
+    pillBg: '#FFFFFF',
+    pillBorder: '#7E2CE0',
     speakLeft: 'Purple',
     speakMatch: 'Purple! Purple Grapes!',
     rightKind: 'color-art',
@@ -132,13 +132,12 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'pink',
     leftMain: 'PINK',
-    lineColor: '#EA6F9C',
-    textColor: '#C94476',
-    pillBg: '#FFF2F7',
-    pillBorder: '#B3436D',
+    lineColor: '#FF4FA3',
+    textColor: '#FF4FA3',
+    pillBg: '#FFFFFF',
+    pillBorder: '#FF4FA3',
     speakLeft: 'Pink',
-    speakMatch: 'Pink! Pink Flamingo!',
-    animalSound: 'flamingo',
+    speakMatch: 'Pink! Pink Flower!',
     rightKind: 'color-art',
     colorArtId: 'pink',
     noteFreq: 493.88,
@@ -146,13 +145,13 @@ const COLOR_PAIRS: MatchPairSpec[] = [
   {
     id: 'brown',
     leftMain: 'BROWN',
-    lineColor: '#96613D',
-    textColor: '#754626',
-    pillBg: '#FAF3ED',
-    pillBorder: '#6E4224',
+    lineColor: '#7A431D',
+    textColor: '#7A431D',
+    pillBg: '#FFFFFF',
+    pillBorder: '#7A431D',
     speakLeft: 'Brown',
-    speakMatch: 'Brown! Brown Monkey!',
-    animalSound: 'monkey',
+    speakMatch: 'Brown! Brown Bear!',
+    animalSound: 'polarbear',
     rightKind: 'color-art',
     colorArtId: 'brown',
     noteFreq: 523.25,
@@ -300,7 +299,7 @@ function buildBoardRound(
   };
 }
 
-/** Crisp flat-SVG pictures for non-animal color & letter targets (zero gradients/clipPaths) */
+/** Crisp saturated flat-SVG pictures in unmistakable vivid colors (zero gradients/clipPaths) */
 const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
   ({ kind, size }) => {
     const draw = () => {
@@ -309,53 +308,124 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
         case 'A':
           return (
             <G>
+              {/* Vivid Firetruck Red Apple */}
               <Path
-                d="M 50 28 C 34 22 18 36 20 56 C 22 76 38 88 50 84 C 62 88 78 76 80 56 C 82 36 66 22 50 28 Z"
-                fill="#E85A50"
+                d="M 50 28 C 34 22 16 36 18 56 C 20 77 37 89 50 85 C 63 89 80 77 82 56 C 84 36 66 22 50 28 Z"
+                fill="#E51A1A"
                 stroke={INK}
                 strokeWidth="4"
                 strokeLinejoin="round"
               />
-              <Path d="M 50 28 Q 52 14 58 10" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
-              <Path d="M 52 22 Q 66 12 72 22 Q 62 30 52 22 Z" fill="#5BB55E" stroke={INK} strokeWidth="3" />
-              <Ellipse cx="35" cy="46" rx="5.5" ry="9.5" fill="rgba(255,255,255,0.42)" />
+              <Path d="M 50 28 Q 52 14 58 10" fill="none" stroke={INK} strokeWidth="4.2" strokeLinecap="round" />
+              <Path d="M 52 22 Q 66 12 72 22 Q 62 30 52 22 Z" fill="#1FA838" stroke={INK} strokeWidth="3" />
+              <Ellipse cx="34" cy="46" rx="5.5" ry="10" fill="rgba(255,255,255,0.45)" />
+            </G>
+          );
+        case 'blue':
+          return (
+            <G>
+              {/* Vivid Royal Blue Whale */}
+              <Path
+                d="M 14 60 C 14 34 38 26 60 32 C 74 36 80 48 80 56 C 88 52 93 42 94 46 C 96 56 88 66 78 66 C 72 78 52 82 34 80 C 20 78 14 70 14 60 Z"
+                fill="#1578E8"
+                stroke={INK}
+                strokeWidth="4"
+                strokeLinejoin="round"
+              />
+              <Path d="M 46 28 Q 42 14 32 16 M 48 28 Q 54 14 64 16" fill="none" stroke="#1578E8" strokeWidth="4.5" strokeLinecap="round" />
+              <Circle cx="32" cy="52" r="4.5" fill={INK} />
+              <Circle cx="33.5" cy="50.5" r="1.5" fill="#FFFFFF" />
+              <Path d="M 18 64 Q 30 72 42 64" fill="none" stroke={INK} strokeWidth="3.2" strokeLinecap="round" />
+              <Ellipse cx="52" cy="44" rx="10" ry="4.5" fill="rgba(255,255,255,0.34)" />
+            </G>
+          );
+        case 'green':
+          return (
+            <G>
+              {/* Vivid Clover Green Frog */}
+              <Circle cx="34" cy="30" r="14" fill="#1FA838" stroke={INK} strokeWidth="3.8" />
+              <Circle cx="66" cy="30" r="14" fill="#1FA838" stroke={INK} strokeWidth="3.8" />
+              <Ellipse cx="50" cy="58" rx="34" ry="26" fill="#1FA838" stroke={INK} strokeWidth="4" />
+              <Circle cx="34" cy="30" r="7" fill="#FFFFFF" stroke={INK} strokeWidth="2.4" />
+              <Circle cx="66" cy="30" r="7" fill="#FFFFFF" stroke={INK} strokeWidth="2.4" />
+              <Circle cx="35" cy="30" r="3.8" fill={INK} />
+              <Circle cx="65" cy="30" r="3.8" fill={INK} />
+              <Path d="M 32 62 Q 50 76 68 62" fill="none" stroke={INK} strokeWidth="3.8" strokeLinecap="round" />
+              <Circle cx="44" cy="52" r="2.2" fill={INK} />
+              <Circle cx="56" cy="52" r="2.2" fill={INK} />
             </G>
           );
         case 'yellow':
           return (
             <G>
+              {/* Vivid Canary Yellow Sun */}
               <Path
-                d="M 50 8 L 50 18 M 50 82 L 50 92 M 8 50 L 18 50 M 82 50 L 92 50 M 20 20 L 28 28 M 72 72 L 80 80 M 80 20 L 72 28 M 28 72 L 20 80"
-                stroke="#FAD44A"
-                strokeWidth="7"
+                d="M 50 6 L 50 18 M 50 82 L 50 94 M 6 50 L 18 50 M 82 50 L 94 50 M 18 18 L 27 27 M 73 73 L 82 82 M 82 18 L 73 27 M 27 73 L 18 82"
+                stroke="#FFD500"
+                strokeWidth="8"
                 strokeLinecap="round"
               />
-              <Circle cx="50" cy="50" r="25" fill="#FAD44A" stroke={INK} strokeWidth="4" />
-              <Circle cx="41" cy="46" r="3.4" fill={INK} />
-              <Circle cx="59" cy="46" r="3.4" fill={INK} />
-              <Path d="M 41 56 Q 50 64 59 56" fill="none" stroke={INK} strokeWidth="3.4" strokeLinecap="round" />
+              <Circle cx="50" cy="50" r="26" fill="#FFE01B" stroke={INK} strokeWidth="4" />
+              <Circle cx="41" cy="46" r="3.6" fill={INK} />
+              <Circle cx="59" cy="46" r="3.6" fill={INK} />
+              <Path d="M 40 57 Q 50 66 60 57" fill="none" stroke={INK} strokeWidth="3.6" strokeLinecap="round" />
             </G>
           );
         case 'orange':
           return (
             <G>
-              <Circle cx="50" cy="54" r="29" fill="#F39237" stroke={INK} strokeWidth="4" />
-              <Path d="M 50 25 Q 52 14 58 12" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
-              <Path d="M 50 23 Q 36 11 30 23 Q 40 31 50 23 Z" fill="#5BB55E" stroke={INK} strokeWidth="3" />
-              <Ellipse cx="36" cy="44" rx="5" ry="9" fill="rgba(255,255,255,0.42)" />
+              {/* Vivid Tangerine Orange */}
+              <Circle cx="50" cy="54" r="31" fill="#FF7A00" stroke={INK} strokeWidth="4" />
+              <Path d="M 50 23 Q 52 13 58 11" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+              <Path d="M 50 22 Q 36 10 29 22 Q 40 30 50 22 Z" fill="#1FA838" stroke={INK} strokeWidth="3" />
+              <Ellipse cx="35" cy="44" rx="5.5" ry="9.5" fill="rgba(255,255,255,0.44)" />
             </G>
           );
         case 'purple':
           return (
             <G>
-              <Path d="M 50 18 Q 52 10 60 10" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
-              <Path d="M 50 20 Q 34 10 28 22 Q 38 30 50 20 Z" fill="#5BB55E" stroke={INK} strokeWidth="3" />
-              <Circle cx="36" cy="38" r="12" fill="#9B74D4" stroke={INK} strokeWidth="3.4" />
-              <Circle cx="64" cy="38" r="12" fill="#9B74D4" stroke={INK} strokeWidth="3.4" />
-              <Circle cx="50" cy="36" r="12" fill="#9B74D4" stroke={INK} strokeWidth="3.4" />
-              <Circle cx="42" cy="56" r="12" fill="#9B74D4" stroke={INK} strokeWidth="3.4" />
-              <Circle cx="58" cy="56" r="12" fill="#9B74D4" stroke={INK} strokeWidth="3.4" />
-              <Circle cx="50" cy="74" r="12" fill="#9B74D4" stroke={INK} strokeWidth="3.4" />
+              {/* Vivid Royal Purple Grapes */}
+              <Path d="M 50 17 Q 52 9 60 9" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+              <Path d="M 50 19 Q 34 9 28 21 Q 38 29 50 19 Z" fill="#1FA838" stroke={INK} strokeWidth="3" />
+              <Circle cx="35" cy="38" r="12.5" fill="#7E2CE0" stroke={INK} strokeWidth="3.4" />
+              <Circle cx="65" cy="38" r="12.5" fill="#7E2CE0" stroke={INK} strokeWidth="3.4" />
+              <Circle cx="50" cy="36" r="12.5" fill="#7E2CE0" stroke={INK} strokeWidth="3.4" />
+              <Circle cx="42" cy="57" r="12.5" fill="#7E2CE0" stroke={INK} strokeWidth="3.4" />
+              <Circle cx="58" cy="57" r="12.5" fill="#7E2CE0" stroke={INK} strokeWidth="3.4" />
+              <Circle cx="50" cy="76" r="12.5" fill="#7E2CE0" stroke={INK} strokeWidth="3.4" />
+            </G>
+          );
+        case 'pink':
+          return (
+            <G>
+              {/* Vivid Bubblegum Pink Flower */}
+              <Circle cx="50" cy="23" r="16" fill="#FF4FA3" stroke={INK} strokeWidth="3.6" />
+              <Circle cx="76" cy="42" r="16" fill="#FF4FA3" stroke={INK} strokeWidth="3.6" />
+              <Circle cx="66" cy="72" r="16" fill="#FF4FA3" stroke={INK} strokeWidth="3.6" />
+              <Circle cx="34" cy="72" r="16" fill="#FF4FA3" stroke={INK} strokeWidth="3.6" />
+              <Circle cx="24" cy="42" r="16" fill="#FF4FA3" stroke={INK} strokeWidth="3.6" />
+              <Circle cx="50" cy="50" r="15" fill="#FFE01B" stroke={INK} strokeWidth="3.6" />
+              <Circle cx="45" cy="48" r="2.4" fill={INK} />
+              <Circle cx="55" cy="48" r="2.4" fill={INK} />
+              <Path d="M 44 54 Q 50 59 56 54" fill="none" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
+            </G>
+          );
+        case 'brown':
+          return (
+            <G>
+              {/* Rich Chocolate Brown Teddy Bear */}
+              <Circle cx="26" cy="28" r="14" fill="#7A431D" stroke={INK} strokeWidth="3.8" />
+              <Circle cx="74" cy="28" r="14" fill="#7A431D" stroke={INK} strokeWidth="3.8" />
+              <Circle cx="26" cy="28" r="6.5" fill="#C48B5C" />
+              <Circle cx="74" cy="28" r="6.5" fill="#C48B5C" />
+              <Circle cx="50" cy="54" r="32" fill="#7A431D" stroke={INK} strokeWidth="4" />
+              <Ellipse cx="50" cy="63" rx="14" ry="11" fill="#C48B5C" stroke={INK} strokeWidth="2.6" />
+              <Circle cx="38" cy="46" r="4" fill="#1F120A" />
+              <Circle cx="62" cy="46" r="4" fill="#1F120A" />
+              <Circle cx="39.5" cy="44.5" r="1.4" fill="#FFFFFF" />
+              <Circle cx="63.5" cy="44.5" r="1.4" fill="#FFFFFF" />
+              <Ellipse cx="50" cy="58" rx="5.5" ry="4" fill="#2A170C" />
+              <Path d="M 44 66 Q 50 71 56 66" fill="none" stroke={INK} strokeWidth="2.8" strokeLinecap="round" />
             </G>
           );
         case 'B':
@@ -363,7 +433,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
             <G>
               <Path
                 d="M 22 74 C 46 84 78 68 82 34 C 84 22 74 16 68 22 C 64 46 46 62 24 62 C 16 62 14 70 22 74 Z"
-                fill="#FAD44A"
+                fill="#FFE01B"
                 stroke={INK}
                 strokeWidth="4"
                 strokeLinejoin="round"
@@ -375,18 +445,18 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
           return (
             <G>
               <Path d="M 50 78 Q 38 88 54 94" fill="none" stroke={INK} strokeWidth="3.2" strokeLinecap="round" />
-              <Path d="M 50 12 L 80 42 L 50 78 L 20 42 Z" fill="#4DAAD8" stroke={INK} strokeWidth="4" strokeLinejoin="round" />
-              <Path d="M 50 12 L 80 42 L 50 42 Z" fill="#FAD44A" />
-              <Path d="M 50 42 L 20 42 L 50 78 Z" fill="#F082A8" />
+              <Path d="M 50 12 L 80 42 L 50 78 L 20 42 Z" fill="#1578E8" stroke={INK} strokeWidth="4" strokeLinejoin="round" />
+              <Path d="M 50 12 L 80 42 L 50 42 Z" fill="#FFE01B" />
+              <Path d="M 50 42 L 20 42 L 50 78 Z" fill="#FF4FA3" />
               <Path d="M 50 12 L 80 42 L 50 78 L 20 42 Z M 50 12 L 50 78 M 20 42 L 80 42" fill="none" stroke={INK} strokeWidth="3.2" />
             </G>
           );
         default:
           return (
             <G>
-              <Path d="M 14 70 A 36 36 0 0 1 86 70" fill="none" stroke="#E85A50" strokeWidth="10" strokeLinecap="round" />
-              <Path d="M 23 70 A 27 27 0 0 1 77 70" fill="none" stroke="#FAD44A" strokeWidth="9.5" strokeLinecap="round" />
-              <Path d="M 32 70 A 18 18 0 0 1 68 70" fill="none" stroke="#4DAAD8" strokeWidth="9" strokeLinecap="round" />
+              <Path d="M 14 70 A 36 36 0 0 1 86 70" fill="none" stroke="#E51A1A" strokeWidth="10" strokeLinecap="round" />
+              <Path d="M 23 70 A 27 27 0 0 1 77 70" fill="none" stroke="#FFE01B" strokeWidth="9.5" strokeLinecap="round" />
+              <Path d="M 32 70 A 18 18 0 0 1 68 70" fill="none" stroke="#1578E8" strokeWidth="9" strokeLinecap="round" />
               <Circle cx="20" cy="74" r="12" fill="#FFFDF7" stroke={INK} strokeWidth="3.4" />
               <Circle cx="80" cy="74" r="12" fill="#FFFDF7" stroke={INK} strokeWidth="3.4" />
             </G>
@@ -409,19 +479,7 @@ const RightPictureContent: React.FC<{
   isTablet: boolean;
 }> = React.memo(({ item, cardH, isTablet }) => {
   if (item.rightKind === 'color-art') {
-    const picSz = Math.round(cardH * 0.76);
-    if (item.colorArtId === 'blue') {
-      return <ZooExhibitAnimalSvg animal="whale" size={picSz} />;
-    }
-    if (item.colorArtId === 'green') {
-      return <ZooExhibitAnimalSvg animal="frog" size={picSz} />;
-    }
-    if (item.colorArtId === 'pink') {
-      return <ZooExhibitAnimalSvg animal="flamingo" size={picSz} />;
-    }
-    if (item.colorArtId === 'brown') {
-      return <ZooExhibitAnimalSvg animal="monkey" size={picSz} />;
-    }
+    const picSz = Math.round(cardH * 0.8);
     return <FlatPictureSvg kind={item.colorArtId || 'red'} size={picSz} />;
   }
 
@@ -1250,24 +1308,38 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                 >
                   <View pointerEvents="none" style={styles.leftTextWrap}>
                     {topic === 'colors' ? (
-                      <Text
-                        style={[
-                          styles.colorWordText,
-                          {
-                            fontSize:
-                              cardW >= 200
-                                ? item.leftMain.length >= 6
-                                  ? 30
-                                  : 34
-                                : item.leftMain.length >= 6
-                                ? 21
-                                : 25,
-                            color: item.textColor,
-                          },
-                        ]}
-                      >
-                        {item.leftMain}
-                      </Text>
+                      <View style={styles.colorWordRow}>
+                        <View
+                          style={[
+                            styles.colorSwatchDot,
+                            {
+                              width: cardH >= 110 ? 32 : 22,
+                              height: cardH >= 110 ? 32 : 22,
+                              borderRadius: 99,
+                              backgroundColor: item.lineColor,
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.colorWordText,
+                            {
+                              fontSize:
+                                cardW >= 200
+                                  ? item.leftMain.length >= 6
+                                    ? 28
+                                    : 33
+                                  : item.leftMain.length >= 6
+                                  ? 19
+                                  : 23,
+                              color: item.textColor,
+                            },
+                            item.id === 'yellow' && styles.yellowTextOutline,
+                          ]}
+                        >
+                          {item.leftMain}
+                        </Text>
+                      </View>
                     ) : (
                       <View style={styles.symbolStack}>
                         <Text
@@ -1506,10 +1578,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
+  colorWordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  colorSwatchDot: {
+    borderWidth: 2.5,
+    borderColor: INK,
+  },
   colorWordText: {
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1.1,
     textAlign: 'center',
+  },
+  yellowTextOutline: {
+    textShadowColor: '#5C4400',
+    textShadowOffset: { width: 1.2, height: 1.2 },
+    textShadowRadius: 1.5,
   },
   symbolStack: {
     flexDirection: 'row',
