@@ -712,6 +712,114 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
           ))}
         </View>
       );
+    case 'color-line-match':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 2 }]}>
+          <View
+            style={{
+              paddingHorizontal: s(6),
+              paddingVertical: s(4),
+              borderRadius: s(8),
+              backgroundColor: '#FFF0EE',
+              borderWidth: 2,
+              borderColor: '#C7423B',
+            }}
+          >
+            <Text style={{ fontSize: s(12), fontWeight: '900', color: '#D63830' }}>
+              RED
+            </Text>
+          </View>
+          <Svg width={s(30)} height={s(24)} viewBox="0 0 36 28">
+            <Path
+              d="M 4 14 C 14 4, 22 24, 32 14"
+              fill="none"
+              stroke="#E54B42"
+              strokeWidth="4.5"
+              strokeLinecap="round"
+            />
+            <Circle cx="4" cy="14" r="3.5" fill="#E54B42" />
+            <Circle cx="32" cy="14" r="3.5" fill="#E54B42" />
+          </Svg>
+          <Svg width={s(34)} height={s(34)} viewBox="0 0 100 100">
+            <Path
+              d="M 50 28 C 34 22 18 36 20 56 C 22 76 38 88 50 84 C 62 88 78 76 80 56 C 82 36 66 22 50 28 Z"
+              fill="#E85A50"
+              stroke="#4A3525"
+              strokeWidth="5"
+            />
+            <Path d="M 52 22 Q 66 12 72 22 Q 62 30 52 22 Z" fill="#5BB55E" stroke="#4A3525" strokeWidth="4" />
+          </Svg>
+        </View>
+      );
+    case 'number-line-match':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 2 }]}>
+          <View
+            style={{
+              width: s(28),
+              height: s(32),
+              borderRadius: s(8),
+              backgroundColor: '#EEF9FF',
+              borderWidth: 2,
+              borderColor: '#2A7CA8',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ fontSize: s(18), fontWeight: '900', color: '#1D6E9C' }}>
+              2
+            </Text>
+          </View>
+          <Svg width={s(26)} height={s(24)} viewBox="0 0 32 28">
+            <Path
+              d="M 4 14 C 12 4, 20 24, 28 14"
+              fill="none"
+              stroke="#3A9ED4"
+              strokeWidth="4.5"
+              strokeLinecap="round"
+            />
+            <Circle cx="4" cy="14" r="3.5" fill="#3A9ED4" />
+            <Circle cx="28" cy="14" r="3.5" fill="#3A9ED4" />
+          </Svg>
+          <View style={{ flexDirection: 'row', gap: 1 }}>
+            <ZooExhibitAnimalSvg animal="duck" size={s(24)} />
+            <ZooExhibitAnimalSvg animal="duck" size={s(24)} />
+          </View>
+        </View>
+      );
+    case 'letter-line-match':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 2 }]}>
+          <View
+            style={{
+              width: s(28),
+              height: s(32),
+              borderRadius: s(8),
+              backgroundColor: '#F5EFFF',
+              borderWidth: 2,
+              borderColor: '#6A44A3',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ fontSize: s(18), fontWeight: '900', color: '#60389C' }}>
+              L
+            </Text>
+          </View>
+          <Svg width={s(28)} height={s(24)} viewBox="0 0 34 28">
+            <Path
+              d="M 4 14 C 13 4, 21 24, 30 14"
+              fill="none"
+              stroke="#8F62CC"
+              strokeWidth="4.5"
+              strokeLinecap="round"
+            />
+            <Circle cx="4" cy="14" r="3.5" fill="#8F62CC" />
+            <Circle cx="30" cy="14" r="3.5" fill="#8F62CC" />
+          </Svg>
+          <ZooExhibitAnimalSvg animal="lion" size={s(36)} />
+        </View>
+      );
   }
 };
 
@@ -1263,7 +1371,8 @@ const styles = StyleSheet.create({
   },
   landscapeGridCol: {
     flex: 1,
-    justifyContent: 'center',
+    height: '100%',
+    overflow: 'hidden',
   },
   landscapeUnlockSlot: {
     width: '100%',

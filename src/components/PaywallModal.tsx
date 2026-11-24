@@ -226,7 +226,7 @@ export const PaywallModal: React.FC = () => {
               <View style={styles.heroCopy}>
                 <Text style={[styles.title, isTablet && styles.titleTablet]}>
                   {isUnlocked
-                    ? 'All 10 Zoo Games Unlocked!'
+                    ? `All ${GAMES.length} Zoo Games Unlocked!`
                     : 'Unlock All of Whit’s World'}
                 </Text>
                 <Text style={styles.priceSubtitle}>

@@ -18,6 +18,7 @@ import { JungleJigsawGame } from './src/games/JungleJigsawGame';
 import { JungleMusicGame } from './src/games/JungleMusicGame';
 import { JunglePicnicGame } from './src/games/JunglePicnicGame';
 import { LetterSafariGame } from './src/games/LetterSafariGame';
+import { LineMatchGame } from './src/games/LineMatchGame';
 import { ShapeSorterGame } from './src/games/ShapeSorterGame';
 import { SizeSorterGame } from './src/games/SizeSorterGame';
 import { ZooColoringGame } from './src/games/ZooColoringGame';
@@ -72,6 +73,12 @@ const RootNavigator: React.FC = () => {
         return <CountingZooGame />;
       case 'letter-safari':
         return <LetterSafariGame />;
+      case 'color-line-match':
+        return <LineMatchGame initialTopic="colors" />;
+      case 'number-line-match':
+        return <LineMatchGame initialTopic="numbers" />;
+      case 'letter-line-match':
+        return <LineMatchGame initialTopic="letters" />;
       default:
         return <HomeScreen />;
     }

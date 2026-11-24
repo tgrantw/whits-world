@@ -14,7 +14,10 @@ export type GameId =
   | 'zoo-coloring'
   | 'color-match'
   | 'number-count'
-  | 'letter-safari';
+  | 'letter-safari'
+  | 'color-line-match'
+  | 'number-line-match'
+  | 'letter-line-match';
 
 export interface GameMeta {
   id: GameId;
@@ -161,6 +164,39 @@ export const GAMES: GameMeta[] = [
     plaqueBorder: '#4F54A8',
     accent: '#5E64C4',
     leafTint: '#F082A8',
+  },
+  {
+    id: 'color-line-match',
+    title: 'Color Match',
+    subtitle: 'Draw lines to colors!',
+    isFree: true,
+    plaqueBg: '#FAD1B8',
+    plaqueInner: '#FFF8F2',
+    plaqueBorder: '#B3532B',
+    accent: '#D96436',
+    leafTint: '#5BB55E',
+  },
+  {
+    id: 'number-line-match',
+    title: 'Number Match',
+    subtitle: 'Draw lines to count!',
+    isFree: true,
+    plaqueBg: '#BCE8DF',
+    plaqueInner: '#F1FBF9',
+    plaqueBorder: '#287D72',
+    accent: '#309689',
+    leafTint: '#E8A530',
+  },
+  {
+    id: 'letter-line-match',
+    title: 'Letter Match',
+    subtitle: 'Draw lines A to Z!',
+    isFree: true,
+    plaqueBg: '#E6CBF7',
+    plaqueInner: '#FAF4FF',
+    plaqueBorder: '#7544A6',
+    accent: '#8D58C4',
+    leafTint: '#4DAAD8',
   },
   {
     id: 'ball-pass',
