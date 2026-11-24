@@ -12,9 +12,12 @@ import { ArcticCatchGame } from './src/games/ArcticCatchGame';
 import { BabyMatchGame } from './src/games/BabyMatchGame';
 import { BallPassGame } from './src/games/BallPassGame';
 import { BubblePopGame } from './src/games/BubblePopGame';
+import { ColorSafariGame } from './src/games/ColorSafariGame';
+import { CountingZooGame } from './src/games/CountingZooGame';
 import { JungleJigsawGame } from './src/games/JungleJigsawGame';
 import { JungleMusicGame } from './src/games/JungleMusicGame';
 import { JunglePicnicGame } from './src/games/JunglePicnicGame';
+import { LetterSafariGame } from './src/games/LetterSafariGame';
 import { ShapeSorterGame } from './src/games/ShapeSorterGame';
 import { SizeSorterGame } from './src/games/SizeSorterGame';
 import { ZooColoringGame } from './src/games/ZooColoringGame';
@@ -63,6 +66,12 @@ const RootNavigator: React.FC = () => {
         return <JunglePicnicGame />;
       case 'zoo-coloring':
         return <ZooColoringGame />;
+      case 'color-match':
+        return <ColorSafariGame />;
+      case 'number-count':
+        return <CountingZooGame />;
+      case 'letter-safari':
+        return <LetterSafariGame />;
       default:
         return <HomeScreen />;
     }

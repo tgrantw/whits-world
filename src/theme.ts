@@ -11,7 +11,10 @@ export type GameId =
   | 'jungle-music'
   | 'arctic-catch'
   | 'jungle-picnic'
-  | 'zoo-coloring';
+  | 'zoo-coloring'
+  | 'color-match'
+  | 'number-count'
+  | 'letter-safari';
 
 export interface GameMeta {
   id: GameId;
@@ -125,6 +128,39 @@ export const GAMES: GameMeta[] = [
     plaqueBorder: '#A84E73',
     accent: '#D15B89',
     leafTint: '#E8A530',
+  },
+  {
+    id: 'color-match',
+    title: 'Color Safari',
+    subtitle: 'Find bright colors!',
+    isFree: true,
+    plaqueBg: '#FBE0A2',
+    plaqueInner: '#FFFBF0',
+    plaqueBorder: '#B36F1E',
+    accent: '#E08624',
+    leafTint: '#5BB55E',
+  },
+  {
+    id: 'number-count',
+    title: 'Zoo Counting',
+    subtitle: 'Count 1 to 10!',
+    isFree: true,
+    plaqueBg: '#BDE7CE',
+    plaqueInner: '#F2FCF6',
+    plaqueBorder: '#2E7D5B',
+    accent: '#35946B',
+    leafTint: '#4DAAD8',
+  },
+  {
+    id: 'letter-safari',
+    title: 'ABC Safari',
+    subtitle: 'Learn A to Z!',
+    isFree: true,
+    plaqueBg: '#D4D6FA',
+    plaqueInner: '#F5F6FF',
+    plaqueBorder: '#4F54A8',
+    accent: '#5E64C4',
+    leafTint: '#F082A8',
   },
   {
     id: 'ball-pass',

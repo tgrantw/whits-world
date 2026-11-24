@@ -632,6 +632,86 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
           </AnimatedZooAnimal>
         </View>
       );
+    case 'color-match':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 5 }]}>
+          {[
+            { bg: '#E85A50', b: '#A6322B' },
+            { bg: '#FAD44A', b: '#B58912' },
+            { bg: '#5BB55E', b: '#317A35' },
+            { bg: '#4DAAD8', b: '#256E96' },
+          ].map((dot, i) => (
+            <View
+              key={i}
+              style={{
+                width: s(22),
+                height: s(28),
+                borderRadius: s(11),
+                backgroundColor: dot.bg,
+                borderWidth: 2.2,
+                borderColor: dot.b,
+                marginTop: i % 2 === 0 ? -4 : 6,
+              }}
+            />
+          ))}
+        </View>
+      );
+    case 'number-count':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 4 }]}>
+          {[
+            { n: '1', bg: '#FFE4E1', b: '#C94A42', t: '#A6322B' },
+            { n: '2', bg: '#FFF3CC', b: '#BA8516', t: '#8C6009' },
+            { n: '3', bg: '#DEF4FF', b: '#2D7DA8', t: '#1F6085' },
+          ].map((item) => (
+            <View
+              key={item.n}
+              style={{
+                width: s(30),
+                height: s(38),
+                borderRadius: s(9),
+                backgroundColor: item.bg,
+                borderWidth: 2.4,
+                borderColor: item.b,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: s(20), fontWeight: '900', color: item.t }}>
+                {item.n}
+              </Text>
+            </View>
+          ))}
+        </View>
+      );
+    case 'letter-safari':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 4 }]}>
+          {[
+            { ch: 'A', bg: '#FFE5E2', b: '#C94A42', t: '#A6322B' },
+            { ch: 'B', bg: '#E1F7DE', b: '#38823D', t: '#28642C' },
+            { ch: 'C', bg: '#EFE5FF', b: '#6C47A6', t: '#523285' },
+          ].map((item) => (
+            <View
+              key={item.ch}
+              style={{
+                width: s(30),
+                height: s(38),
+                borderRadius: s(9),
+                backgroundColor: item.bg,
+                borderWidth: 2.4,
+                borderColor: item.b,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: s(19), fontWeight: '900', color: item.t }}>
+                {item.ch}
+              </Text>
+            </View>
+          ))}
+        </View>
+      );
   }
 };
 
@@ -748,7 +828,7 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.unlockedFooterPill}>
           <CrownIcon size={19} color="#FFD23F" />
           <Text style={styles.unlockedFooterText}>
-            All 10 Zoo Games Unlocked • Parent Corner
+            All {GAMES.length} Zoo Games Unlocked • Parent Corner
           </Text>
         </View>
       </TactileButton>
@@ -1002,9 +1082,15 @@ export const HomeScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Right Zoo Exhibits Grid: Centered Storybook Wooden Plaques */}
+          {/* Right Zoo Exhibits Grid: Scrollable Storybook Wooden Plaques */}
           <View style={styles.landscapeGridCol}>
-            {renderGameGrid()}
+            <ScrollView
+              style={{ flex: 1, width: '100%' }}
+              contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 4 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {renderGameGrid()}
+            </ScrollView>
           </View>
         </View>
       ) : (
