@@ -29,21 +29,15 @@ const INK = '#4A3525';
 
 interface MatchPairSpec {
   id: string;
-  /** Left-side display */
   leftMain: string;
   leftSub?: string;
-  /** Color of the word, line, and connector dot */
   lineColor: string;
   textColor: string;
   pillBg: string;
   pillBorder: string;
-  /** Spoken label when touching left card */
   speakLeft: string;
-  /** Spoken celebration when connected */
   speakMatch: string;
-  /** Optional animal sound on match */
   animalSound?: ExhibitAnimalKind;
-  /** Right-side visual spec */
   rightKind: 'color-art' | 'count-group' | 'letter-art';
   colorArtId?: string;
   countNum?: number;
@@ -214,7 +208,6 @@ function shuffleDifferent<T extends { id: string }>(items: T[]): T[] {
   if (items.length <= 1) return [...items];
   for (let attempt = 0; attempt < 12; attempt++) {
     const copy = [...items].sort(() => Math.random() - 0.5);
-    // Avoid trivial straight-across alignment on every single row so drawing lines is fun!
     const allSame = copy.every((c, i) => c.id === items[i].id);
     if (!allSame) return copy;
   }
@@ -313,7 +306,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
     const draw = () => {
       switch (kind) {
         case 'red':
-        case 'A': // Red Apple
+        case 'A':
           return (
             <G>
               <Path
@@ -328,7 +321,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
               <Ellipse cx="35" cy="46" rx="5.5" ry="9.5" fill="rgba(255,255,255,0.42)" />
             </G>
           );
-        case 'yellow': // Happy Yellow Sun
+        case 'yellow':
           return (
             <G>
               <Path
@@ -343,7 +336,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
               <Path d="M 41 56 Q 50 64 59 56" fill="none" stroke={INK} strokeWidth="3.4" strokeLinecap="round" />
             </G>
           );
-        case 'orange': // Juicy Orange
+        case 'orange':
           return (
             <G>
               <Circle cx="50" cy="54" r="29" fill="#F39237" stroke={INK} strokeWidth="4" />
@@ -352,7 +345,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
               <Ellipse cx="36" cy="44" rx="5" ry="9" fill="rgba(255,255,255,0.42)" />
             </G>
           );
-        case 'purple': // Purple Grapes
+        case 'purple':
           return (
             <G>
               <Path d="M 50 18 Q 52 10 60 10" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
@@ -365,7 +358,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
               <Circle cx="50" cy="74" r="12" fill="#9B74D4" stroke={INK} strokeWidth="3.4" />
             </G>
           );
-        case 'B': // Yellow Banana
+        case 'B':
           return (
             <G>
               <Path
@@ -378,7 +371,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
               <Path d="M 74 18 L 80 12" stroke={INK} strokeWidth="4.5" strokeLinecap="round" />
             </G>
           );
-        case 'K': // Colorful Kite
+        case 'K':
           return (
             <G>
               <Path d="M 50 78 Q 38 88 54 94" fill="none" stroke={INK} strokeWidth="3.2" strokeLinecap="round" />
@@ -388,7 +381,7 @@ const FlatPictureSvg: React.FC<{ kind: string; size: number }> = React.memo(
               <Path d="M 50 12 L 80 42 L 50 78 L 20 42 Z M 50 12 L 50 78 M 20 42 L 80 42" fill="none" stroke={INK} strokeWidth="3.2" />
             </G>
           );
-        default: // R — Rainbow
+        default:
           return (
             <G>
               <Path d="M 14 70 A 36 36 0 0 1 86 70" fill="none" stroke="#E85A50" strokeWidth="10" strokeLinecap="round" />
@@ -452,7 +445,6 @@ const RightPictureContent: React.FC<{
     );
   }
 
-  // Letter artwork + subtle label
   const picSz = Math.round(cardH * 0.64);
   return (
     <View style={styles.letterPicCol}>
@@ -489,28 +481,12 @@ interface ActiveLine {
   startSide: 'left' | 'right';
   pairId: string;
   color: string;
-  startX: number;
-  startY: number;
+  dotX: number;
+  dotY: number;
+  touchStartX: number;
+  touchStartY: number;
   points: { x: number; y: number }[];
-  maxDist: number;
-}
-
-function buildPolylineD(pts: { x: number; y: number }[]): string {
-  if (pts.length === 0) return '';
-  if (pts.length === 1) {
-    return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} L ${(pts[0].x + 0.5).toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  }
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  for (let i = 1; i < pts.length; i++) {
-    d += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
-  }
-  return d;
-}
-
-function buildSmoothCurveD(x1: number, y1: number, x2: number, y2: number): string {
-  const dx = Math.abs(x2 - x1);
-  const ctrl = Math.max(40, dx * 0.44);
-  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + ctrl).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - ctrl).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  maxFingerDist: number;
 }
 
 function resolveDomElement(node: unknown): HTMLElement | null {
@@ -545,12 +521,10 @@ interface LineMatchGameProps {
 
 /**
  * Draw-a-Line Matching Game (Colors, Numbers, and Letters — Free Tier):
- * - Colors: bold color word rendered IN that exact color -> draw a line to the matching colored picture!
- * - Numbers: bold numeral + word -> draw a line to the matching countable group of zoo friends!
- * - Letters: bold uppercase/lowercase letter -> draw a line to the matching animal/picture!
- * - Supports bidirectional freehand line drawing (left->right OR right->left) with instant auto-snap
- *   when the child's finger reaches the matching card, PLUS tap-to-connect fallback!
- * - Direct non-passive DOM touchstart/touchmove + zero SVG ClipPaths/Gradients for rock-solid tablet play.
+ * - Zero-React-render HTML5 <canvas> line overlay for locked 60fps tablet dragging
+ * - Full-play-area non-passive touchstart/touchmove + generous 36px hitboxes + palm safety
+ * - Auto-snaps the instant the child's finger reaches the matching card (left->right OR right->left)
+ * - Fixed tap-to-connect fallback works from anywhere on any card!
  */
 export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) => {
   const { addStar, collectSticker, goHome } = useApp();
@@ -567,36 +541,25 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
     side: 'left' | 'right';
     id: string;
   } | null>(null);
-  const [activeLine, setActiveLine] = useState<ActiveLine | null>(null);
+  const [activeCardHighlight, setActiveCardHighlight] = useState<{
+    side: 'left' | 'right';
+    id: string;
+  } | null>(null);
   const [burstId, setBurstId] = useState<{ id: string; tick: number } | null>(null);
   const [feedbackText, setFeedbackText] = useState<string | null>(null);
   const [won, setWon] = useState(false);
 
-  const [boardSize, setBoardSize] = useState({ w: 680, h: 460 });
-  const boardDomRef = useRef<HTMLElement | null>(null);
-  const [boardDomNode, setBoardDomNode] = useState<HTMLElement | null>(null);
+  const [outerSize, setOuterSize] = useState({ w: 820, h: 480 });
+  const outerDomRef = useRef<HTMLElement | null>(null);
+  const [outerDomNode, setOuterDomNode] = useState<HTMLElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const leftCardNodes = useRef<Record<string, HTMLElement | null>>({});
   const rightCardNodes = useRef<Record<string, HTMLElement | null>>({});
   const rectsRef = useRef<{
     left: Record<string, BoxRect>;
     right: Record<string, BoxRect>;
   }>({ left: {}, right: {} });
-  const [measuredRects, setMeasuredRects] = useState<{
-    left: Record<string, BoxRect>;
-    right: Record<string, BoxRect>;
-  }>({ left: {}, right: {} });
-
-  // Sync if user opens a different card from Home screen
-  useEffect(() => {
-    setTopic(initialTopic);
-    setMatchedIds([]);
-    setSelectedStart(null);
-    setActiveLine(null);
-    setFeedbackText(null);
-    setWon(false);
-    setRoundSeed(0);
-    setBoard(buildBoardRound(initialTopic, difficulty, 0));
-  }, [initialTopic]);
 
   const activeLineRef = useRef<ActiveLine | null>(null);
   const matchedRef = useRef<string[]>(matchedIds);
@@ -607,14 +570,16 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
   boardRef.current = board;
   const wonRef = useRef(won);
   wonRef.current = won;
+  const isTabletRef = useRef(isTablet);
+  isTabletRef.current = isTablet;
   const lastTouchAtRef = useRef(0);
   const winCleanupRef = useRef<(() => void) | null>(null);
 
-  const handleBoardRef = useCallback((node: React.ComponentRef<typeof View> | null) => {
+  const handleOuterRef = useCallback((node: React.ComponentRef<typeof View> | null) => {
     if (Platform.OS !== 'web') return;
     const el = resolveDomElement(node);
-    boardDomRef.current = el;
-    setBoardDomNode((prev) => (prev === el ? prev : el));
+    outerDomRef.current = el;
+    setOuterDomNode((prev) => (prev === el ? prev : el));
   }, []);
 
   const cleanupWinListeners = useCallback(() => {
@@ -626,9 +591,98 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
 
   useEffect(() => () => cleanupWinListeners(), [cleanupWinListeners]);
 
+  // Fast 2D <canvas> renderer for matched curved ribbons + live dragged crayon line
+  // Runs directly in touchmove with ZERO React re-renders!
+  const redrawCanvas = useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    const canvas = canvasRef.current;
+    const outerEl = outerDomRef.current;
+    if (!canvas || !outerEl) return;
+
+    const bRect = outerEl.getBoundingClientRect();
+    const w = Math.round(bRect.width);
+    const h = Math.round(bRect.height);
+    if (w <= 0 || h <= 0) return;
+
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const targetW = Math.round(w * dpr);
+    const targetH = Math.round(h * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const tab = isTabletRef.current;
+    const { left, right } = rectsRef.current;
+
+    // 1. Draw all matched permanent curved ribbons
+    for (const id of matchedRef.current) {
+      const l = left[id];
+      const r = right[id];
+      const pair = boardRef.current.leftItems.find((p) => p.id === id);
+      if (!l || !r || !pair) continue;
+
+      const x1 = l.dotX;
+      const y1 = l.dotY;
+      const x2 = r.dotX;
+      const y2 = r.dotY;
+      const ctrl = Math.max(40, Math.abs(x2 - x1) * 0.44);
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(x1 + ctrl, y1, x2 - ctrl, y2, x2, y2);
+      ctx.strokeStyle = '#FFFDF7';
+      ctx.lineWidth = tab ? 16 : 13;
+      ctx.stroke();
+
+      ctx.strokeStyle = pair.lineColor;
+      ctx.lineWidth = tab ? 10 : 8;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 2. Draw active live crayon trail while child drags
+    const line = activeLineRef.current;
+    if (line && line.points.length >= 2) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(line.points[0].x, line.points[0].y);
+      for (let i = 1; i < line.points.length; i++) {
+        ctx.lineTo(line.points[i].x, line.points[i].y);
+      }
+
+      ctx.strokeStyle = 'rgba(255, 253, 247, 0.9)';
+      ctx.lineWidth = tab ? 17 : 14;
+      ctx.stroke();
+
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = tab ? 11 : 8.5;
+      ctx.stroke();
+
+      const tip = line.points[line.points.length - 1];
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, tab ? 12 : 10, 0, Math.PI * 2);
+      ctx.fillStyle = line.color;
+      ctx.fill();
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = '#FFFDF7';
+      ctx.stroke();
+      ctx.restore();
+    }
+  }, []);
+
   const measureAllCards = useCallback(() => {
-    if (Platform.OS !== 'web' || !boardDomRef.current) return;
-    const bRect = boardDomRef.current.getBoundingClientRect();
+    if (Platform.OS !== 'web' || !outerDomRef.current) return;
+    const bRect = outerDomRef.current.getBoundingClientRect();
     if (bRect.width <= 0 || bRect.height <= 0) return;
 
     const nextLeft: Record<string, BoxRect> = {};
@@ -638,6 +692,7 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
       const el = leftCardNodes.current[item.id];
       if (!el) continue;
       const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
       nextLeft[item.id] = {
         x: r.left - bRect.left,
         y: r.top - bRect.top,
@@ -652,6 +707,7 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
       const el = rightCardNodes.current[item.id];
       if (!el) continue;
       const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
       nextRight[item.id] = {
         x: r.left - bRect.left,
         y: r.top - bRect.top,
@@ -663,23 +719,37 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
     }
 
     rectsRef.current = { left: nextLeft, right: nextRight };
-    setMeasuredRects({ left: nextLeft, right: nextRight });
-  }, []);
+    redrawCanvas();
+  }, [redrawCanvas]);
+
+  // Sync if user opens a different card from Home screen
+  useEffect(() => {
+    cleanupWinListeners();
+    activeLineRef.current = null;
+    setActiveCardHighlight(null);
+    setTopic(initialTopic);
+    setMatchedIds([]);
+    setSelectedStart(null);
+    setFeedbackText(null);
+    setWon(false);
+    setRoundSeed(0);
+    setBoard(buildBoardRound(initialTopic, difficulty, 0));
+  }, [cleanupWinListeners, initialTopic]);
 
   useEffect(() => {
-    const t1 = setTimeout(measureAllCards, 60);
-    const t2 = setTimeout(measureAllCards, 260);
+    const t1 = setTimeout(measureAllCards, 40);
+    const t2 = setTimeout(measureAllCards, 200);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [board, boardSize.w, boardSize.h, measureAllCards, topic, difficulty]);
+  }, [board, outerSize.w, outerSize.h, matchedIds, measureAllCards, topic, difficulty]);
 
   const startNewBoard = useCallback(
     (nextTopic: LineMatchTopic, nextDiff: Difficulty, nextSeed: number) => {
       cleanupWinListeners();
       activeLineRef.current = null;
-      setActiveLine(null);
+      setActiveCardHighlight(null);
       setTopic(nextTopic);
       setDifficulty(nextDiff);
       setRoundSeed(nextSeed);
@@ -689,8 +759,9 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
       setFeedbackText(null);
       setWon(false);
       setBoard(buildBoardRound(nextTopic, nextDiff, nextSeed));
+      requestAnimationFrame(() => measureAllCards());
     },
-    [cleanupWinListeners]
+    [cleanupWinListeners, measureAllCards]
   );
 
   const completePair = useCallback(
@@ -708,8 +779,10 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
       matchedRef.current = nextMatched;
       setMatchedIds(nextMatched);
       setSelectedStart(null);
+      setActiveCardHighlight(null);
       setBurstId({ id: pair.id, tick: Date.now() });
       setFeedbackText(`⭐ ${pair.speakMatch} ⭐`);
+      redrawCanvas();
 
       if (nextMatched.length >= boardRef.current.leftItems.length) {
         setTimeout(() => {
@@ -719,17 +792,21 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
         }, 680);
       }
     },
-    [addStar, collectSticker]
+    [addStar, collectSticker, redrawCanvas]
   );
 
+  /** Generous toddler-friendly nearest-card hit test */
   const findCardAtLocalPoint = useCallback(
     (
       lx: number,
       ly: number,
       sideFilter?: 'left' | 'right',
-      pad = 22
+      pad = 34
     ): { side: 'left' | 'right'; id: string; rect: BoxRect } | null => {
-      const checkSide = (side: 'left' | 'right') => {
+      let best: { side: 'left' | 'right'; id: string; rect: BoxRect; dist: number } | null =
+        null;
+
+      const scan = (side: 'left' | 'right') => {
         const map = rectsRef.current[side];
         for (const [id, r] of Object.entries(map)) {
           if (
@@ -738,20 +815,29 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
             ly >= r.y - pad &&
             ly <= r.y + r.h + pad
           ) {
-            return { side, id, rect: r };
+            const cx = r.x + r.w / 2;
+            const cy = r.y + r.h / 2;
+            const dist = Math.hypot(lx - cx, ly - cy);
+            if (!best || dist < best.dist) {
+              best = { side, id, rect: r, dist };
+            }
           }
         }
-        return null;
       };
 
-      if (sideFilter) return checkSide(sideFilter);
-      return checkSide('left') || checkSide('right');
+      if (sideFilter) {
+        scan(sideFilter);
+      } else {
+        scan('left');
+        scan('right');
+      }
+      return best;
     },
     []
   );
 
-  const getLocalBoardPt = useCallback((clientX: number, clientY: number) => {
-    const rect = boardDomRef.current?.getBoundingClientRect();
+  const getLocalOuterPt = useCallback((clientX: number, clientY: number) => {
+    const rect = outerDomRef.current?.getBoundingClientRect();
     if (!rect) return { x: clientX, y: clientY };
     return {
       x: Math.max(0, Math.min(rect.width, clientX - rect.left)),
@@ -763,14 +849,15 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
     (mode: 'touch' | 'pointer', id: number, clientX: number, clientY: number): boolean => {
       if (wonRef.current) return false;
       measureAllCards();
-      const pt = getLocalBoardPt(clientX, clientY);
-      const hit = findCardAtLocalPoint(pt.x, pt.y, undefined, 20);
+      const pt = getLocalOuterPt(clientX, clientY);
+      const hitPad = isTabletRef.current ? 36 : 26;
+      const hit = findCardAtLocalPoint(pt.x, pt.y, undefined, hitPad);
       if (!hit) return false;
 
       const pair = boardRef.current.leftItems.find((p) => p.id === hit.id);
       if (!pair) return false;
 
-      // Already matched: playful replay of its sound & word!
+      // Already matched: playful replay!
       if (matchedRef.current.includes(hit.id)) {
         soundEngine.unlock();
         soundEngine.playNote(pair.noteFreq);
@@ -781,93 +868,112 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
       soundEngine.unlock();
       soundEngine.playNote(pair.noteFreq);
 
-      // Tap-to-connect: if the toddler previously tapped the opposite side, check immediately!
+      // Tap-to-connect: if the toddler already tapped the opposite side, check immediately!
       const prevSel = selectedRef.current;
       if (prevSel && prevSel.side !== hit.side) {
         if (prevSel.id === hit.id) {
           completePair(pair);
           return false;
         }
+        // Tapped a non-matching card on the opposite side -> warm gentle feedback & keep first selected!
+        const selPair = boardRef.current.leftItems.find((p) => p.id === prevSel.id);
+        soundEngine.playGentleBounce();
+        if (selPair) {
+          setFeedbackText(`Try again! Match ${selPair.leftMain}!`);
+          soundEngine.speakWord(`Try again! Match ${selPair.speakLeft}!`);
+        }
+        return false;
       }
 
-      // Speak the touched item right away!
       if (hit.side === 'left') {
         soundEngine.speakWord(pair.speakLeft);
       } else if (pair.rightKind === 'letter-art' && pair.letterWord) {
         soundEngine.speakWord(pair.letterWord);
       }
 
-      const startX = hit.rect.dotX;
-      const startY = hit.rect.dotY;
       const line: ActiveLine = {
         mode,
         id,
         startSide: hit.side,
         pairId: hit.id,
         color: pair.lineColor,
-        startX,
-        startY,
-        points: [{ x: startX, y: startY }],
-        maxDist: 0,
+        dotX: hit.rect.dotX,
+        dotY: hit.rect.dotY,
+        touchStartX: pt.x,
+        touchStartY: pt.y,
+        points: [{ x: hit.rect.dotX, y: hit.rect.dotY }],
+        maxFingerDist: 0,
       };
       activeLineRef.current = line;
-      setActiveLine(line);
+      setActiveCardHighlight({ side: hit.side, id: hit.id });
+      redrawCanvas();
       return true;
     },
-    [completePair, findCardAtLocalPoint, getLocalBoardPt, measureAllCards]
+    [completePair, findCardAtLocalPoint, getLocalOuterPt, measureAllCards, redrawCanvas]
   );
 
   const moveDrawTo = useCallback(
     (clientX: number, clientY: number) => {
       const line = activeLineRef.current;
       if (!line) return;
-      const pt = getLocalBoardPt(clientX, clientY);
+      const pt = getLocalOuterPt(clientX, clientY);
       const last = line.points[line.points.length - 1];
       const step = Math.hypot(pt.x - last.x, pt.y - last.y);
-      if (step < 5) return;
+      if (step < 4) return;
 
-      const distFromStart = Math.hypot(pt.x - line.startX, pt.y - line.startY);
-      const nextLine: ActiveLine = {
-        ...line,
-        maxDist: Math.max(line.maxDist, distFromStart),
-        points: [...line.points, pt],
-      };
+      // Track finger travel from ACTUAL touch landing point (fixes tap-to-connect!)
+      const fingerTravel = Math.hypot(
+        pt.x - line.touchStartX,
+        pt.y - line.touchStartY
+      );
+      if (fingerTravel > line.maxFingerDist) {
+        line.maxFingerDist = fingerTravel;
+      }
 
-      // Instant auto-snap! As soon as the toddler drags into the matching card on the opposite side, connect it!
+      // Only append points once finger moves a tiny bit so pure taps stay super crisp
+      if (line.maxFingerDist >= 10) {
+        line.points.push(pt);
+      }
+
+      // Instant auto-snap! As soon as finger glides into the matching card on the opposite side, connect!
       const targetSide = line.startSide === 'left' ? 'right' : 'left';
-      const targetHit = findCardAtLocalPoint(pt.x, pt.y, targetSide, 20);
+      const snapPad = isTabletRef.current ? 30 : 22;
+      const targetHit = findCardAtLocalPoint(pt.x, pt.y, targetSide, snapPad);
       if (targetHit && targetHit.id === line.pairId) {
         const pair = boardRef.current.leftItems.find((p) => p.id === line.pairId);
         activeLineRef.current = null;
-        setActiveLine(null);
         cleanupWinListeners();
         if (pair) {
           completePair(pair);
+        } else {
+          redrawCanvas();
         }
         return;
       }
 
-      activeLineRef.current = nextLine;
-      setActiveLine(nextLine);
+      // ZERO React setState here -> 60fps butter-smooth canvas paint!
+      redrawCanvas();
     },
-    [cleanupWinListeners, completePair, findCardAtLocalPoint, getLocalBoardPt]
+    [cleanupWinListeners, completePair, findCardAtLocalPoint, getLocalOuterPt, redrawCanvas]
   );
 
   const endDrawAt = useCallback(
     (clientX?: number, clientY?: number) => {
       const line = activeLineRef.current;
       activeLineRef.current = null;
-      setActiveLine(null);
+      setActiveCardHighlight(null);
       cleanupWinListeners();
+      redrawCanvas();
       if (!line) return;
 
       const pt =
         clientX !== undefined && clientY !== undefined
-          ? getLocalBoardPt(clientX, clientY)
+          ? getLocalOuterPt(clientX, clientY)
           : line.points[line.points.length - 1];
 
       const targetSide = line.startSide === 'left' ? 'right' : 'left';
-      const targetHit = findCardAtLocalPoint(pt.x, pt.y, targetSide, 26);
+      const dropPad = isTabletRef.current ? 38 : 28;
+      const targetHit = findCardAtLocalPoint(pt.x, pt.y, targetSide, dropPad);
 
       if (targetHit) {
         if (targetHit.id === line.pairId) {
@@ -875,19 +981,17 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
           if (pair) completePair(pair);
           return;
         }
-        // Dropped on a different card -> gentle encouraging bounce!
         const startPair = boardRef.current.leftItems.find((p) => p.id === line.pairId);
-        const wrongPair = boardRef.current.leftItems.find((p) => p.id === targetHit.id);
         soundEngine.playGentleBounce();
-        if (startPair && wrongPair) {
+        if (startPair) {
           setFeedbackText(`Try again! Match ${startPair.leftMain}!`);
           soundEngine.speakWord(`Try again! Match ${startPair.speakLeft}!`);
         }
         return;
       }
 
-      // Short tap (<24px drag) -> select this card for effortless tap-to-connect!
-      if (line.maxDist < 24) {
+      // Forgiving tap (<32px finger travel) -> select this card for effortless tap-to-connect!
+      if (line.maxFingerDist < 32) {
         setSelectedStart((prev) =>
           prev && prev.side === line.startSide && prev.id === line.pairId
             ? null
@@ -895,7 +999,7 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
         );
       }
     },
-    [cleanupWinListeners, completePair, findCardAtLocalPoint, getLocalBoardPt]
+    [cleanupWinListeners, completePair, findCardAtLocalPoint, getLocalOuterPt, redrawCanvas]
   );
 
   const handlersRef = useRef({ startDrawFrom, moveDrawTo, endDrawAt });
@@ -927,9 +1031,15 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
           markWebTouchHandled();
           handlersRef.current.endDrawAt(t.clientX, t.clientY);
         };
-        const onCancel = () => {
-          lastTouchAtRef.current = Date.now();
-          handlersRef.current.endDrawAt();
+        const onCancel = (ev: TouchEvent) => {
+          const t = findTouch(ev.changedTouches);
+          if (!t && activeLineRef.current?.id === id) {
+            lastTouchAtRef.current = Date.now();
+            handlersRef.current.endDrawAt();
+          } else if (t) {
+            lastTouchAtRef.current = Date.now();
+            handlersRef.current.endDrawAt(t.clientX, t.clientY);
+          }
         };
         window.addEventListener('touchmove', onMove, { passive: false });
         window.addEventListener('touchend', onEnd, { passive: false });
@@ -962,11 +1072,30 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
     [cleanupWinListeners]
   );
 
-  // Direct non-passive DOM touchstart + pointerdown on the board container
+  // Direct non-passive DOM touchstart + pointerdown covering the FULL boardOuter play area!
   useEffect(() => {
-    if (Platform.OS !== 'web' || !boardDomNode) return;
+    if (Platform.OS !== 'web' || !outerDomNode) return;
 
     const onTouchStart = (ev: TouchEvent) => {
+      // Multi-touch palm safety: if we are already actively dragging a line with a finger
+      // that is still on screen, ignore stray second fingers touching elsewhere!
+      const curr = activeLineRef.current;
+      if (curr && curr.mode === 'touch') {
+        let oldStillDown = false;
+        for (let i = 0; i < ev.touches.length; i++) {
+          if (ev.touches[i].identifier === curr.id) {
+            oldStillDown = true;
+            break;
+          }
+        }
+        if (oldStillDown && curr.maxFingerDist >= 12) {
+          return;
+        }
+        // Otherwise recover from any stale touch cleanly
+        activeLineRef.current = null;
+        cleanupWinListeners();
+      }
+
       const t = ev.changedTouches[0];
       if (!t) return;
       if (ev.cancelable) ev.preventDefault();
@@ -986,19 +1115,18 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
       }
     };
 
-    boardDomNode.addEventListener('touchstart', onTouchStart, { passive: false });
-    boardDomNode.addEventListener('pointerdown', onPointerDown);
+    outerDomNode.addEventListener('touchstart', onTouchStart, { passive: false });
+    outerDomNode.addEventListener('pointerdown', onPointerDown);
     return () => {
-      boardDomNode.removeEventListener('touchstart', onTouchStart);
-      boardDomNode.removeEventListener('pointerdown', onPointerDown);
+      outerDomNode.removeEventListener('touchstart', onTouchStart);
+      outerDomNode.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [attachWinListeners, boardDomNode]);
+  }, [attachWinListeners, cleanupWinListeners, outerDomNode]);
 
   const activeTopicMeta =
     TOPIC_META.find((t) => t.id === topic) || TOPIC_META[0];
   const pairCount = board.leftItems.length;
 
-  // Responsive card sizing so 2, 3, or 4 pairs fit cleanly without scrolling on tablets & phones
   const cardH = useMemo(() => {
     const availH = Math.max(300, height - (isTablet ? 215 : 225));
     const maxPerRow = Math.floor((availH - (pairCount - 1) * 14) / pairCount);
@@ -1067,39 +1195,39 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
           <Text style={styles.captionText}>
             {feedbackText ||
               (topic === 'colors'
-                ? '🖍️ Draw a line from each color word to its picture!'
+                ? '🖍️ Draw a line or tap to match each color!'
                 : topic === 'numbers'
-                ? '🖍️ Draw a line from each number to count the friends!'
-                : '🖍️ Draw a line from each letter to its picture!')}
+                ? '🖍️ Draw a line or tap to match each number!'
+                : '🖍️ Draw a line or tap to match each letter!')}
           </Text>
         </View>
       </View>
 
-      {/* Interactive Draw-a-Line Matching Board */}
-      <View style={styles.boardOuter}>
-        <View
-          ref={handleBoardRef}
-          onLayout={(e) => {
-            const { width: w, height: h } = e.nativeEvent.layout;
-            if (w > 100 && h > 100) {
-              setBoardSize({ w, h });
-            }
-          }}
-          style={[
-            styles.boardStage,
-            { maxWidth: boardMaxW },
-            Platform.OS === 'web'
-              ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
-              : null,
-          ]}
-        >
+      {/* Full-Area Interactive Draw-a-Line Board + Zero-Re-Render 2D <canvas> Overlay */}
+      <View
+        ref={handleOuterRef}
+        onLayout={(e) => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          if (w > 100 && h > 100) {
+            setOuterSize({ w, h });
+          }
+        }}
+        style={[
+          styles.boardOuter,
+          Platform.OS === 'web'
+            ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
+            : null,
+        ]}
+      >
+        <View style={[styles.boardStage, { maxWidth: boardMaxW }]}>
           {/* Left Column: Color Words / Numbers / Letters */}
           <View style={[styles.col, { gap: isTablet ? 16 : 12 }]}>
             {board.leftItems.map((item) => {
               const isMatched = matchedIds.includes(item.id);
               const isSelected =
                 (selectedStart?.side === 'left' && selectedStart.id === item.id) ||
-                (activeLine?.startSide === 'left' && activeLine.pairId === item.id);
+                (activeCardHighlight?.side === 'left' &&
+                  activeCardHighlight.id === item.id);
 
               return (
                 <View
@@ -1116,6 +1244,7 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                       borderColor:
                         isMatched || isSelected ? item.lineColor : item.pillBorder,
                       borderWidth: isSelected ? 5 : 3.8,
+                      transform: [{ scale: isSelected ? 1.04 : 1 }],
                     },
                   ]}
                 >
@@ -1169,7 +1298,6 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                     )}
                   </View>
 
-                  {/* Connector Nub on Right Edge */}
                   <View
                     pointerEvents="none"
                     style={[
@@ -1193,7 +1321,8 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
               const isMatched = matchedIds.includes(item.id);
               const isSelected =
                 (selectedStart?.side === 'right' && selectedStart.id === item.id) ||
-                (activeLine?.startSide === 'right' && activeLine.pairId === item.id);
+                (activeCardHighlight?.side === 'right' &&
+                  activeCardHighlight.id === item.id);
 
               return (
                 <View
@@ -1212,10 +1341,10 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                           ? item.lineColor
                           : 'rgba(138, 92, 50, 0.45)',
                       borderWidth: isSelected || isMatched ? 4.5 : 3.5,
+                      transform: [{ scale: isSelected ? 1.04 : 1 }],
                     },
                   ]}
                 >
-                  {/* Connector Nub on Left Edge */}
                   <View
                     pointerEvents="none"
                     style={[
@@ -1246,75 +1375,23 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
               );
             })}
           </View>
-
-          {/* Single Lightweight SVG Overlay for Matched Ribbons + Active Crayon Line */}
-          {Platform.OS === 'web' && boardSize.w > 0 && boardSize.h > 0 && (
-            <Svg
-              width={boardSize.w}
-              height={boardSize.h}
-              viewBox={`0 0 ${boardSize.w} ${boardSize.h}`}
-              style={styles.lineSvgOverlay}
-              pointerEvents="none"
-            >
-              {/* Matched permanent colorful curved connector ribbons */}
-              {matchedIds.map((id) => {
-                const l = measuredRects.left[id];
-                const r = measuredRects.right[id];
-                const pair = board.leftItems.find((p) => p.id === id);
-                if (!l || !r || !pair) return null;
-                const d = buildSmoothCurveD(l.dotX, l.dotY, r.dotX, r.dotY);
-                return (
-                  <G key={`matched-${id}`}>
-                    <Path
-                      d={d}
-                      fill="none"
-                      stroke="#FFFDF7"
-                      strokeWidth={isTablet ? 15 : 12}
-                      strokeLinecap="round"
-                    />
-                    <Path
-                      d={d}
-                      fill="none"
-                      stroke={pair.lineColor}
-                      strokeWidth={isTablet ? 9.5 : 7.5}
-                      strokeLinecap="round"
-                    />
-                  </G>
-                );
-              })}
-
-              {/* Active live drawn crayon line while dragging */}
-              {activeLine && activeLine.points.length >= 2 && (
-                <G>
-                  <Path
-                    d={buildPolylineD(activeLine.points)}
-                    fill="none"
-                    stroke="rgba(255,253,247,0.85)"
-                    strokeWidth={isTablet ? 16 : 13}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <Path
-                    d={buildPolylineD(activeLine.points)}
-                    fill="none"
-                    stroke={activeLine.color}
-                    strokeWidth={isTablet ? 10 : 8}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <Circle
-                    cx={activeLine.points[activeLine.points.length - 1].x}
-                    cy={activeLine.points[activeLine.points.length - 1].y}
-                    r={isTablet ? 11 : 9}
-                    fill={activeLine.color}
-                    stroke="#FFFDF7"
-                    strokeWidth={3}
-                  />
-                </G>
-              )}
-            </Svg>
-          )}
         </View>
+
+        {/* Zero-React-render 2D <canvas> overlay for instant 60fps crayon lines & matched ribbons */}
+        {Platform.OS === 'web' && (
+          <canvas
+            ref={canvasRef}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 12,
+            }}
+          />
+        )}
       </View>
 
       <CelebrationOverlay
@@ -1391,10 +1468,12 @@ const styles = StyleSheet.create({
   },
   boardOuter: {
     flex: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
     paddingBottom: 16,
+    position: 'relative',
   },
   boardStage: {
     width: '100%',
@@ -1488,12 +1567,6 @@ const styles = StyleSheet.create({
   },
   connectorDotLeft: {
     left: -13,
-  },
-  lineSvgOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    zIndex: 12,
   },
   burstOverlay: {
     position: 'absolute',

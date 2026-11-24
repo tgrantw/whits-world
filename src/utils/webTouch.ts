@@ -1,8 +1,8 @@
 import { Platform, ViewStyle } from 'react-native';
 
-// Shared across all instant-tap game targets on Web so the browser's delayed
-// synthetic `click` (~300ms after touchend) never double-fires a tap or ghost-clicks
-// a newly revealed element in the same spot.
+// Shared module-level timestamp across all web touch handlers so:
+// 1. A touchstart tap never double-fires via trailing pointerdown/click (~300ms later).
+// 2. Navigating from HomeScreen (TactileButton) into a game never ghost-clicks a card underneath.
 let lastInstantTouchAt = 0;
 
 export function markWebTouchHandled(): void {
@@ -15,20 +15,21 @@ export function wasRecentWebTouch(windowMs = 550): boolean {
 
 /**
  * Toddler-proof 0ms web touch handler for non-scrolling game targets
- * (matching cards, xylophone keys, drop slots, podiums, puzzle cells, animals).
+ * (color cards, number cards, countable animals, letter blocks, matching cards,
+ * xylophone keys, drop slots, podiums, puzzle cells, animals).
  *
- * Why this fixes dropped tablet taps:
- * - Fires immediately on `touchstart` instead of waiting for `touchend` + `click`,
- *   so finger wiggle, shrink-on-press transforms, or a resting palm on the tablet
- *   bezel can NEVER cancel the tap.
- * - Supports rapid multi-finger tapping (e.g. two-handed xylophone drumming or fast
- *   card flipping) because `touchstart` is never throttled by `lastInstantTouchAt`.
- * - Deduplicates the browser's trailing synthetic `click` (`onPress`) cleanly while
- *   keeping desktop mouse clicks working normally.
+ * Tablet reliability guarantees:
+ * - Fires at 0ms on `touchstart` (no waiting for touchend/click, so toddler finger
+ *   wiggles, shrink transforms, or resting palms on the bezel NEVER drop taps).
+ * - Mouse/stylus fires at 0ms on `pointerdown` (ignoring `pointerType === 'touch'`
+ *   so Android Chrome never double-fires pointerdown + touchstart!).
+ * - Uses `touchAction: 'none'` by default so mobile browsers never hesitate waiting for
+ *   double-tap zoom or pan gestures. Pass `allowScroll: true` only inside ScrollViews.
  */
 export function makeInstantTapProps(
   onActivate?: () => void,
-  disabled = false
+  disabled = false,
+  options?: { allowScroll?: boolean }
 ): {
   onPress: () => void;
   webProps: Record<string, unknown>;
@@ -36,7 +37,7 @@ export function makeInstantTapProps(
 } {
   const onPress = () => {
     if (disabled || !onActivate) return;
-    if (wasRecentWebTouch()) return;
+    if (wasRecentWebTouch(600)) return;
     onActivate();
   };
 
@@ -53,12 +54,24 @@ export function makeInstantTapProps(
         markWebTouchHandled();
         onActivate();
       },
+      onPointerDown: (e: {
+        pointerType?: string;
+        stopPropagation?: () => void;
+      }) => {
+        if (disabled || !onActivate) return;
+        if (e.pointerType === 'touch') return;
+        if (wasRecentWebTouch(600)) return;
+        e.stopPropagation?.();
+        markWebTouchHandled();
+        onActivate();
+      },
     },
     webStyle: {
       cursor: disabled ? 'default' : 'pointer',
-      touchAction: 'manipulation',
+      touchAction: options?.allowScroll ? 'manipulation' : 'none',
       userSelect: 'none',
       WebkitUserSelect: 'none',
+      WebkitTouchCallout: 'none',
       WebkitTapHighlightColor: 'transparent',
     } as unknown as ViewStyle,
   };
