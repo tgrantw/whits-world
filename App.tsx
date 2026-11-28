@@ -23,7 +23,9 @@ import { LetterSafariGame } from './src/games/LetterSafariGame';
 import { LineMatchGame } from './src/games/LineMatchGame';
 import { ShapeSorterGame } from './src/games/ShapeSorterGame';
 import { SizeSorterGame } from './src/games/SizeSorterGame';
+import { TraceTrailGame } from './src/games/TraceTrailGame';
 import { ZooColoringGame } from './src/games/ZooColoringGame';
+import { ZooPlaygroundGame } from './src/games/ZooPlaygroundGame';
 import { HomeScreen } from './src/screens/HomeScreen';
 
 const RootNavigator: React.FC = () => {
@@ -82,6 +84,10 @@ const RootNavigator: React.FC = () => {
         return <LineMatchGame initialTopic="numbers" />;
       case 'letter-line-match':
         return <LineMatchGame initialTopic="letters" />;
+      case 'trace-trail':
+        return <TraceTrailGame />;
+      case 'zoo-playground':
+        return <ZooPlaygroundGame />;
       default:
         return <HomeScreen />;
     }

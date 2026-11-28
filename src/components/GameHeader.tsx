@@ -13,6 +13,8 @@ interface GameHeaderProps {
   /** Standardized 3-level difficulty adjuster (1=Easy, 2=Med, 3=Hard) */
   difficulty?: Difficulty;
   onDifficultyChange?: (next: Difficulty) => void;
+  /** Optional warm title shown in the center pill for open-ended sandbox modes */
+  centerTitle?: string;
 }
 
 const DIFF_META: {
@@ -60,6 +62,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
   completedSteps,
   difficulty,
   onDifficultyChange,
+  centerTitle,
 }) => {
   const {
     goHome,
@@ -96,6 +99,11 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
     : 18;
 
   const showSampleBadge = isSampleSession && !isUnlocked;
+  const hasCenterContent =
+    showSampleBadge ||
+    Boolean(centerTitle) ||
+    totalSteps > 0 ||
+    (difficulty !== undefined && Boolean(onDifficultyChange));
 
   return (
     <View style={[styles.header, isTablet && styles.headerTablet]}>
@@ -119,29 +127,36 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
         </View>
       </TactileButton>
 
-      {/* Center: Single Unified Translucent Top Pill (Sample Tag + Stars + Labeled Difficulty) */}
-      <View
-        style={[
-          styles.unifiedBar,
-          isTablet ? styles.unifiedBarTablet : styles.unifiedBarPhone,
-        ]}
-      >
-        {showSampleBadge && (
-          <View style={styles.samplePill}>
-            <Text style={[styles.samplePillText, isTablet && { fontSize: 12.5 }]}>
-              🎁 Free Try
-            </Text>
-          </View>
-        )}
+      {/* Center: Single Unified Translucent Top Pill (Title / Sample Tag + Stars + Labeled Difficulty) */}
+      {hasCenterContent ? (
+        <View
+          style={[
+            styles.unifiedBar,
+            isTablet ? styles.unifiedBarTablet : styles.unifiedBarPhone,
+          ]}
+        >
+          {showSampleBadge && (
+            <View style={styles.samplePill}>
+              <Text style={[styles.samplePillText, isTablet && { fontSize: 12.5 }]}>
+                🎁 Free Try
+              </Text>
+            </View>
+          )}
 
-        {/* Star Progress */}
-        {totalSteps > 0 && (
-          <View style={[styles.starsRow, isTablet && { gap: 5 }]}>
-            {Array.from({ length: totalSteps }, (_, i) => (
-              <StarIcon key={i} size={starSize} filled={i < completedSteps} />
-            ))}
-          </View>
-        )}
+          {centerTitle ? (
+            <Text style={[styles.centerTitleText, isTablet && { fontSize: 18 }]}>
+              {centerTitle}
+            </Text>
+          ) : null}
+
+          {/* Star Progress */}
+          {totalSteps > 0 && (
+            <View style={[styles.starsRow, isTablet && { gap: 5 }]}>
+              {Array.from({ length: totalSteps }, (_, i) => (
+                <StarIcon key={i} size={starSize} filled={i < completedSteps} />
+              ))}
+            </View>
+          )}
 
         {difficulty !== undefined && onDifficultyChange && (
           <View style={[styles.diffGroup, isTablet && { gap: 7 }]}>
@@ -202,6 +217,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
           </View>
         )}
       </View>
+      ) : null}
 
       {/* Right: Clean Unclipped Audio Mute Button */}
       <TactileButton
@@ -306,6 +322,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
     color: '#7A4800',
+  },
+  centerTitleText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+    letterSpacing: 0.2,
   },
   starsRow: {
     flexDirection: 'row',

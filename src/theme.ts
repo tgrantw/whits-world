@@ -21,7 +21,9 @@ export type GameId =
   | 'letter-safari'
   | 'color-line-match'
   | 'number-line-match'
-  | 'letter-line-match';
+  | 'letter-line-match'
+  | 'trace-trail'
+  | 'zoo-playground';
 
 export interface GameMeta {
   id: GameId;
@@ -120,9 +122,9 @@ export const COLORS = {
 };
 
 /**
- * 17 Total Zoo Games:
- * - 6 Signature Forever-Free Starter Games (spanning Learn, Puzzles & Action)
- * - 11 Full Zoo Pack Games ($4.99 one-time unlock, each offering 1 Free Sample Round per day!)
+ * 19 Total Zoo Games:
+ * - 7 Signature Forever-Free Starter Games (spanning Learn, Puzzles & Play/Sandbox)
+ * - 12 Full Zoo Pack Games ($4.99 one-time unlock, each offering 1 Free Sample Round per day!)
  * Interleaved thoughtfully so top rows highlight both Free favorites and Daily Free Try showcases.
  */
 export const GAMES: GameMeta[] = [
@@ -138,6 +140,32 @@ export const GAMES: GameMeta[] = [
     plaqueBorder: '#A84E73',
     accent: '#D15B89',
     leafTint: '#E8A530',
+  },
+  {
+    id: 'zoo-playground',
+    title: 'Zoo Playground',
+    subtitle: 'Play with stickers!',
+    benefit: 'Open-ended 4-world animal sandbox & photo card',
+    category: 'action',
+    isFree: true,
+    plaqueBg: '#C5E9B4',
+    plaqueInner: '#F4FCF0',
+    plaqueBorder: '#3B7A3E',
+    accent: '#489A4B',
+    leafTint: '#599852',
+  },
+  {
+    id: 'trace-trail',
+    title: "Whit's Trace",
+    subtitle: 'Trace ABC & 123!',
+    benefit: 'Guided letter A–Z & number 1–10 pre-writing',
+    category: 'learn',
+    isFree: false,
+    plaqueBg: '#FFE39E',
+    plaqueInner: '#FFFBF0',
+    plaqueBorder: '#B36B1A',
+    accent: '#E07F22',
+    leafTint: '#56A962',
   },
   {
     id: 'shape-sorter',

@@ -291,6 +291,20 @@ BUBBLE_AND_ACTION_PHRASES = [
     "You earned a star!",
     "New hat unlocked!",
     "New friend found!",
+    "Zoo Playground!",
+    "Sunny Clearing!",
+    "Snowy Arctic!",
+    "Coral Reef!",
+    "Sunny Farm!",
+    "Dance party!",
+    "Zoo photo saved!",
+    "Rainbow paint!",
+    "Jungle Ball!",
+    "Party Balloon!",
+    "Gold Star!",
+    "Sunshine!",
+    "Awesome tracing!",
+    "Follow the star!",
 ]
 
 
@@ -343,24 +357,26 @@ def build_sprite_specs() -> dict[str, list[tuple[str, str]]]:
     for key_src, spoken in COLOR_MATCH_CELEBS:
         sprites["colors"].append((key_src, spoken))
 
-    # --- NUMBERS: Counting Zoo & Number Match sentences ---
+    # --- NUMBERS: Counting Zoo, Number Match & Trace Trail 1-10 ---
     for pl in COUNT_PLURALS:
         sprites["numbers"].append((pl, f"{pl}!"))
         sprites["numbers"].append((f"How many {pl}?", f"How many {pl}?"))
     for n, w in NUMBER_WORDS:
         sprites["numbers"].append((f"Tap number {n}!", f"Tap number {w}!"))
         sprites["numbers"].append((f"That's {w}!", f"That's {w}!"))
+        sprites["numbers"].append((f"Trace {n}!", f"Trace number {w}!"))
         if n <= 8:
             sprites["numbers"].append((f"Match {w}!", f"Match {w}!"))
     sprites["numbers"].append(("Tap the animals to count!", "Tap the animals to count!"))
 
-    # --- LETTERS: ABC Safari & Letter Match ---
+    # --- LETTERS: ABC Safari, Letter Match & Trace Trail A-Z ---
     seen_core = {normalize_key(k) for k, _ in sprites["core"]}
     for letter, word in ALPHABET:
         sprites["letters"].append((letter, LETTER_STANDALONE_SPEECH[letter]))
         sprites["letters"].append((f"Find {letter}!", f"Find the letter {letter}!"))
         sprites["letters"].append((f"That's {letter}!", f"That's the letter {letter}!"))
         sprites["letters"].append((f"Match {letter}!", f"Match the letter {letter}!"))
+        sprites["letters"].append((f"Trace {letter}!", f"Trace the letter {letter}!"))
         sprites["letters"].append((f"{letter} is for {word}!", f"{letter}, is for {word}!"))
         if normalize_key(word) not in seen_core:
             sprites["letters"].append((word, f"{word}!"))

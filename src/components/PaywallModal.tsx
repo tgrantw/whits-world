@@ -146,6 +146,24 @@ const ShowcaseArt: React.FC<{ id: GameId }> = ({ id }) => {
           <ZooExhibitAnimalSvg animal="lion" size={32} />
         </View>
       );
+    case 'trace-trail':
+      return (
+        <View style={styles.artRow}>
+          <View style={[styles.miniLetterTile, { backgroundColor: '#FFF6D6', borderColor: '#C47E22' }]}>
+            <Text style={[styles.miniLetterText, { color: '#C96612' }]}>A</Text>
+          </View>
+          <View style={[styles.miniLetterTile, { backgroundColor: '#EBF9F0', borderColor: '#2E8C54' }]}>
+            <Text style={[styles.miniLetterText, { color: '#1F7A42' }]}>1</Text>
+          </View>
+        </View>
+      );
+    case 'zoo-playground':
+      return (
+        <View style={styles.artRow}>
+          <ZooExhibitAnimalSvg animal="gorilla" size={34} />
+          <ZooExhibitAnimalSvg animal="elephant" size={32} />
+        </View>
+      );
     case 'jungle-music':
     default:
       return (
@@ -177,7 +195,7 @@ const ShowcaseArt: React.FC<{ id: GameId }> = ({ id }) => {
  * - Personalized locked-game spotlight + 1-tap launch after unlock
  * - Parent Progress & Learning Snapshot (stars, animals, favorite game, practiced skills)
  * - Child Age Stage selector (persisted default difficulty) + Gentle Whit Bedtime Timer
- * - Visual showcase of all 11 Full Zoo Pack games + Browser Preview Toggle
+ * - Visual showcase of all Full Zoo Pack games + Browser Preview Toggle
  */
 export const PaywallModal: React.FC = () => {
   const {
@@ -240,11 +258,11 @@ export const PaywallModal: React.FC = () => {
       },
       {
         label: '🔢 Counting',
-        active: Boolean((bg['number-count'] || 0) + (bg['number-line-match'] || 0) > 0),
+        active: Boolean((bg['number-count'] || 0) + (bg['number-line-match'] || 0) + (bg['trace-trail'] || 0) > 0),
       },
       {
-        label: '🔤 ABCs',
-        active: Boolean((bg['letter-safari'] || 0) + (bg['letter-line-match'] || 0) > 0),
+        label: '🔤 ABCs & Tracing',
+        active: Boolean((bg['letter-safari'] || 0) + (bg['letter-line-match'] || 0) + (bg['trace-trail'] || 0) > 0),
       },
       {
         label: '🧩 Puzzles',
@@ -252,7 +270,7 @@ export const PaywallModal: React.FC = () => {
       },
       {
         label: '🎵 Music & Play',
-        active: Boolean((bg['jungle-music'] || 0) + (bg['bubble-pop'] || 0) + (bg['ball-pass'] || 0) + (bg['jungle-picnic'] || 0) + (bg['arctic-catch'] || 0) > 0),
+        active: Boolean((bg['jungle-music'] || 0) + (bg['bubble-pop'] || 0) + (bg['ball-pass'] || 0) + (bg['jungle-picnic'] || 0) + (bg['arctic-catch'] || 0) + (bg['zoo-playground'] || 0) > 0),
       },
     ];
   }, [parentStats.byGame]);

@@ -828,6 +828,76 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
           <ZooExhibitAnimalSvg animal="lion" size={s(36)} />
         </View>
       );
+    case 'trace-trail':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 4 }]}>
+          <Svg width={s(52)} height={s(46)} viewBox="0 0 64 56">
+            <Path
+              d="M 14 48 L 32 8 L 50 48 M 20 34 L 44 34"
+              stroke="#E6CFA3"
+              strokeWidth="11"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            <Path
+              d="M 14 48 L 32 8 L 43 32"
+              stroke="#E51A1A"
+              strokeWidth="5.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+            <Path
+              d="M 20 34 L 44 34"
+              stroke="#B5894A"
+              strokeWidth="2.8"
+              strokeDasharray="4 4"
+              strokeLinecap="round"
+              fill="none"
+            />
+            <Circle cx="32" cy="8" r="6.5" fill="#2BB84D" stroke="#FFFFFF" strokeWidth="2" />
+            <Path
+              d="M 48 12 L 50.2 16.8 L 55.4 17.4 L 51.6 21 L 52.5 26.2 L 48 23.6 L 43.5 26.2 L 44.4 21 L 40.6 17.4 L 45.8 16.8 Z"
+              fill="#FFD94A"
+              stroke="#9C6200"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+            />
+          </Svg>
+          <View
+            style={{
+              minWidth: s(34),
+              height: s(34),
+              borderRadius: s(9),
+              backgroundColor: '#FFF5D6',
+              borderWidth: 2,
+              borderColor: '#C47E22',
+              paddingHorizontal: 4,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ fontSize: s(13), fontWeight: '900', color: '#B35D12' }} numberOfLines={1}>
+              123
+            </Text>
+          </View>
+        </View>
+      );
+    case 'zoo-playground':
+      return (
+        <View style={[styles.previewRow, { alignItems: 'center', gap: 2 }]}>
+          <ZooExhibitAnimalSvg animal="gorilla" size={s(42)} />
+          <View style={{ alignItems: 'center', marginTop: -s(6) }}>
+            <Svg width={s(24)} height={s(20)} viewBox="0 0 36 26">
+              <Path d="M 4 22 A 14 14 0 0 1 32 22" stroke="#E51A1A" strokeWidth="4" fill="none" strokeLinecap="round" />
+              <Path d="M 8 22 A 10 10 0 0 1 28 22" stroke="#FFE01B" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+              <Path d="M 12 22 A 6 6 0 0 1 24 22" stroke="#1578E8" strokeWidth="3.2" fill="none" strokeLinecap="round" />
+            </Svg>
+            <ZooExhibitAnimalSvg animal="elephant" size={s(34)} />
+          </View>
+        </View>
+      );
   }
 };
 

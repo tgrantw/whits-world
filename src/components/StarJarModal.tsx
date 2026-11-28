@@ -462,6 +462,7 @@ export const StarJarModal: React.FC = () => {
     whitAccessory,
     collectedStickers,
     setWhitAccessory,
+    openGame,
   } = useApp();
   const { isTablet } = useResponsive();
 
@@ -744,6 +745,22 @@ export const StarJarModal: React.FC = () => {
                       ? 'You collected every friend across all 6 worlds! Tap any animal to hear them!'
                       : `Play games to collect all ${TOTAL_STICKER_COUNT} friends across 6 worlds! Tap collected animals to hear them!`}
                   </Text>
+                  <TactileButton
+                    onPress={() => {
+                      soundEngine.unlock();
+                      soundEngine.speakWord('Zoo Playground!');
+                      closeStarJar();
+                      openGame('zoo-playground', true);
+                    }}
+                    accessibilityLabel="Play with your stickers in Zoo Playground"
+                    style={{ marginTop: 10 }}
+                  >
+                    <View style={styles.playgroundCta}>
+                      <Text style={styles.playgroundCtaText}>
+                        🌿 Play With Stickers in Zoo Playground!
+                      </Text>
+                    </View>
+                  </TactileButton>
                 </View>
 
                 {STICKER_HABITATS.map((group) => (
@@ -1203,5 +1220,21 @@ const styles = StyleSheet.create({
   },
   stickerLabelLocked: {
     color: COLORS.inkMuted,
+  },
+  playgroundCta: {
+    backgroundColor: COLORS.emerald,
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: '#1E5E2B',
+    borderBottomWidth: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playgroundCtaText: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
 });
