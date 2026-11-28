@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -7,6 +7,7 @@ import { JungleBackground } from './src/components/JungleBackground';
 import { ParentalGateModal } from './src/components/ParentalGateModal';
 import { PaywallModal } from './src/components/PaywallModal';
 import { StarJarModal } from './src/components/StarJarModal';
+import { WhitLoadingScreen } from './src/components/WhitLoadingScreen';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { AnimalPeekabooGame } from './src/games/AnimalPeekabooGame';
 import { ArcticCatchGame } from './src/games/ArcticCatchGame';
@@ -32,6 +33,7 @@ const RootNavigator: React.FC = () => {
     closeParentGate,
     onParentGatePassed,
   } = useApp();
+  const [showLaunchAnim, setShowLaunchAnim] = useState(true);
 
   // Improve mobile browser feel: prevent pull-to-refresh bounce and accidental text selection
   useEffect(() => {
@@ -102,23 +104,26 @@ const RootNavigator: React.FC = () => {
     </SafeAreaView>
   );
 
-  if (activeGame === 'ball-pass' || activeGame === 'arctic-catch') {
-    return (
-      <View
-        style={[
-          styles.ballPassRoot,
-          activeGame === 'arctic-catch' && { backgroundColor: '#CBEBF7' },
-        ]}
-      >
-        {content}
-      </View>
-    );
-  }
-
   return (
-    <JungleBackground variant={activeGame ? 'clearing' : 'home'}>
-      {content}
-    </JungleBackground>
+    <View style={styles.appRoot}>
+      {activeGame === 'ball-pass' || activeGame === 'arctic-catch' ? (
+        <View
+          style={[
+            styles.ballPassRoot,
+            activeGame === 'arctic-catch' && { backgroundColor: '#CBEBF7' },
+          ]}
+        >
+          {content}
+        </View>
+      ) : (
+        <JungleBackground variant={activeGame ? 'clearing' : 'home'}>
+          {content}
+        </JungleBackground>
+      )}
+      {showLaunchAnim && (
+        <WhitLoadingScreen onComplete={() => setShowLaunchAnim(false)} />
+      )}
+    </View>
   );
 };
 
@@ -133,6 +138,9 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+  },
   ballPassRoot: {
     flex: 1,
     backgroundColor: '#7DB55B',

@@ -589,6 +589,15 @@ export const WhitAccessorySvg: React.FC<{
   }
 };
 
+export type WhitPoseKey =
+  | 'idle'
+  | 'blink'
+  | 'cheer'
+  | 'clap'
+  | 'dance'
+  | 'step'
+  | 'trot';
+
 /**
  * Anchors the chosen accessory directly onto Whit's head/face/neck inside WhitMascot's
  * animated body container so hats, glasses, bowties, and butterflies move seamlessly with Whit!
@@ -597,7 +606,8 @@ export const WhitAccessoryOverlay: React.FC<{
   accessory: WhitAccessoryId;
   mascotSize: number;
   isCheering?: boolean;
-}> = ({ accessory, mascotSize, isCheering = false }) => {
+  pose?: WhitPoseKey;
+}> = ({ accessory, mascotSize, isCheering = false, pose }) => {
   const popScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -613,7 +623,18 @@ export const WhitAccessoryOverlay: React.FC<{
 
   if (accessory === 'none') return null;
 
-  const headCenterX = isCheering ? mascotSize * 0.5 : mascotSize * 0.47;
+  const activePose: WhitPoseKey = pose ?? (isCheering ? 'cheer' : 'idle');
+  const headXMap: Record<WhitPoseKey, number> = {
+    idle: 0.465,
+    blink: 0.465,
+    cheer: 0.495,
+    clap: 0.482,
+    dance: 0.492,
+    step: 0.475,
+    trot: 0.488,
+  };
+  const headCenterX = mascotSize * headXMap[activePose];
+  const raisedHead = activePose === 'cheer';
 
   let width = mascotSize * 0.42;
   let top = mascotSize * 0.02;
@@ -623,73 +644,73 @@ export const WhitAccessoryOverlay: React.FC<{
   switch (accessory) {
     case 'flower':
       width = mascotSize * 0.24;
-      top = isCheering ? mascotSize * 0.06 : mascotSize * 0.07;
+      top = raisedHead ? mascotSize * 0.06 : mascotSize * 0.07;
       left = headCenterX + mascotSize * 0.05;
       rotate = '14deg';
       break;
     case 'sunhat':
       width = mascotSize * 0.48;
-      top = isCheering ? -mascotSize * 0.16 : -mascotSize * 0.14;
+      top = raisedHead ? -mascotSize * 0.16 : -mascotSize * 0.14;
       left = headCenterX - width / 2;
       rotate = '-5deg';
       break;
     case 'party':
       width = mascotSize * 0.34;
-      top = isCheering ? -mascotSize * 0.12 : -mascotSize * 0.1;
+      top = raisedHead ? -mascotSize * 0.12 : -mascotSize * 0.1;
       left = headCenterX - width / 2 + mascotSize * 0.01;
       rotate = '7deg';
       break;
     case 'crown':
       width = mascotSize * 0.36;
-      top = isCheering ? -mascotSize * 0.06 : -mascotSize * 0.04;
+      top = raisedHead ? -mascotSize * 0.06 : -mascotSize * 0.04;
       left = headCenterX - width / 2;
       rotate = '-4deg';
       break;
     case 'shades':
       width = mascotSize * 0.36;
-      top = isCheering ? mascotSize * 0.12 : mascotSize * 0.14;
+      top = raisedHead ? mascotSize * 0.12 : mascotSize * 0.14;
       left = headCenterX - width / 2;
       rotate = '-2deg';
       break;
     case 'bowtie':
       width = mascotSize * 0.28;
-      top = isCheering ? mascotSize * 0.37 : mascotSize * 0.39;
+      top = raisedHead ? mascotSize * 0.37 : mascotSize * 0.39;
       left = headCenterX - width / 2;
       rotate = '-2deg';
       break;
     case 'butterfly':
       width = mascotSize * 0.22;
-      top = isCheering ? mascotSize * 0.2 : mascotSize * 0.22;
+      top = raisedHead ? mascotSize * 0.2 : mascotSize * 0.22;
       left = headCenterX - width / 2 + mascotSize * 0.04;
       rotate = '12deg';
       break;
     case 'captain':
       width = mascotSize * 0.44;
-      top = isCheering ? -mascotSize * 0.14 : -mascotSize * 0.12;
+      top = raisedHead ? -mascotSize * 0.14 : -mascotSize * 0.12;
       left = headCenterX - width / 2;
       rotate = '-5deg';
       break;
     case 'rainbow':
       width = mascotSize * 0.56;
-      top = isCheering ? -mascotSize * 0.22 : -mascotSize * 0.2;
+      top = raisedHead ? -mascotSize * 0.22 : -mascotSize * 0.2;
       left = headCenterX - width / 2;
       rotate = '0deg';
       break;
     case 'chef':
       width = mascotSize * 0.42;
-      top = isCheering ? -mascotSize * 0.16 : -mascotSize * 0.14;
+      top = raisedHead ? -mascotSize * 0.16 : -mascotSize * 0.14;
       left = headCenterX - width / 2;
       rotate = '-4deg';
       break;
     case 'wizard':
       width = mascotSize * 0.46;
-      top = isCheering ? -mascotSize * 0.19 : -mascotSize * 0.17;
+      top = raisedHead ? -mascotSize * 0.19 : -mascotSize * 0.17;
       left = headCenterX - width / 2;
       rotate = '5deg';
       break;
     case 'medal':
       width = mascotSize * 0.3;
-      top = isCheering ? mascotSize * 0.39 : mascotSize * 0.41;
+      top = raisedHead ? mascotSize * 0.39 : mascotSize * 0.41;
       left = headCenterX - width / 2;
       rotate = '0deg';
       break;

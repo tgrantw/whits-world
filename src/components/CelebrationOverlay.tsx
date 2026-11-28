@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import Svg, { Circle, Polygon } from 'react-native-svg';
 import { useOptionalApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
@@ -16,6 +17,39 @@ import { TactileButton } from './TactileButton';
 import { WHIT_ACCESSORIES, WhitAccessorySvg } from './WhitAccessories';
 import { WhitMascot } from './WhitMascot';
 import { ExhibitAnimalKind, ZooExhibitAnimalSvg } from './ZooExhibitAnimals';
+
+/** Flat-SVG warm golden storybook sunburst rays (zero RadialGradient for 60fps tablet GPU compositing) */
+const CelebrationSunburstSvg: React.FC<{ size: number }> = ({ size }) => {
+  const rays = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const a0 = ((i * 30 - 9) * Math.PI) / 180;
+      const a1 = ((i * 30 + 9) * Math.PI) / 180;
+      const cx = 100;
+      const cy = 100;
+      const rOuter = i % 2 === 0 ? 96 : 84;
+      const x1 = (cx + Math.cos(a0) * rOuter).toFixed(1);
+      const y1 = (cy + Math.sin(a0) * rOuter).toFixed(1);
+      const x2 = (cx + Math.cos(a1) * rOuter).toFixed(1);
+      const y2 = (cy + Math.sin(a1) * rOuter).toFixed(1);
+      return `${cx},${cy} ${x1},${y1} ${x2},${y2}`;
+    });
+  }, []);
+
+  return (
+    <Svg width={size} height={size} viewBox="0 0 200 200">
+      <Circle cx="100" cy="100" r="64" fill="#FFF3B8" opacity="0.65" />
+      {rays.map((pts, idx) => (
+        <Polygon
+          key={idx}
+          points={pts}
+          fill={idx % 2 === 0 ? '#FFE27A' : '#FFF1B3'}
+          opacity={idx % 2 === 0 ? 0.55 : 0.4}
+        />
+      ))}
+      <Circle cx="100" cy="100" r="44" fill="#FFF9DC" opacity="0.88" />
+    </Svg>
+  );
+};
 
 interface CelebrationOverlayProps {
   visible: boolean;
@@ -53,6 +87,10 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const cardScale = useRef(new Animated.Value(0.75)).current;
   const playPulse = useRef(new Animated.Value(1)).current;
+  const sunSpin = useRef(new Animated.Value(0)).current;
+  const starPop1 = useRef(new Animated.Value(0)).current;
+  const starPop2 = useRef(new Animated.Value(0)).current;
+  const starPop3 = useRef(new Animated.Value(0)).current;
   const [equipBurstTick, setEquipBurstTick] = useState<number | null>(null);
 
   const isSampleComplete = Boolean(
@@ -102,6 +140,9 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       app.completeSampleSession();
     }
 
+    // Trigger opening sparkle burst right behind Whit's star-jump!
+    setEquipBurstTick(Date.now());
+
     // Warm neural voice celebration cheer right after the xylophone win chime sparkles
     const praiseTimer = setTimeout(() => {
       if (unlockedHatMeta) {
@@ -117,6 +158,10 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
 
     backdropOpacity.setValue(0);
     cardScale.setValue(0.75);
+    starPop1.setValue(0.2);
+    starPop2.setValue(0.2);
+    starPop3.setValue(0.2);
+    sunSpin.setValue(0);
 
     Animated.parallel([
       Animated.timing(backdropOpacity, {
@@ -130,7 +175,45 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
         tension: 110,
         useNativeDriver: true,
       }),
+      // Staggered spring pop-in for the 3 golden victory stars!
+      Animated.sequence([
+        Animated.delay(90),
+        Animated.spring(starPop1, {
+          toValue: 1,
+          friction: 4.2,
+          tension: 180,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.delay(190),
+        Animated.spring(starPop2, {
+          toValue: 1,
+          friction: 3.8,
+          tension: 195,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.delay(290),
+        Animated.spring(starPop3, {
+          toValue: 1,
+          friction: 4.2,
+          tension: 180,
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start();
+
+    const spinLoop = Animated.loop(
+      Animated.timing(sunSpin, {
+        toValue: 1,
+        duration: 14000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    spinLoop.start();
 
     const pulseLoop = Animated.loop(
       Animated.sequence([
@@ -169,6 +252,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
 
     return () => {
       clearTimeout(praiseTimer);
+      spinLoop.stop();
       pulseLoop.stop();
       confettiLoops.forEach((l) => l.stop());
     };
@@ -180,6 +264,10 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
     newStickerKind,
     backdropOpacity,
     cardScale,
+    starPop1,
+    starPop2,
+    starPop3,
+    sunSpin,
     playPulse,
     fallAnims,
     confettiPieces,
@@ -187,11 +275,25 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
 
   if (!visible) return null;
 
+  const hasBothRewards = Boolean(!isSampleComplete && unlockedHatMeta && newStickerKind);
   const sideStar = isTablet ? 52 : 42;
   const midStar = isTablet ? 72 : 58;
+  const whitSize = isTablet
+    ? hasBothRewards
+      ? 176
+      : 204
+    : hasBothRewards
+    ? 138
+    : 162;
+  const sunburstSize = Math.round(whitSize * 1.18);
   const homeBtnSize = isTablet ? 92 : 76;
   const nextBtnW = isTablet ? 148 : 118;
   const nextBtnH = isTablet ? 98 : 82;
+
+  const sunRotate = sunSpin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const handleAskGrownUp = () => {
     if (!app) return;
@@ -280,18 +382,55 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       >
         <View style={[styles.plaqueInner, isTablet && styles.plaqueInnerTablet]}>
           <View style={styles.starRow}>
-            <StarIcon size={sideStar} color="#FFD952" />
-            <View style={{ marginTop: isTablet ? -24 : -18 }}>
+            <Animated.View
+              style={{
+                transform: [{ scale: starPop1 }, { rotate: '-10deg' }],
+              }}
+            >
+              <StarIcon size={sideStar} color="#FFD952" />
+            </Animated.View>
+            <Animated.View
+              style={{
+                marginTop: isTablet ? -24 : -18,
+                transform: [{ scale: starPop2 }],
+              }}
+            >
               <StarIcon size={midStar} color="#FFA726" />
-            </View>
-            <StarIcon size={sideStar} color="#FFD952" />
+            </Animated.View>
+            <Animated.View
+              style={{
+                transform: [{ scale: starPop3 }, { rotate: '10deg' }],
+              }}
+            >
+              <StarIcon size={sideStar} color="#FFD952" />
+            </Animated.View>
           </View>
 
           <View style={styles.whitWrap}>
-            <WhitMascot mood="cheer" size={isTablet ? 186 : 148} interactive />
+            {/* Slowly rotating sunlit celebration rays behind Whit's Victory Boogie Dance */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.sunburstBehind,
+                {
+                  width: sunburstSize,
+                  height: sunburstSize,
+                  transform: [{ rotate: sunRotate }],
+                },
+              ]}
+            >
+              <CelebrationSunburstSvg size={sunburstSize} />
+            </Animated.View>
+
+            <WhitMascot
+              mood="cheer"
+              size={whitSize}
+              interactive
+              onPress={() => setEquipBurstTick(Date.now())}
+            />
             {equipBurstTick && (
               <View style={styles.burstCenter} pointerEvents="none">
-                <SnapBurst key={equipBurstTick} size={isTablet ? 168 : 132} />
+                <SnapBurst key={equipBurstTick} size={isTablet ? 176 : 138} />
               </View>
             )}
           </View>
@@ -501,6 +640,13 @@ const styles = StyleSheet.create({
   },
   whitWrap: {
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  sunburstBehind: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },
