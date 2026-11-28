@@ -13,6 +13,7 @@ import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
@@ -360,7 +361,7 @@ export const CountingZooGame: React.FC = () => {
         soundEngine.playNote(COUNT_NOTES[(numVal - 1) % COUNT_NOTES.length]);
         if (numVal === round.count) {
           soundEngine.speakWord(`${NUMBER_WORDS[numVal]}! Tap number ${numVal}!`);
-          setFeedbackText(`🎉 ${numVal} ${animalLabel}! Tap ${numVal}!`);
+          setFeedbackText(`${numVal} ${animalLabel}! Tap ${numVal}!`);
         } else {
           soundEngine.speakWord(NUMBER_WORDS[numVal] || String(numVal));
           setFeedbackText(`${NUMBER_WORDS[numVal]}!`);
@@ -385,7 +386,7 @@ export const CountingZooGame: React.FC = () => {
         );
         collectSticker(round.animal.kind);
         setCelebratingNum(num);
-        setFeedbackText(`⭐ ${num} ${animalLabel}! ⭐`);
+        setFeedbackText(`${num} ${animalLabel}!`);
 
         // Light up all badges in order!
         setCountedOrder(Array.from({ length: round.count }, (_, i) => i));
@@ -488,9 +489,10 @@ export const CountingZooGame: React.FC = () => {
           }}
           accessibilityLabel={`Hear prompt: How many ${round.animal.plural}`}
         >
-          <View style={[styles.promptPill, isTablet && styles.promptPillTablet]}>
+          <View style={[styles.promptPill, isTablet && styles.promptPillTablet, { flexDirection: 'row', alignItems: 'center', gap: 7 }]}>
+            <StoryIcon name="speaker" size={isTablet ? 22 : 18} />
             <Text style={[styles.promptText, isTablet && { fontSize: 22 }]}>
-              🔊 How many {round.animal.plural}?
+              How many {round.animal.plural}?
             </Text>
           </View>
         </TactileButton>
@@ -524,9 +526,17 @@ export const CountingZooGame: React.FC = () => {
             })}
           </View>
 
-          <Text style={styles.tapHintText}>
-            {feedbackText || 'Tap each friend to count out loud!'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+            {celebratingNum !== null ? (
+              <StoryIcon name="star" size={16} />
+            ) : allCounted && feedbackText ? (
+              <StoryIcon name="party" size={16} />
+            ) : null}
+            <Text style={styles.tapHintText}>
+              {feedbackText || 'Tap each friend to count out loud!'}
+            </Text>
+            {celebratingNum !== null && <StoryIcon name="star" size={16} />}
+          </View>
         </View>
 
         {/* Big Numeral Cards Dock */}

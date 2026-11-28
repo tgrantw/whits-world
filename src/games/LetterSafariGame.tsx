@@ -14,6 +14,7 @@ import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
@@ -459,7 +460,7 @@ export const LetterSafariGame: React.FC = () => {
         }
         soundEngine.speakWord(`${chosen.letter}! ${chosen.letter} is for ${chosen.word}!`);
         setCelebratingLetter(chosen.letter);
-        setFeedbackText(`⭐ ${chosen.letter} is for ${chosen.word}! ⭐`);
+        setFeedbackText(`${chosen.letter} is for ${chosen.word}!`);
 
         const nextScore = score + 1;
         setScore(nextScore);
@@ -546,9 +547,10 @@ export const LetterSafariGame: React.FC = () => {
             }}
             accessibilityLabel="Find the Letter game mode"
           >
-            <View style={[styles.modePill, mode === 'play' && styles.modePillActive]}>
+            <View style={[styles.modePill, mode === 'play' && styles.modePillActive, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+              <StoryIcon name="target" size={16} />
               <Text style={[styles.modePillText, mode === 'play' && styles.modePillTextActive]}>
-                🎯 Find Letter
+                Find Letter
               </Text>
             </View>
           </TactileButton>
@@ -561,9 +563,10 @@ export const LetterSafariGame: React.FC = () => {
             }}
             accessibilityLabel="ABC Sound Board explore mode"
           >
-            <View style={[styles.modePill, mode === 'board' && styles.modePillActive]}>
+            <View style={[styles.modePill, mode === 'board' && styles.modePillActive, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+              <StoryIcon name="abc" size={16} />
               <Text style={[styles.modePillText, mode === 'board' && styles.modePillTextActive]}>
-                🔤 ABC Board
+                ABC Board
               </Text>
             </View>
           </TactileButton>
@@ -619,9 +622,12 @@ export const LetterSafariGame: React.FC = () => {
               <LetterArtwork item={round.target} size={isTablet ? 124 : 90} />
 
               <View style={styles.spotlightCopy}>
-                <Text style={[styles.spotlightSub, isTablet && { fontSize: 15 }]}>
-                  🔊 Tap the letter!
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <StoryIcon name="speaker" size={isTablet ? 16 : 14} />
+                  <Text style={[styles.spotlightSub, isTablet && { fontSize: 15 }]}>
+                    Tap the letter!
+                  </Text>
+                </View>
                 <Text
                   style={[
                     styles.spotlightWord,
@@ -638,8 +644,10 @@ export const LetterSafariGame: React.FC = () => {
           {/* Warm Teaching Caption */}
           <View style={styles.feedbackSlot}>
             {feedbackText && (
-              <View style={styles.feedbackPill}>
+              <View style={[styles.feedbackPill, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                {celebratingLetter !== null && <StoryIcon name="star" size={16} />}
                 <Text style={styles.feedbackText}>{feedbackText}</Text>
+                {celebratingLetter !== null && <StoryIcon name="star" size={16} />}
               </View>
             )}
           </View>
@@ -689,14 +697,17 @@ export const LetterSafariGame: React.FC = () => {
                 {boardSelected.letter.toLowerCase()}
               </Text>
               <LetterArtwork item={boardSelected} size={isTablet ? 90 : 68} />
-              <Text
-                style={[
-                  styles.boardWord,
-                  { fontSize: isTablet ? 28 : 21, color: boardSelected.text },
-                ]}
-              >
-                🔊 {boardSelected.word}!
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <StoryIcon name="speaker" size={isTablet ? 24 : 19} />
+                <Text
+                  style={[
+                    styles.boardWord,
+                    { fontSize: isTablet ? 28 : 21, color: boardSelected.text },
+                  ]}
+                >
+                  {boardSelected.word}!
+                </Text>
+              </View>
               {boardBurstTick > 0 && (
                 <View style={styles.boardBurstWrap} pointerEvents="none">
                   <SnapBurst key={boardBurstTick} size={isTablet ? 110 : 86} />

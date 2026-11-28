@@ -25,6 +25,7 @@ import {
 } from '../theme';
 import { CrownIcon, JungleBushCoverSvg, StarIcon } from './JungleArt';
 import { PicnicTreatSvg } from './PicnicTreats';
+import { StoryIcon, StoryIconName } from './StorybookIcons';
 import { TactileButton } from './TactileButton';
 import { WhitMascot } from './WhitMascot';
 import { ZooAnimalSvg } from './ZooAnimalsArt';
@@ -32,10 +33,10 @@ import { ZooExhibitAnimalSvg } from './ZooExhibitAnimals';
 
 const TOTAL_ZOO_FRIENDS = 24;
 
-const STAGE_OPTIONS: { level: Difficulty; label: string; sub: string }[] = [
-  { level: 1, label: '🌱 Age 2', sub: 'Easy' },
-  { level: 2, label: '🌿 Age 3', sub: 'Med' },
-  { level: 3, label: '🌳 Age 4+', sub: 'Hard' },
+const STAGE_OPTIONS: { level: Difficulty; icon: StoryIconName; label: string; sub: string }[] = [
+  { level: 1, icon: 'sprout', label: 'Age 2', sub: 'Easy' },
+  { level: 2, icon: 'leaf', label: 'Age 3', sub: 'Med' },
+  { level: 3, icon: 'tree', label: 'Age 4+', sub: 'Hard' },
 ];
 
 const TIMER_OPTIONS: { mins: number | null; label: string }[] = [
@@ -249,27 +250,32 @@ export const PaywallModal: React.FC = () => {
     return GAMES.find((g) => g.id === bestId)?.title || 'Zoo Coloring';
   }, [parentStats.byGame]);
 
-  const skillPills = useMemo(() => {
+  const skillPills: { icon: StoryIconName; label: string; active: boolean }[] = useMemo(() => {
     const bg = parentStats.byGame;
     return [
       {
-        label: '🎨 Colors',
+        icon: 'palette',
+        label: 'Colors',
         active: Boolean((bg['color-match'] || 0) + (bg['color-line-match'] || 0) + (bg['zoo-coloring'] || 0) > 0),
       },
       {
-        label: '🔢 Counting',
+        icon: 'numbers',
+        label: 'Counting',
         active: Boolean((bg['number-count'] || 0) + (bg['number-line-match'] || 0) + (bg['trace-trail'] || 0) > 0),
       },
       {
-        label: '🔤 ABCs & Tracing',
+        icon: 'abc',
+        label: 'ABCs & Tracing',
         active: Boolean((bg['letter-safari'] || 0) + (bg['letter-line-match'] || 0) + (bg['trace-trail'] || 0) > 0),
       },
       {
-        label: '🧩 Puzzles',
+        icon: 'puzzle',
+        label: 'Puzzles',
         active: Boolean((bg['shape-sorter'] || 0) + (bg['jungle-jigsaw'] || 0) + (bg['size-sorter'] || 0) + (bg['baby-match'] || 0) > 0),
       },
       {
-        label: '🎵 Music & Play',
+        icon: 'music',
+        label: 'Music & Play',
         active: Boolean((bg['jungle-music'] || 0) + (bg['bubble-pop'] || 0) + (bg['ball-pass'] || 0) + (bg['jungle-picnic'] || 0) + (bg['arctic-catch'] || 0) + (bg['zoo-playground'] || 0) > 0),
       },
     ];
@@ -292,9 +298,10 @@ export const PaywallModal: React.FC = () => {
                 <Text style={styles.parentTagText}>PARENT CORNER</Text>
               </View>
               {bedtimeSecondsLeft !== null && bedtimeSecondsLeft > 0 && (
-                <View style={styles.timerLiveTag}>
+                <View style={[styles.timerLiveTag, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                  <StoryIcon name="moon" size={14} />
                   <Text style={styles.timerLiveText}>
-                    🌙 {formatCountdown(bedtimeSecondsLeft)} left
+                    {formatCountdown(bedtimeSecondsLeft)} left
                   </Text>
                 </View>
               )}
@@ -304,7 +311,7 @@ export const PaywallModal: React.FC = () => {
               accessibilityLabel="Close parent paywall"
             >
               <View style={styles.closeBtn}>
-                <Text style={styles.closeText}>✕</Text>
+                <StoryIcon name="close" size={16} color={COLORS.woodDark} />
               </View>
             </TactileButton>
           </View>
@@ -362,14 +369,17 @@ export const PaywallModal: React.FC = () => {
                             active && styles.stagePillActive,
                           ]}
                         >
-                          <Text
-                            style={[
-                              styles.stagePillMain,
-                              active && styles.stagePillTextActive,
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <StoryIcon name={opt.icon} size={15} />
+                            <Text
+                              style={[
+                                styles.stagePillMain,
+                                active && styles.stagePillTextActive,
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                          </View>
                           <Text
                             style={[
                               styles.stagePillSub,
@@ -452,15 +462,20 @@ export const PaywallModal: React.FC = () => {
                     style={[
                       styles.skillBadge,
                       sk.active && styles.skillBadgeActive,
+                      { flexDirection: 'row', alignItems: 'center', gap: 4 },
                     ]}
                   >
+                    {sk.active && (
+                      <StoryIcon name="check" size={12} color="#1E6B30" />
+                    )}
+                    <StoryIcon name={sk.icon} size={14} />
                     <Text
                       style={[
                         styles.skillBadgeText,
                         sk.active && styles.skillBadgeTextActive,
                       ]}
                     >
-                      {sk.active ? `✓ ${sk.label}` : sk.label}
+                      {sk.label}
                     </Text>
                   </View>
                 ))}
@@ -471,7 +486,7 @@ export const PaywallModal: React.FC = () => {
             <View style={styles.promiseGrid}>
               {PARENT_PROMISES.map((promise, idx) => (
                 <View key={idx} style={styles.promisePill}>
-                  <Text style={styles.promiseCheck}>✓</Text>
+                  <StoryIcon name="check" size={14} color="#267D39" />
                   <Text style={styles.promiseText}>{promise}</Text>
                 </View>
               ))}
@@ -516,8 +531,9 @@ export const PaywallModal: React.FC = () => {
                           {game.title}
                         </Text>
                         {isPinned && (
-                          <View style={styles.requestedChip}>
-                            <Text style={styles.requestedChipText}>★ Tapped</Text>
+                          <View style={[styles.requestedChip, { flexDirection: 'row', alignItems: 'center', gap: 3 }]}>
+                            <StoryIcon name="star" size={11} />
+                            <Text style={styles.requestedChipText}>Tapped</Text>
                           </View>
                         )}
                       </View>
@@ -606,16 +622,18 @@ export const PaywallModal: React.FC = () => {
                     onPress={launchPendingLockedGame}
                     accessibilityLabel={`Play ${pendingMeta.title} now`}
                   >
-                    <View style={styles.buyBtn}>
+                    <View style={[styles.buyBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]}>
+                      <StoryIcon name="play" size={16} color="#FFFFFF" />
                       <Text style={styles.buyBtnText}>
-                        ▶ Play {pendingMeta.title} Now!
+                        Play {pendingMeta.title} Now!
                       </Text>
                     </View>
                   </TactileButton>
                 ) : (
-                  <View style={styles.unlockedPill}>
+                  <View style={[styles.unlockedPill, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}>
+                    <StoryIcon name="check" size={16} color="#1E6B30" />
                     <Text style={styles.unlockedPillText}>
-                      ✓ Full Jungle Adventure Active ({GAMES.length} Games)
+                      Full Jungle Adventure Active ({GAMES.length} Games)
                     </Text>
                   </View>
                 )}

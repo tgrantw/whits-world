@@ -23,6 +23,7 @@ import {
 } from '../components/DraggablePiece';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import {
   getZooAnimalBackdrop,
@@ -405,7 +406,7 @@ export const JungleJigsawGame: React.FC = () => {
                 </View>
                 {solved && (
                   <View style={styles.solvedDot}>
-                    <Text style={styles.solvedDotText}>✓</Text>
+                    <StoryIcon name="check" size={10} color="#FFFFFF" />
                   </View>
                 )}
               </View>

@@ -5,6 +5,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
 import { HomeIcon, SoundIcon, StarIcon } from './JungleArt';
+import { StoryIcon, StoryIconName } from './StorybookIcons';
 import { TactileButton } from './TactileButton';
 
 interface GameHeaderProps {
@@ -15,6 +16,8 @@ interface GameHeaderProps {
   onDifficultyChange?: (next: Difficulty) => void;
   /** Optional warm title shown in the center pill for open-ended sandbox modes */
   centerTitle?: string;
+  /** Optional custom storybook icon rendered next to centerTitle */
+  centerIcon?: StoryIconName;
 }
 
 const DIFF_META: {
@@ -63,6 +66,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
   difficulty,
   onDifficultyChange,
   centerTitle,
+  centerIcon,
 }) => {
   const {
     goHome,
@@ -136,17 +140,21 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
           ]}
         >
           {showSampleBadge && (
-            <View style={styles.samplePill}>
+            <View style={[styles.samplePill, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              <StoryIcon name="gift" size={isTablet ? 14 : 12} />
               <Text style={[styles.samplePillText, isTablet && { fontSize: 12.5 }]}>
-                🎁 Free Try
+                Free Try
               </Text>
             </View>
           )}
 
           {centerTitle ? (
-            <Text style={[styles.centerTitleText, isTablet && { fontSize: 18 }]}>
-              {centerTitle}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {centerIcon ? <StoryIcon name={centerIcon} size={isTablet ? 20 : 17} /> : null}
+              <Text style={[styles.centerTitleText, isTablet && { fontSize: 18 }]}>
+                {centerTitle}
+              </Text>
+            </View>
           ) : null}
 
           {/* Star Progress */}

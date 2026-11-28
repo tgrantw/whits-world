@@ -8,6 +8,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { Difficulty, getAnimalDisplayName } from '../theme';
 import { ExhibitAnimalKind } from '../components/ZooExhibitAnimals';
+import { drawCanvasStar } from '../utils/canvasIcons';
 
 const GOAL_ANIMALS: ExhibitAnimalKind[] = ['lion', 'elephant', 'giraffe', 'panda'];
 const GOALS_TO_WIN = 4;
@@ -1271,7 +1272,7 @@ export const BallPassGame: React.FC = () => {
       }
       particlesRef.current = alive;
 
-      // 15. Floating "⭐ GOAL! ⭐" Banner
+      // 15. Floating "GOAL!" Banner with custom golden vector stars
       const ban = bannerRef.current;
       if (ban) {
         ban.age += dt;
@@ -1288,11 +1289,13 @@ export const BallPassGame: React.FC = () => {
           ctx.strokeStyle = '#5C3D20';
           ctx.lineWidth = 3;
           ctx.stroke();
+          drawCanvasStar(ctx, bx - 44, by, 9, '#FAD44A');
+          drawCanvasStar(ctx, bx + 44, by, 9, '#FAD44A');
           ctx.fillStyle = '#5C3D20';
           ctx.font = '900 16px system-ui, -apple-system, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('⭐ GOAL! ⭐', bx, by + 1);
+          ctx.fillText('GOAL!', bx, by + 1);
           ctx.restore();
         } else {
           bannerRef.current = null;

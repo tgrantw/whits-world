@@ -16,6 +16,7 @@ import {
   getAnimalWeight,
 } from '../components/AnimatedZooAnimal';
 import { WhitMascot } from '../components/WhitMascot';
+import { StoryIcon } from '../components/StorybookIcons';
 import {
   CrownIcon,
   FullscreenIcon,
@@ -980,6 +981,7 @@ export const HomeScreen: React.FC = () => {
                 style={[
                   styles.catPill,
                   isTablet && styles.catPillTablet,
+                  { flexDirection: 'row', alignItems: 'center', gap: 5 },
                   active && {
                     backgroundColor: cat.activeBg,
                     borderColor: cat.activeBorder,
@@ -987,6 +989,7 @@ export const HomeScreen: React.FC = () => {
                   },
                 ]}
               >
+                <StoryIcon name={cat.icon} size={isTablet ? 17 : 14} />
                 <Text
                   style={[
                     styles.catPillText,
@@ -995,7 +998,7 @@ export const HomeScreen: React.FC = () => {
                   ]}
                   numberOfLines={1}
                 >
-                  {cat.emoji} {cat.label}
+                  {cat.label}
                 </Text>
               </View>
             </TactileButton>
@@ -1132,15 +1135,17 @@ export const HomeScreen: React.FC = () => {
                   style={[
                     styles.sampleTryBadge,
                     isTablet && styles.sampleTryBadgeTablet,
+                    { flexDirection: 'row', alignItems: 'center', gap: 3 },
                   ]}
                 >
+                  <StoryIcon name="gift" size={isTablet ? 13 : 11} />
                   <Text
                     style={[
                       styles.sampleTryBadgeText,
                       isTablet && { fontSize: 11.5 },
                     ]}
                   >
-                    🎁 Free Try
+                    Free Try
                   </Text>
                 </View>
               ) : locked ? (
@@ -1243,9 +1248,10 @@ export const HomeScreen: React.FC = () => {
               onPress={() => openParentGate(null)}
               accessibilityLabel="Bedtime timer active"
             >
-              <View style={styles.bedtimeTopChip}>
+              <View style={[styles.bedtimeTopChip, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                <StoryIcon name="moon" size={14} />
                 <Text style={styles.bedtimeTopChipText}>
-                  🌙 {Math.ceil(bedtimeSecondsLeft / 60)}m
+                  {Math.ceil(bedtimeSecondsLeft / 60)}m
                 </Text>
               </View>
             </TactileButton>

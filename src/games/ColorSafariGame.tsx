@@ -13,6 +13,7 @@ import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import { WhitMascot, WhitMood } from '../components/WhitMascot';
 import { useApp } from '../context/AppContext';
@@ -440,7 +441,7 @@ export const ColorSafariGame: React.FC = () => {
         soundEngine.speakWord(`Yes! ${chosen.name}!`);
         setCelebratingId(chosen.id);
         setMascotMood('cheer');
-        setFeedbackText(`⭐ Yes! ${chosen.name}! ⭐`);
+        setFeedbackText(`Yes! ${chosen.name}!`);
 
         const nextScore = score + 1;
         setScore(nextScore);
@@ -552,9 +553,12 @@ export const ColorSafariGame: React.FC = () => {
                 <View style={styles.swatchShine} />
               </View>
               <View>
-                <Text style={[styles.promptSmall, isTablet && { fontSize: 14 }]}>
-                  🔊 Tap the color
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <StoryIcon name="speaker" size={isTablet ? 16 : 14} />
+                  <Text style={[styles.promptSmall, isTablet && { fontSize: 14 }]}>
+                    Tap the color
+                  </Text>
+                </View>
                 <Text
                   style={[
                     styles.promptWord,
@@ -572,8 +576,10 @@ export const ColorSafariGame: React.FC = () => {
         {/* Encouraging caption */}
         <View style={styles.feedbackSlot}>
           {feedbackText && (
-            <View style={styles.feedbackPill}>
+            <View style={[styles.feedbackPill, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+              {celebratingId !== null && <StoryIcon name="star" size={16} />}
               <Text style={styles.feedbackText}>{feedbackText}</Text>
+              {celebratingId !== null && <StoryIcon name="star" size={16} />}
             </View>
           )}
         </View>

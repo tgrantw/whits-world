@@ -15,6 +15,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import { COLORS } from '../theme';
 import { StarIcon } from './JungleArt';
 import { SnapBurst } from './SnapBurst';
+import { StoryIcon } from './StorybookIcons';
 import { preloadWhitFrames, WhitMascot } from './WhitMascot';
 
 interface WhitLoadingScreenProps {
@@ -390,10 +391,12 @@ export const WhitLoadingScreen: React.FC<WhitLoadingScreenProps> = ({
           </View>
 
           {/* Warm Loading Caption Pill */}
-          <View style={styles.captionPill}>
+          <View style={[styles.captionPill, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+            {arrived && <StoryIcon name="sparkle" size={isTablet ? 20 : 17} />}
             <Text style={[styles.captionText, isTablet && { fontSize: 18 }]}>
-              {arrived ? '✨ Let’s Play! ✨' : 'Waking up the zoo friends...'}
+              {arrived ? 'Let’s Play!' : 'Waking up the zoo friends...'}
             </Text>
+            {arrived && <StoryIcon name="sparkle" size={isTablet ? 20 : 17} />}
           </View>
         </View>
       </Pressable>

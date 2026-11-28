@@ -25,6 +25,7 @@ import {
 } from '../components/DraggablePiece';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
@@ -58,7 +59,6 @@ interface ExhibitAnimalSpot {
 interface ZooExhibitStage {
   id: string;
   title: string;
-  emoji: string;
   backdrop: ExhibitId;
   badgeColor: string;
   /** Always matches spots[0].animal so the selector icon ALWAYS appears in the round! */
@@ -136,7 +136,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'monkeys',
     title: 'Jungle Clearing',
-    emoji: '🌴',
     backdrop: 'monkeys',
     badgeColor: '#A9DA9B',
     badgeAnimal: 'monkey',
@@ -182,7 +181,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'aquarium',
     title: 'Ocean Aquarium',
-    emoji: '🐳',
     backdrop: 'aquarium',
     badgeColor: '#9EDEEF',
     badgeAnimal: 'whale',
@@ -196,7 +194,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'savanna',
     title: 'Sunny Savanna',
-    emoji: '🦒',
     backdrop: 'savanna',
     badgeColor: '#F5DF98',
     badgeAnimal: 'giraffe',
@@ -210,7 +207,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'sanctuary',
     title: 'Bamboo Sanctuary',
-    emoji: '🐼',
     backdrop: 'sanctuary',
     badgeColor: '#BCE2C4',
     badgeAnimal: 'panda',
@@ -224,7 +220,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'arctic',
     title: 'Arctic Lagoon',
-    emoji: '🐧',
     backdrop: 'arctic',
     badgeColor: '#C5E4F4',
     badgeAnimal: 'penguin',
@@ -270,7 +265,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'farm',
     title: 'Happy Farm',
-    emoji: '🐄',
     backdrop: 'farm',
     badgeColor: '#F5DB9A',
     badgeAnimal: 'cow',
@@ -317,7 +311,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'clearing-visitors',
     title: 'Jungle Visitors',
-    emoji: '🐯',
     backdrop: 'monkeys',
     badgeColor: '#F6CC9D',
     badgeAnimal: 'tiger',
@@ -363,7 +356,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'aquarium-party',
     title: 'Reef Party',
-    emoji: '🐙',
     backdrop: 'aquarium',
     badgeColor: '#B5D9F8',
     badgeAnimal: 'octopus',
@@ -377,7 +369,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'savanna-oasis',
     title: 'Savanna Oasis',
-    emoji: '🦁',
     backdrop: 'savanna',
     badgeColor: '#F5C98E',
     badgeAnimal: 'lion',
@@ -391,7 +382,6 @@ const ZOO_EXHIBITS: ZooExhibitStage[] = [
   {
     id: 'sanctuary-picnic',
     title: 'Sanctuary Picnic',
-    emoji: '🦩',
     backdrop: 'sanctuary',
     badgeColor: '#F5C7DA',
     badgeAnimal: 'flamingo',
@@ -753,8 +743,8 @@ const AnimalNamePill: React.FC<{ label: string }> = React.memo(({ label }) => {
 });
 
 /** Soft arrival banner briefly introducing each zoo habitat */
-const ExhibitTitleBanner: React.FC<{ title: string; emoji: string }> = React.memo(
-  ({ title, emoji }) => {
+const ExhibitTitleBanner: React.FC<{ title: string; animal: ExhibitAnimalKind }> = React.memo(
+  ({ title, animal }) => {
     const anim = useRef(new Animated.Value(0)).current;
     const fade = useRef(new Animated.Value(1)).current;
 
@@ -781,6 +771,9 @@ const ExhibitTitleBanner: React.FC<{ title: string; emoji: string }> = React.mem
         style={[
           styles.arrivalBanner,
           {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
             opacity: fade,
             transform: [
               {
@@ -799,9 +792,8 @@ const ExhibitTitleBanner: React.FC<{ title: string; emoji: string }> = React.mem
           },
         ]}
       >
-        <Text style={styles.arrivalBannerText}>
-          {emoji} {title}
-        </Text>
+        <ZooExhibitAnimalSvg animal={animal} size={24} />
+        <Text style={styles.arrivalBannerText}>{title}</Text>
       </Animated.View>
     );
   }
@@ -1350,7 +1342,7 @@ export const ShapeSorterGame: React.FC = () => {
                 />
                 {solved && (
                   <View style={styles.solvedDot}>
-                    <Text style={styles.solvedDotText}>✓</Text>
+                    <StoryIcon name="check" size={10} color="#FFFFFF" />
                   </View>
                 )}
               </View>
@@ -1358,9 +1350,10 @@ export const ShapeSorterGame: React.FC = () => {
           );
         })}
         {/* Compact Zoo Passport progress badge */}
-        <View style={styles.passportPill}>
+        <View style={[styles.passportPill, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+          <StoryIcon name="medal" size={15} />
           <Text style={styles.passportText}>
-            🏅 {solvedExhibits.length}/{ZOO_EXHIBITS.length}
+            {solvedExhibits.length}/{ZOO_EXHIBITS.length}
           </Text>
         </View>
       </ScrollView>
@@ -1418,15 +1411,17 @@ export const ShapeSorterGame: React.FC = () => {
       <ExhibitTitleBanner
         key={`${currentExhibit.id}-${bannerTick}`}
         title={currentExhibit.title}
-        emoji={currentExhibit.emoji}
+        animal={currentExhibit.badgeAnimal}
       />
 
       {/* Victory chorus badge before CelebrationOverlay */}
       {partyMode && !won && (
-        <View style={styles.partyBanner} pointerEvents="none">
+        <View style={[styles.partyBanner, { flexDirection: 'row', alignItems: 'center', gap: 6 }]} pointerEvents="none">
+          <StoryIcon name="sparkle" size={18} />
           <Text style={styles.partyBannerText}>
-            ✨ {currentExhibit.title} Complete! ✨
+            {currentExhibit.title} Complete!
           </Text>
+          <StoryIcon name="sparkle" size={18} />
         </View>
       )}
 

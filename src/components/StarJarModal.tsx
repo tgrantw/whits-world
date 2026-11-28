@@ -23,6 +23,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS } from '../theme';
+import { StoryIcon } from './StorybookIcons';
 import { AnimatedZooAnimal, getAnimalWeight } from './AnimatedZooAnimal';
 import { LockIcon, StarIcon } from './JungleArt';
 import { SnapBurst } from './SnapBurst';
@@ -544,7 +545,7 @@ export const StarJarModal: React.FC = () => {
               accessibilityLabel="Close Whit's Star Jar"
             >
               <View style={styles.closeBtn}>
-                <Text style={styles.closeText}>✕</Text>
+                <StoryIcon name="close" size={16} color={COLORS.woodDark} />
               </View>
             </TactileButton>
           </View>
@@ -563,15 +564,17 @@ export const StarJarModal: React.FC = () => {
                 style={[
                   styles.tabBtn,
                   activeTab === 'dressup' && styles.tabBtnActive,
+                  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
                 ]}
               >
+                <StoryIcon name="star" size={15} />
                 <Text
                   style={[
                     styles.tabText,
                     activeTab === 'dressup' && styles.tabTextActive,
                   ]}
                 >
-                  ★ Star Jar & Hats
+                  Star Jar & Hats
                 </Text>
               </View>
             </TactileButton>
@@ -726,7 +729,7 @@ export const StarJarModal: React.FC = () => {
 
                           {selected && (
                             <View style={styles.equippedCheck}>
-                              <Text style={styles.equippedCheckText}>✓</Text>
+                              <StoryIcon name="check" size={12} color="#FFFFFF" />
                             </View>
                           )}
                         </View>
@@ -755,9 +758,10 @@ export const StarJarModal: React.FC = () => {
                     accessibilityLabel="Play with your stickers in Zoo Playground"
                     style={{ marginTop: 10 }}
                   >
-                    <View style={styles.playgroundCta}>
+                    <View style={[styles.playgroundCta, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                      <StoryIcon name="leaf" size={16} />
                       <Text style={styles.playgroundCtaText}>
-                        🌿 Play With Stickers in Zoo Playground!
+                        Play With Stickers in Zoo Playground!
                       </Text>
                     </View>
                   </TactileButton>

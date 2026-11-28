@@ -39,38 +39,40 @@ export interface GameMeta {
   leafTint: string;
 }
 
+export type CategoryIconKey = 'star' | 'palette' | 'puzzle' | 'music';
+
 export const GAME_CATEGORIES: {
   id: CategoryFilter;
   label: string;
-  emoji: string;
+  icon: CategoryIconKey;
   activeBg: string;
   activeBorder: string;
 }[] = [
   {
     id: 'all',
     label: 'All',
-    emoji: '🌟',
+    icon: 'star',
     activeBg: '#FFE066',
     activeBorder: '#8C5B32',
   },
   {
     id: 'learn',
     label: 'Learn',
-    emoji: '🎨',
+    icon: 'palette',
     activeBg: '#CFE7FF',
     activeBorder: '#1578E8',
   },
   {
     id: 'puzzles',
     label: 'Puzzles',
-    emoji: '🧩',
+    icon: 'puzzle',
     activeBg: '#FFD8EA',
     activeBorder: '#B8216B',
   },
   {
     id: 'action',
     label: 'Play & Music',
-    emoji: '🎵',
+    icon: 'music',
     activeBg: '#CDF5D4',
     activeBorder: '#1FA838',
   },

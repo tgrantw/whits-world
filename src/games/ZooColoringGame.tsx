@@ -12,6 +12,7 @@ import Svg, { Circle, Ellipse, G, Path } from 'react-native-svg';
 import { STORYBOOK_ASSETS, STORYBOOK_COLORING_PAGES } from '../assets/assetMap';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
@@ -21,6 +22,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS } from '../theme';
+import { drawCanvasStar, drawCanvasStickerIcon } from '../utils/canvasIcons';
 
 const INK = '#4A3525';
 const PAPER_WHITE = '#FFFDF7';
@@ -628,23 +630,13 @@ function drawStampOn2dCanvas(
   ox: number,
   oy: number
 ) {
-  const emojiMap: Record<StampKind, string> = {
-    star: '⭐',
-    heart: '💖',
-    flower: '🌸',
-    butterfly: '🦋',
-    rainbow: '🌈',
-    sun: '☀️',
-    crown: '👑',
-    paw: '🐾',
-  };
-  ctx.save();
-  ctx.translate(ox + stamp.x * scaleFactor, oy + stamp.y * scaleFactor);
-  ctx.font = `${Math.round(stamp.size * scaleFactor * 0.9)}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(emojiMap[stamp.kind] || '⭐', 0, 2);
-  ctx.restore();
+  drawCanvasStickerIcon(
+    ctx,
+    stamp.kind,
+    ox + stamp.x * scaleFactor,
+    oy + stamp.y * scaleFactor,
+    stamp.size * scaleFactor
+  );
 }
 
 /** Tactile storybook SVG Crayon button with pointed wax tip + paper wrapper */
@@ -756,6 +748,8 @@ const MasterpieceBanner: React.FC<{ title: string }> = React.memo(({ title }) =>
       style={[
         styles.masterpieceBanner,
         {
+          flexDirection: 'row',
+          gap: 6,
           opacity: fade,
           transform: [
             { scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] }) },
@@ -764,7 +758,9 @@ const MasterpieceBanner: React.FC<{ title: string }> = React.memo(({ title }) =>
         },
       ]}
     >
-      <Text style={styles.masterpieceText}>⭐ {title} Masterpiece! ⭐</Text>
+      <StoryIcon name="star" size={18} />
+      <Text style={styles.masterpieceText}>{title} Masterpiece!</Text>
+      <StoryIcon name="star" size={18} />
     </Animated.View>
   );
 });
@@ -1491,10 +1487,13 @@ export const ZooColoringGame: React.FC = () => {
       ctx.textBaseline = 'middle';
       ctx.fillText(page.title, artPad + 4, footerY);
 
+      const brandText = "Painted in Whit's World";
       ctx.fillStyle = '#8C5B32';
       ctx.font = '800 24px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText("★ Painted in Whit's World", W - artPad - 4, footerY);
+      const brandWidth = ctx.measureText(brandText).width;
+      ctx.fillText(brandText, W - artPad - 4, footerY);
+      drawCanvasStar(ctx, W - artPad - 4 - brandWidth - 18, footerY - 1, 11, '#FAD44A');
 
       const blob: Blob | null = await new Promise((resolve) =>
         out.toBlob((b) => resolve(b), 'image/png')
@@ -1590,7 +1589,7 @@ export const ZooColoringGame: React.FC = () => {
                 />
                 {isDone && (
                   <View style={styles.doneDot}>
-                    <Text style={styles.doneDotText}>✓</Text>
+                    <StoryIcon name="check" size={10} color="#FFFFFF" />
                   </View>
                 )}
               </View>
@@ -1686,16 +1685,18 @@ export const ZooColoringGame: React.FC = () => {
             onPress={handleHearAnimal}
             accessibilityLabel={`Hear ${page.title}`}
           >
-            <View style={styles.hearAnimalPill}>
-              <Text style={styles.hearAnimalText}>🔊 {page.title}</Text>
+            <View style={[styles.hearAnimalPill, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+              <StoryIcon name="speaker" size={14} />
+              <Text style={styles.hearAnimalText}>{page.title}</Text>
             </View>
           </TactileButton>
         </View>
 
         {savedToast && (
           <View style={styles.savedToastWrap} pointerEvents="none">
-            <View style={styles.savedToastPill}>
-              <Text style={styles.savedToastText}>📸 Picture Saved!</Text>
+            <View style={[styles.savedToastPill, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+              <StoryIcon name="camera" size={15} />
+              <Text style={styles.savedToastText}>Picture Saved!</Text>
             </View>
           </View>
         )}
@@ -1724,9 +1725,10 @@ export const ZooColoringGame: React.FC = () => {
           }}
           accessibilityLabel="Tap to Fill mode"
         >
-          <View style={[styles.toolPill, tool === 'fill' && styles.toolPillActive]}>
+          <View style={[styles.toolPill, tool === 'fill' && styles.toolPillActive, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+            <StoryIcon name="bucket" size={16} />
             <Text style={[styles.toolText, tool === 'fill' && styles.toolTextActive]}>
-              🪣 Fill
+              Fill
             </Text>
           </View>
         </TactileButton>
@@ -1739,9 +1741,10 @@ export const ZooColoringGame: React.FC = () => {
           }}
           accessibilityLabel="Crayon Draw mode"
         >
-          <View style={[styles.toolPill, tool === 'draw' && styles.toolPillActive]}>
+          <View style={[styles.toolPill, tool === 'draw' && styles.toolPillActive, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+            <StoryIcon name="crayon" size={16} />
             <Text style={[styles.toolText, tool === 'draw' && styles.toolTextActive]}>
-              🖍️ Draw
+              Draw
             </Text>
           </View>
         </TactileButton>
@@ -1754,9 +1757,10 @@ export const ZooColoringGame: React.FC = () => {
           }}
           accessibilityLabel="Sticker Stamp mode"
         >
-          <View style={[styles.toolPill, tool === 'stamp' && styles.toolPillActive]}>
+          <View style={[styles.toolPill, tool === 'stamp' && styles.toolPillActive, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+            <StoryIcon name="star" size={16} />
             <Text style={[styles.toolText, tool === 'stamp' && styles.toolTextActive]}>
-              ⭐ Stamp
+              Stamp
             </Text>
           </View>
         </TactileButton>
@@ -1768,8 +1772,9 @@ export const ZooColoringGame: React.FC = () => {
           onPress={handleMagicWand}
           accessibilityLabel="Magic color helper"
         >
-          <View style={styles.magicBtn}>
-            <Text style={styles.magicBtnText}>🪄 Magic</Text>
+          <View style={[styles.magicBtn, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+            <StoryIcon name="magicWand" size={15} />
+            <Text style={styles.magicBtnText}>Magic</Text>
           </View>
         </TactileButton>
 
@@ -1778,8 +1783,9 @@ export const ZooColoringGame: React.FC = () => {
             onPress={handleSaveArtwork}
             accessibilityLabel="Save coloring picture"
           >
-            <View style={styles.saveArtBtn}>
-              <Text style={styles.saveArtBtnText}>📸 Save</Text>
+            <View style={[styles.saveArtBtn, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+              <StoryIcon name="camera" size={15} />
+              <Text style={styles.saveArtBtnText}>Save</Text>
             </View>
           </TactileButton>
         )}
@@ -1795,7 +1801,7 @@ export const ZooColoringGame: React.FC = () => {
               currentHistory.length === 0 && { opacity: 0.45 },
             ]}
           >
-            <Text style={styles.iconToolText}>↩️</Text>
+            <StoryIcon name="undo" size={17} color={COLORS.woodDark} />
           </View>
         </TactileButton>
 
@@ -1804,7 +1810,7 @@ export const ZooColoringGame: React.FC = () => {
           accessibilityLabel="Fresh blank page"
         >
           <View style={styles.iconToolBtn}>
-            <Text style={styles.iconToolText}>✨</Text>
+            <StoryIcon name="sparkle" size={18} />
           </View>
         </TactileButton>
 

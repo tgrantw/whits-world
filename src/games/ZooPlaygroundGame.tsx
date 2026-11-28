@@ -17,6 +17,7 @@ import {
 } from '../components/AnimatedZooAnimal';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon, StoryIconName } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import { WhitMascot } from '../components/WhitMascot';
 import {
@@ -27,6 +28,7 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, getAnimalDisplayName } from '../theme';
+import { drawCanvasStar, drawCanvasStickerIcon } from '../utils/canvasIcons';
 
 type HabitatId = 'clearing' | 'arctic' | 'aquarium' | 'farm';
 type ToyPropId =
@@ -59,7 +61,7 @@ const STORAGE_KEY = 'whits_world_playground_v1';
 const HABITATS: {
   id: HabitatId;
   label: string;
-  emoji: string;
+  icon: StoryIconName;
   spoken: string;
   asset: ReturnType<typeof require>;
   bgTint: string;
@@ -67,7 +69,7 @@ const HABITATS: {
   {
     id: 'clearing',
     label: 'Clearing',
-    emoji: '🌿',
+    icon: 'leaf',
     spoken: 'Sunny Clearing!',
     asset: STORYBOOK_ASSETS.bgClearing,
     bgTint: '#8BC36A',
@@ -75,7 +77,7 @@ const HABITATS: {
   {
     id: 'arctic',
     label: 'Arctic',
-    emoji: '❄️',
+    icon: 'snowflake',
     spoken: 'Snowy Arctic!',
     asset: STORYBOOK_ASSETS.bgArctic,
     bgTint: '#A6DCEF',
@@ -83,7 +85,7 @@ const HABITATS: {
   {
     id: 'aquarium',
     label: 'Reef',
-    emoji: '🐠',
+    icon: 'fish',
     spoken: 'Coral Reef!',
     asset: STORYBOOK_ASSETS.bgAquarium,
     bgTint: '#6AC4DC',
@@ -91,7 +93,7 @@ const HABITATS: {
   {
     id: 'farm',
     label: 'Farm',
-    emoji: '🚜',
+    icon: 'tractor',
     spoken: 'Sunny Farm!',
     asset: STORYBOOK_ASSETS.bgFarm,
     bgTint: '#A8CF7A',
@@ -678,8 +680,8 @@ const DraggableStageSticker: React.FC<DraggableStageStickerProps> = ({
  * My Zoo Playground — Open-Ended 4-Habitat Interactive Sticker Sandbox:
  * - Drag & tap Whit + all collected Zoo Stickers + 8 interactive storybook props
  *   across Sunny Clearing, Snowy Arctic, Coral Reef, and Sunny Farm!
- * - Auto-saves layout locally, includes a joyous "🎉 Dance Party!" button that makes
- *   every placed animal dance & sparkle together, plus "📸 Save" framed Zoo Photo export!
+ * - Auto-saves layout locally, includes a joyous "Dance Party!" button that makes
+ *   every placed animal dance & sparkle together, plus "Save" framed Zoo Photo export!
  */
 export const ZooPlaygroundGame: React.FC = () => {
   const { addStar, collectedStickers } = useApp();
@@ -903,19 +905,7 @@ export const ZooPlaygroundGame: React.FC = () => {
           const bImg = uri ? await loadImage(uri) : null;
           if (bImg) ctx.drawImage(bImg, -sz * 0.42, -sz * 0.42, sz * 0.84, sz * 0.84);
         } else {
-          const emojiMap: Record<string, string> = {
-            sun: '☀️',
-            rainbow: '🌈',
-            watermelon: '🍉',
-            banana: '🍌',
-            balloon: '🎈',
-            butterfly: '🦋',
-            star: '⭐',
-          };
-          ctx.font = `${Math.round(sz * 0.65)}px system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(emojiMap[it.id] || '⭐', 0, 0);
+          drawCanvasStickerIcon(ctx, it.id, 0, 0, sz * 0.72);
         }
         ctx.restore();
       }
@@ -932,10 +922,13 @@ export const ZooPlaygroundGame: React.FC = () => {
       ctx.textBaseline = 'middle';
       ctx.fillText(`My Zoo Playground · ${activeHabitat.label}`, pad + 8, H - footerH / 2 + 2);
 
+      const brandText = "Made in Whit's World";
       ctx.fillStyle = '#8C5B32';
       ctx.font = '800 22px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText("★ Made in Whit's World", W - pad - 8, H - footerH / 2 + 2);
+      const brandWidth = ctx.measureText(brandText).width;
+      ctx.fillText(brandText, W - pad - 8, H - footerH / 2 + 2);
+      drawCanvasStar(ctx, W - pad - 8 - brandWidth - 16, H - footerH / 2 + 1, 10, '#FAD44A');
 
       const blob: Blob | null = await new Promise((resolve) =>
         canvas.toBlob((b) => resolve(b), 'image/png')
@@ -989,7 +982,8 @@ export const ZooPlaygroundGame: React.FC = () => {
       <GameHeader
         totalSteps={0}
         completedSteps={0}
-        centerTitle="🌿 My Zoo Playground"
+        centerTitle="My Zoo Playground"
+        centerIcon="leaf"
       />
 
       {/* Top Habitat Switcher + Party Time + Save Photo */}
@@ -1015,7 +1009,7 @@ export const ZooPlaygroundGame: React.FC = () => {
                     active && styles.habPillActive,
                   ]}
                 >
-                  <Text style={{ fontSize: isTablet ? 16 : 14 }}>{h.emoji}</Text>
+                  <StoryIcon name={h.icon} size={isTablet ? 17 : 15} />
                   <Text
                     style={[
                       styles.habPillText,
@@ -1040,10 +1034,12 @@ export const ZooPlaygroundGame: React.FC = () => {
               style={[
                 styles.partyBtn,
                 partyActive && styles.partyBtnActive,
+                { flexDirection: 'row', alignItems: 'center', gap: 5 },
               ]}
             >
+              <StoryIcon name="party" size={isTablet ? 18 : 16} />
               <Text style={[styles.partyBtnText, isTablet && { fontSize: 15 }]}>
-                🎉 {partyActive ? 'Dancing!' : 'Dance Party!'}
+                {partyActive ? 'Dancing!' : 'Dance Party!'}
               </Text>
             </View>
           </TactileButton>
@@ -1052,9 +1048,10 @@ export const ZooPlaygroundGame: React.FC = () => {
             onPress={handleSavePhoto}
             accessibilityLabel="Save Zoo Playground Photo"
           >
-            <View style={styles.saveBtn}>
+            <View style={[styles.saveBtn, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+              <StoryIcon name="camera" size={isTablet ? 17 : 15} />
               <Text style={[styles.saveBtnText, isTablet && { fontSize: 14 }]}>
-                📸 Save
+                Save
               </Text>
             </View>
           </TactileButton>
@@ -1128,7 +1125,7 @@ export const ZooPlaygroundGame: React.FC = () => {
                 accessibilityLabel="Flip selected sticker"
               >
                 <View style={styles.editChip}>
-                  <Text style={styles.editChipText}>↔️</Text>
+                  <StoryIcon name="flip" size={16} color={COLORS.woodDark} />
                 </View>
               </TactileButton>
               <TactileButton
@@ -1145,7 +1142,7 @@ export const ZooPlaygroundGame: React.FC = () => {
                 accessibilityLabel="Make sticker smaller"
               >
                 <View style={styles.editChip}>
-                  <Text style={styles.editChipText}>➖</Text>
+                  <StoryIcon name="minus" size={16} color={COLORS.woodDark} />
                 </View>
               </TactileButton>
               <TactileButton
@@ -1162,7 +1159,7 @@ export const ZooPlaygroundGame: React.FC = () => {
                 accessibilityLabel="Make sticker bigger"
               >
                 <View style={styles.editChip}>
-                  <Text style={styles.editChipText}>➕</Text>
+                  <StoryIcon name="plus" size={16} color={COLORS.woodDark} />
                 </View>
               </TactileButton>
               <TactileButton
@@ -1176,15 +1173,16 @@ export const ZooPlaygroundGame: React.FC = () => {
                 accessibilityLabel="Remove selected sticker"
               >
                 <View style={[styles.editChip, styles.editChipDanger]}>
-                  <Text style={styles.editChipText}>🗑️</Text>
+                  <StoryIcon name="trash" size={16} />
                 </View>
               </TactileButton>
             </View>
           )}
 
           {savedToast && (
-            <View style={styles.savedToast} pointerEvents="none">
-              <Text style={styles.savedToastText}>📸 Zoo Photo Saved!</Text>
+            <View style={[styles.savedToast, { flexDirection: 'row', alignItems: 'center', gap: 6 }]} pointerEvents="none">
+              <StoryIcon name="camera" size={16} />
+              <Text style={styles.savedToastText}>Zoo Photo Saved!</Text>
             </View>
           )}
         </View>
@@ -1204,15 +1202,17 @@ export const ZooPlaygroundGame: React.FC = () => {
               style={[
                 styles.trayTabBtn,
                 trayTab === 'animals' && styles.trayTabBtnActive,
+                { flexDirection: 'row', alignItems: 'center', gap: 5 },
               ]}
             >
+              <StoryIcon name="lion" size={16} />
               <Text
                 style={[
                   styles.trayTabText,
                   trayTab === 'animals' && styles.trayTabTextActive,
                 ]}
               >
-                🦁 Friends ({unlockedSet.size}/{ALL_ZOO_ANIMALS.length})
+                Friends ({unlockedSet.size}/{ALL_ZOO_ANIMALS.length})
               </Text>
             </View>
           </TactileButton>
@@ -1228,15 +1228,17 @@ export const ZooPlaygroundGame: React.FC = () => {
               style={[
                 styles.trayTabBtn,
                 trayTab === 'props' && styles.trayTabBtnActive,
+                { flexDirection: 'row', alignItems: 'center', gap: 5 },
               ]}
             >
+              <StoryIcon name="rainbow" size={16} />
               <Text
                 style={[
                   styles.trayTabText,
                   trayTab === 'props' && styles.trayTabTextActive,
                 ]}
               >
-                🌈 Toys ({TOY_PROPS.length})
+                Toys ({TOY_PROPS.length})
               </Text>
             </View>
           </TactileButton>
@@ -1281,9 +1283,13 @@ export const ZooPlaygroundGame: React.FC = () => {
                           size={isTablet ? 52 : 42}
                         />
                       </View>
-                      <Text style={styles.trayCardName} numberOfLines={1}>
-                        {unlocked ? label : '🔒'}
-                      </Text>
+                      {unlocked ? (
+                        <Text style={styles.trayCardName} numberOfLines={1}>
+                          {label}
+                        </Text>
+                      ) : (
+                        <StoryIcon name="lock" size={14} />
+                      )}
                     </View>
                   </TactileButton>
                 );

@@ -10,6 +10,7 @@ import {
 import { soundEngine } from '../services/sound';
 import { COLORS } from '../theme';
 import { LockIcon } from './JungleArt';
+import { StoryIcon } from './StorybookIcons';
 import { TactileButton } from './TactileButton';
 
 interface ParentalGateModalProps {
@@ -167,7 +168,7 @@ export const ParentalGateModal: React.FC<ParentalGateModalProps> = ({
               accessibilityLabel="Close parental gate"
             >
               <View style={styles.closeBtn}>
-                <Text style={styles.closeText}>✕</Text>
+                <StoryIcon name="close" size={16} color={COLORS.woodDark} />
               </View>
             </TactileButton>
           </View>

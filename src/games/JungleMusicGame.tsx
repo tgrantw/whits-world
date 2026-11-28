@@ -16,6 +16,7 @@ import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { StarIcon } from '../components/JungleArt';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon, StoryIconName } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
@@ -51,6 +52,7 @@ type SongId = 'twinkle' | 'rowboat' | 'lamb' | 'free';
 interface SongSpec {
   id: SongId;
   title: string;
+  icon?: StoryIconName;
   badgeColor: string;
   notesByDiff: Record<Difficulty, number[]>;
 }
@@ -58,7 +60,8 @@ interface SongSpec {
 const SONGBOOK: SongSpec[] = [
   {
     id: 'twinkle',
-    title: '★ Twinkle',
+    title: 'Twinkle',
+    icon: 'star',
     badgeColor: '#F6CF58',
     notesByDiff: {
       1: [0, 0, 3, 3, 4],
@@ -544,12 +547,14 @@ export const JungleMusicGame: React.FC = () => {
                     style={[
                       styles.songPill,
                       isTablet && styles.songPillTablet,
+                      { flexDirection: 'row', alignItems: 'center', gap: 5 },
                       active && {
                         backgroundColor: song.badgeColor,
                         borderColor: COLORS.woodDark,
                       },
                     ]}
                   >
+                    {song.icon && <StoryIcon name={song.icon} size={isTablet ? 16 : 14} />}
                     <Text
                       style={[
                         styles.songPillText,

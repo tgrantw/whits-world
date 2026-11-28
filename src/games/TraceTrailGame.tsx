@@ -9,6 +9,7 @@ import {
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { SoundIcon } from '../components/JungleArt';
+import { StoryIcon, StoryIconName } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import { WhitMascot } from '../components/WhitMascot';
 import {
@@ -30,7 +31,7 @@ interface GlyphSpec {
   promptPhrase: string;
   celebratePhrase: string;
   animal?: ExhibitAnimalKind;
-  emoji: string;
+  icon?: StoryIconName;
   strokes: Pt[][];
 }
 
@@ -121,7 +122,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Apple',
     promptPhrase: 'Trace A!',
     celebratePhrase: 'A is for Apple!',
-    emoji: '🍎',
+    icon: 'apple',
     strokes: [
       [[50, 14], [22, 86]],
       [[50, 14], [78, 86]],
@@ -134,7 +135,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Banana',
     promptPhrase: 'Trace B!',
     celebratePhrase: 'B is for Banana!',
-    emoji: '🍌',
+    icon: 'banana',
     strokes: [
       [[28, 14], [28, 86]],
       [[28, 14], [52, 14], ...arcPts(52, 32, 22, 18, -90, 90, 16), [28, 50]],
@@ -148,7 +149,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace C!',
     celebratePhrase: 'C is for Cow!',
     animal: 'cow',
-    emoji: '🐄',
     strokes: [arcPts(54, 50, 30, 36, -42, -318, 28)],
   },
   {
@@ -158,7 +158,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace D!',
     celebratePhrase: 'D is for Duck!',
     animal: 'duck',
-    emoji: '🦆',
     strokes: [
       [[28, 14], [28, 86]],
       [[28, 14], [46, 14], ...arcPts(46, 50, 32, 36, -90, 90, 22), [28, 86]],
@@ -171,7 +170,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace E!',
     celebratePhrase: 'E is for Elephant!',
     animal: 'elephant',
-    emoji: '🐘',
     strokes: [
       [[28, 14], [28, 86]],
       [[28, 14], [74, 14]],
@@ -186,7 +184,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace F!',
     celebratePhrase: 'F is for Frog!',
     animal: 'frog',
-    emoji: '🐸',
     strokes: [
       [[30, 14], [30, 86]],
       [[30, 14], [74, 14]],
@@ -200,7 +197,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace G!',
     celebratePhrase: 'G is for Giraffe!',
     animal: 'giraffe',
-    emoji: '🦒',
     strokes: [
       [...arcPts(52, 50, 30, 36, -38, -356, 30), [54, 52]],
     ],
@@ -212,7 +208,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace H!',
     celebratePhrase: 'H is for Hippo!',
     animal: 'hippo',
-    emoji: '🦛',
     strokes: [
       [[26, 14], [26, 86]],
       [[74, 14], [74, 86]],
@@ -225,7 +220,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Ice Cream',
     promptPhrase: 'Trace I!',
     celebratePhrase: 'I is for Ice Cream!',
-    emoji: '🍦',
+    icon: 'icecream',
     strokes: [
       [[50, 14], [50, 86]],
       [[32, 14], [68, 14]],
@@ -238,7 +233,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Jellyfish',
     promptPhrase: 'Trace J!',
     celebratePhrase: 'J is for Jellyfish!',
-    emoji: '🪼',
+    icon: 'jellyfish',
     strokes: [
       [[64, 14], [64, 62], ...arcPts(46, 62, 18, 24, 0, 170, 18)],
       [[38, 14], [76, 14]],
@@ -250,7 +245,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Kite',
     promptPhrase: 'Trace K!',
     celebratePhrase: 'K is for Kite!',
-    emoji: '🪁',
+    icon: 'kite',
     strokes: [
       [[28, 14], [28, 86]],
       [[74, 14], [28, 52]],
@@ -264,7 +259,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace L!',
     celebratePhrase: 'L is for Lion!',
     animal: 'lion',
-    emoji: '🦁',
     strokes: [
       [[30, 14], [30, 86]],
       [[30, 86], [74, 86]],
@@ -277,7 +271,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace M!',
     celebratePhrase: 'M is for Monkey!',
     animal: 'monkey',
-    emoji: '🐵',
     strokes: [
       [[20, 86], [20, 14]],
       [[20, 14], [50, 56], [80, 14]],
@@ -290,7 +283,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Nest',
     promptPhrase: 'Trace N!',
     celebratePhrase: 'N is for Nest!',
-    emoji: '🪺',
+    icon: 'nest',
     strokes: [
       [[24, 86], [24, 14]],
       [[24, 14], [76, 86]],
@@ -304,7 +297,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace O!',
     celebratePhrase: 'O is for Octopus!',
     animal: 'octopus',
-    emoji: '🐙',
     strokes: [arcPts(50, 50, 30, 36, -90, -450, 32)],
   },
   {
@@ -314,7 +306,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace P!',
     celebratePhrase: 'P is for Panda!',
     animal: 'panda',
-    emoji: '🐼',
     strokes: [
       [[28, 14], [28, 86]],
       [[28, 14], [52, 14], ...arcPts(52, 34, 24, 20, -90, 90, 18), [28, 54]],
@@ -326,7 +317,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Queen Crown',
     promptPhrase: 'Trace Q!',
     celebratePhrase: 'Q is for Queen Crown!',
-    emoji: '👑',
+    icon: 'crown',
     strokes: [
       arcPts(50, 48, 29, 34, -90, -450, 32),
       [[56, 62], [78, 88]],
@@ -338,7 +329,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Rainbow',
     promptPhrase: 'Trace R!',
     celebratePhrase: 'R is for Rainbow!',
-    emoji: '🌈',
+    icon: 'rainbow',
     strokes: [
       [[28, 14], [28, 86]],
       [[28, 14], [52, 14], ...arcPts(52, 33, 22, 19, -90, 90, 18), [28, 52]],
@@ -352,7 +343,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace S!',
     celebratePhrase: 'S is for Sheep!',
     animal: 'sheep',
-    emoji: '🐑',
     strokes: [
       [
         ...arcPts(50, 32, 23, 18, -28, -265, 18),
@@ -367,7 +357,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace T!',
     celebratePhrase: 'T is for Tiger!',
     animal: 'tiger',
-    emoji: '🐯',
     strokes: [
       [[50, 14], [50, 86]],
       [[20, 14], [80, 14]],
@@ -379,7 +368,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Umbrella',
     promptPhrase: 'Trace U!',
     celebratePhrase: 'U is for Umbrella!',
-    emoji: '☂️',
+    icon: 'umbrella',
     strokes: [
       [[24, 14], [24, 58], ...arcPts(50, 58, 26, 28, 180, 0, 20), [76, 14]],
     ],
@@ -390,7 +379,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Vine',
     promptPhrase: 'Trace V!',
     celebratePhrase: 'V is for Vine!',
-    emoji: '🌿',
+    icon: 'leaf',
     strokes: [
       [[22, 14], [50, 86], [78, 14]],
     ],
@@ -402,7 +391,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace W!',
     celebratePhrase: 'W is for Whale!',
     animal: 'whale',
-    emoji: '🐋',
     strokes: [
       [[14, 16], [30, 86], [50, 40], [70, 86], [86, 16]],
     ],
@@ -413,7 +401,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Xylophone',
     promptPhrase: 'Trace X!',
     celebratePhrase: 'X is for Xylophone!',
-    emoji: '🎵',
+    icon: 'xylophone',
     strokes: [
       [[24, 14], [76, 86]],
       [[76, 14], [24, 86]],
@@ -425,7 +413,7 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     word: 'Yo-Yo',
     promptPhrase: 'Trace Y!',
     celebratePhrase: 'Y is for Yo-Yo!',
-    emoji: '🪀',
+    icon: 'yoyo',
     strokes: [
       [[22, 14], [50, 50]],
       [[78, 14], [50, 50]],
@@ -439,7 +427,6 @@ const LETTER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace Z!',
     celebratePhrase: 'Z is for Zebra!',
     animal: 'zebra',
-    emoji: '🦓',
     strokes: [
       [[22, 16], [78, 16], [22, 84], [78, 84]],
     ],
@@ -455,7 +442,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 1!',
     celebratePhrase: 'One',
     animal: 'lion',
-    emoji: '⭐',
     strokes: [
       [[38, 26], [52, 14], [52, 86]],
       [[34, 86], [70, 86]],
@@ -468,7 +454,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 2!',
     celebratePhrase: 'Two',
     animal: 'duck',
-    emoji: '⭐⭐',
     strokes: [
       [...arcPts(50, 34, 24, 20, -165, 38, 20), [24, 86], [78, 86]],
     ],
@@ -480,7 +465,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 3!',
     celebratePhrase: 'Three',
     animal: 'frog',
-    emoji: '⭐⭐⭐',
     strokes: [
       [
         ...arcPts(48, 32, 23, 18, -155, 92, 18),
@@ -495,7 +479,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 4!',
     celebratePhrase: 'Four',
     animal: 'elephant',
-    emoji: '4️⃣',
     strokes: [
       [[58, 14], [22, 62], [78, 62]],
       [[60, 14], [60, 86]],
@@ -508,7 +491,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 5!',
     celebratePhrase: 'Five',
     animal: 'monkey',
-    emoji: '5️⃣',
     strokes: [
       [[72, 14], [32, 14]],
       [[32, 14], [28, 48], ...arcPts(48, 66, 25, 20, -135, 155, 20)],
@@ -521,7 +503,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 6!',
     celebratePhrase: 'Six',
     animal: 'penguin',
-    emoji: '6️⃣',
     strokes: [
       [
         ...arcPts(56, 36, 26, 22, -45, -180, 14),
@@ -537,7 +518,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 7!',
     celebratePhrase: 'Seven',
     animal: 'giraffe',
-    emoji: '7️⃣',
     strokes: [
       [[24, 16], [76, 16], [40, 86]],
     ],
@@ -549,7 +529,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 8!',
     celebratePhrase: 'Eight',
     animal: 'octopus',
-    emoji: '8️⃣',
     strokes: [
       [
         ...arcPts(50, 32, 21, 18, -90, -270, 16),
@@ -566,7 +545,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 9!',
     celebratePhrase: 'Nine',
     animal: 'panda',
-    emoji: '9️⃣',
     strokes: [
       [
         ...arcPts(50, 34, 23, 20, 0, -360, 24),
@@ -583,7 +561,6 @@ const NUMBER_GLYPHS: GlyphSpec[] = [
     promptPhrase: 'Trace 10!',
     celebratePhrase: 'Ten',
     animal: 'whale',
-    emoji: '🔟',
     strokes: [
       [[18, 28], [28, 16], [28, 84]],
       arcPts(66, 50, 21, 34, -90, -450, 28),
@@ -1353,9 +1330,9 @@ export const TraceTrailGame: React.FC = () => {
                 animal={activeGlyph.animal}
                 size={isTablet ? 32 : 26}
               />
-            ) : (
-              <Text style={{ fontSize: isTablet ? 22 : 18 }}>{activeGlyph.emoji}</Text>
-            )}
+            ) : activeGlyph.icon ? (
+              <StoryIcon name={activeGlyph.icon} size={isTablet ? 26 : 22} />
+            ) : null}
           </View>
         </TactileButton>
 
@@ -1368,7 +1345,7 @@ export const TraceTrailGame: React.FC = () => {
           accessibilityLabel="Reset current trace"
         >
           <View style={styles.resetBtn}>
-            <Text style={[styles.resetText, isTablet && { fontSize: 15 }]}>↺</Text>
+            <StoryIcon name="undo" size={isTablet ? 18 : 16} color={COLORS.woodDark} />
           </View>
         </TactileButton>
       </View>
@@ -1417,11 +1394,9 @@ export const TraceTrailGame: React.FC = () => {
                     animal={activeGlyph.animal}
                     size={isTablet ? 44 : 36}
                   />
-                ) : (
-                  <Text style={{ fontSize: isTablet ? 28 : 24 }}>
-                    {activeGlyph.emoji}
-                  </Text>
-                )}
+                ) : activeGlyph.icon ? (
+                  <StoryIcon name={activeGlyph.icon} size={isTablet ? 34 : 28} />
+                ) : null}
                 <Text style={[styles.doneBannerText, isTablet && { fontSize: 22 }]}>
                   {topic === 'letters'
                     ? `${activeGlyph.label} is for ${activeGlyph.word}!`
@@ -1481,9 +1456,9 @@ export const TraceTrailGame: React.FC = () => {
                     ]}
                   >
                     {c.isRainbow ? (
-                      <Text style={{ fontSize: isTablet ? 22 : 18 }}>🌈</Text>
+                      <StoryIcon name="rainbow" size={isTablet ? 24 : 20} />
                     ) : selected ? (
-                      <Text style={styles.dotCheck}>✓</Text>
+                      <StoryIcon name="check" size={isTablet ? 18 : 15} color="#FFFFFF" />
                     ) : null}
                   </View>
                 </TactileButton>
@@ -1532,7 +1507,7 @@ export const TraceTrailGame: React.FC = () => {
                   </Text>
                   {done && (
                     <View style={styles.doneTick}>
-                      <Text style={styles.doneTickText}>★</Text>
+                      <StoryIcon name="star" size={11} />
                     </View>
                   )}
                 </View>

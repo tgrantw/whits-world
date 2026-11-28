@@ -12,6 +12,7 @@ import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
 import { SnapBurst } from '../components/SnapBurst';
+import { StoryIcon, StoryIconName } from '../components/StorybookIcons';
 import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
@@ -566,12 +567,13 @@ function resolveDomElement(node: unknown): HTMLElement | null {
 const TOPIC_META: {
   id: LineMatchTopic;
   gameId: GameId;
+  icon: StoryIconName;
   label: string;
   backdrop: ImageSourcePropType;
 }[] = [
-  { id: 'colors', gameId: 'color-line-match', label: '🎨 Colors', backdrop: STORYBOOK_ASSETS.bgSavanna },
-  { id: 'numbers', gameId: 'number-line-match', label: '🔢 Numbers', backdrop: STORYBOOK_ASSETS.bgClearing },
-  { id: 'letters', gameId: 'letter-line-match', label: '🔤 Letters', backdrop: STORYBOOK_ASSETS.bgSanctuary },
+  { id: 'colors', gameId: 'color-line-match', icon: 'palette', label: 'Colors', backdrop: STORYBOOK_ASSETS.bgSavanna },
+  { id: 'numbers', gameId: 'number-line-match', icon: 'numbers', label: 'Numbers', backdrop: STORYBOOK_ASSETS.bgClearing },
+  { id: 'letters', gameId: 'letter-line-match', icon: 'abc', label: 'Letters', backdrop: STORYBOOK_ASSETS.bgSanctuary },
 ];
 
 interface LineMatchGameProps {
@@ -847,7 +849,7 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
       setSelectedStart(null);
       setActiveCardHighlight(null);
       setBurstId({ id: pair.id, tick: Date.now() });
-      setFeedbackText(`⭐ ${pair.speakMatch} ⭐`);
+      setFeedbackText(pair.speakMatch);
       redrawCanvas();
 
       if (nextMatched.length >= boardRef.current.leftItems.length) {
@@ -1234,13 +1236,6 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
             const isFreeTopic = meta?.isFree ?? tm.id === 'colors';
             const lockedTopic = !isFreeTopic && !isUnlocked;
             const sampleAvail = lockedTopic && canPlayFreeSample(tm.gameId);
-            const suffix = active
-              ? ''
-              : sampleAvail
-              ? ' 🎁'
-              : lockedTopic
-              ? ' 🔒'
-              : '';
 
             return (
               <TactileButton
@@ -1251,15 +1246,27 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                 }}
                 accessibilityLabel={`Switch to ${tm.label} line matching`}
               >
-                <View style={[styles.topicPill, active && styles.topicPillActive]}>
+                <View
+                  style={[
+                    styles.topicPill,
+                    active && styles.topicPillActive,
+                    { flexDirection: 'row', alignItems: 'center', gap: 5 },
+                  ]}
+                >
+                  <StoryIcon name={tm.icon} size={15} />
                   <Text
                     style={[
                       styles.topicPillText,
                       active && styles.topicPillTextActive,
                     ]}
                   >
-                    {tm.label}{suffix}
+                    {tm.label}
                   </Text>
+                  {!active && sampleAvail ? (
+                    <StoryIcon name="gift" size={14} />
+                  ) : !active && lockedTopic ? (
+                    <StoryIcon name="lock" size={14} />
+                  ) : null}
                 </View>
               </TactileButton>
             );
@@ -1269,15 +1276,17 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
 
       {/* Brief encouraging instruction / celebration pill */}
       <View style={styles.captionWrap}>
-        <View style={styles.captionPill}>
+        <View style={[styles.captionPill, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+          <StoryIcon name={feedbackText ? 'star' : 'crayon'} size={16} />
           <Text style={styles.captionText}>
             {feedbackText ||
               (topic === 'colors'
-                ? '🖍️ Draw a line or tap to match each color!'
+                ? 'Draw a line or tap to match each color!'
                 : topic === 'numbers'
-                ? '🖍️ Draw a line or tap to match each number!'
-                : '🖍️ Draw a line or tap to match each letter!')}
+                ? 'Draw a line or tap to match each number!'
+                : 'Draw a line or tap to match each letter!')}
           </Text>
+          {feedbackText ? <StoryIcon name="star" size={16} /> : null}
         </View>
       </View>
 

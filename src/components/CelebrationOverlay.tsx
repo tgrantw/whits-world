@@ -13,6 +13,7 @@ import { soundEngine } from '../services/sound';
 import { COLORS, GAMES, getAnimalDisplayName } from '../theme';
 import { CrownIcon, HomeIcon, PlayNextIcon, StarIcon } from './JungleArt';
 import { SnapBurst } from './SnapBurst';
+import { StoryIcon } from './StorybookIcons';
 import { TactileButton } from './TactileButton';
 import { WHIT_ACCESSORIES, WhitAccessorySvg } from './WhitAccessories';
 import { WhitMascot } from './WhitMascot';
@@ -445,7 +446,10 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.unlockRewardEyebrow}>🎁 NEW SURPRISE!</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <StoryIcon name="gift" size={14} />
+                  <Text style={styles.unlockRewardEyebrow}>NEW SURPRISE!</Text>
+                </View>
                 <Text style={styles.unlockRewardTitle} numberOfLines={1}>
                   {unlockedHatMeta.label}
                 </Text>
@@ -458,15 +462,19 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
                   style={[
                     styles.wearBtn,
                     wearingUnlockedHat && styles.wearBtnEquipped,
+                    { flexDirection: 'row', alignItems: 'center', gap: 4 },
                   ]}
                 >
+                  {wearingUnlockedHat && (
+                    <StoryIcon name="check" size={13} color="#195428" />
+                  )}
                   <Text
                     style={[
                       styles.wearBtnText,
                       wearingUnlockedHat && { color: '#195428' },
                     ]}
                   >
-                    {wearingUnlockedHat ? '✓ On!' : 'Wear It!'}
+                    {wearingUnlockedHat ? 'On!' : 'Wear It!'}
                   </Text>
                 </View>
               </TactileButton>
@@ -480,9 +488,12 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
                 size={isTablet ? 44 : 36}
               />
               <View style={{ flex: 1 }}>
-                <Text style={styles.stickerRewardEyebrow}>
-                  🌟 NEW ZOO STICKER!
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <StoryIcon name="star" size={14} />
+                  <Text style={styles.stickerRewardEyebrow}>
+                    NEW ZOO STICKER!
+                  </Text>
+                </View>
                 <Text style={styles.unlockRewardTitle} numberOfLines={1}>
                   {getAnimalDisplayName(newStickerKind)} Joined Your Album!
                 </Text>
