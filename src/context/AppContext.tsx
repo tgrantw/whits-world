@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Platform } from 'react-native';
+import { BackHandler, Platform } from 'react-native';
 import {
   isAccessoryUnlocked,
   WHIT_ACCESSORIES,
@@ -518,6 +518,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setLatestCollectedSticker(null);
     setActiveGame(null);
   }, [markSampleUsedFor]);
+
+  // Browser / Android Back-button history sync: closes open modals or returns to Home cleanly
+  const starJarRef = useRef(false);
+  starJarRef.current = starJarVisible;
+  const parentGateRef = useRef(false);
+  parentGateRef.current = parentGateVisible;
+  const paywallRef = useRef(false);
+  paywallRef.current = paywallVisible;
+  const historyGuardActiveRef = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.location.hash) {
+        window.history.replaceState(
+          null,
+          '',
+          window.location.pathname + window.location.search
+        );
+      }
+      const onPopState = () => {
+        historyGuardActiveRef.current = false;
+        if (paywallRef.current) {
+          closePaywall();
+        } else if (parentGateRef.current) {
+          closeParentGate();
+        } else if (starJarRef.current) {
+          closeStarJar();
+        } else if (activeGameRef.current) {
+          goHome();
+        }
+      };
+      window.addEventListener('popstate', onPopState);
+      return () => window.removeEventListener('popstate', onPopState);
+    }
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (paywallRef.current) {
+        closePaywall();
+        return true;
+      }
+      if (parentGateRef.current) {
+        closeParentGate();
+        return true;
+      }
+      if (starJarRef.current) {
+        closeStarJar();
+        return true;
+      }
+      if (activeGameRef.current) {
+        goHome();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [closeParentGate, closePaywall, closeStarJar, goHome]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const desiredHash = paywallVisible
+      ? '#parents'
+      : parentGateVisible
+      ? '#gate'
+      : starJarVisible
+      ? '#toybox'
+      : activeGame
+      ? `#game=${activeGame}`
+      : '';
+
+    if (desiredHash) {
+      if (!historyGuardActiveRef.current) {
+        window.history.pushState({ wwGuard: true }, '', desiredHash);
+        historyGuardActiveRef.current = true;
+      } else if (window.location.hash !== desiredHash) {
+        window.history.replaceState({ wwGuard: true }, '', desiredHash);
+      }
+    } else if (window.location.hash) {
+      window.history.replaceState(
+        window.history.state,
+        '',
+        window.location.pathname + window.location.search
+      );
+    }
+  }, [activeGame, parentGateVisible, paywallVisible, starJarVisible]);
 
   const handlePurchaseUnlockAll = useCallback(async () => {
     setIsPurchasing(true);

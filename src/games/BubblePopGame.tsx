@@ -11,9 +11,9 @@ import {
 import Svg, {
   Circle,
   Defs,
+  Ellipse,
   LinearGradient,
   Path,
-  RadialGradient,
   Stop,
 } from 'react-native-svg';
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
@@ -431,29 +431,24 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
             pointerEvents="none"
           >
             <Defs>
-              <RadialGradient id={`bub-${uid}`} cx="34%" cy="28%" r="68%">
-                <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.94" />
+              <LinearGradient id={`bub-${uid}`} x1="0.18" y1="0.12" x2="0.86" y2="0.92">
+                <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.88" />
                 <Stop
-                  offset="0.42"
+                  offset="0.45"
                   stopColor={
                     isGolden ? '#FFF3B0' : isRainbow ? '#FFE6FA' : bubble.tint
                   }
-                  stopOpacity={isGolden ? '0.62' : '0.48'}
+                  stopOpacity={isGolden ? '0.62' : '0.46'}
                 />
                 <Stop
-                  offset="0.78"
+                  offset="0.82"
                   stopColor={
                     isGolden ? '#FFD452' : isRainbow ? '#9CEBFF' : bubble.rimTint
                   }
-                  stopOpacity={isGolden ? '0.52' : '0.46'}
+                  stopOpacity={isGolden ? '0.54' : '0.48'}
                 />
-                <Stop
-                  offset="0.94"
-                  stopColor={isRainbow ? '#FFE08A' : '#FFE8B5'}
-                  stopOpacity="0.62"
-                />
-                <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.94" />
-              </RadialGradient>
+                <Stop offset="1" stopColor="#FFF6D6" stopOpacity="0.78" />
+              </LinearGradient>
               <LinearGradient id={`rim-${uid}`} x1="0" y1="0" x2="1" y2="1">
                 <Stop
                   offset="0"
@@ -497,6 +492,15 @@ const FloatingBubble: React.FC<FloatingBubbleProps> = ({
               fill={`url(#bub-${uid})`}
               stroke={highlighted ? '#FFE066' : `url(#rim-${uid})`}
               strokeWidth={isRainbow || isGolden ? 4.8 : highlighted ? 5 : 3.5}
+            />
+            <Ellipse
+              cx="45"
+              cy="38"
+              rx="24"
+              ry="16"
+              fill="#FFFFFF"
+              opacity="0.28"
+              transform="rotate(-24 45 38)"
             />
             {/* Glossy curved upper crescent highlight */}
             <Path

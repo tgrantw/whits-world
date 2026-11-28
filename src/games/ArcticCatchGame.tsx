@@ -1,32 +1,8 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import {
-  Animated,
-  Image,
-  PanResponder,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  G,
-  LinearGradient,
-  Path,
-  RadialGradient,
-  Rect,
-  Stop,
-} from 'react-native-svg';
-import { STORYBOOK_ASSETS } from '../assets/assetMap';
-import {
-  AnimatedZooAnimal,
-  getAnimalWeight,
-} from '../components/AnimatedZooAnimal';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import { STORYBOOK_ANIMALS, STORYBOOK_ASSETS } from '../assets/assetMap';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { GameHeader } from '../components/GameHeader';
-import { SnapBurst } from '../components/SnapBurst';
 import { TactileButton } from '../components/TactileButton';
 import {
   ExhibitAnimalKind,
@@ -68,14 +44,41 @@ interface SnowFlake {
   phase: number;
 }
 
-interface FloatingPop {
-  id: number;
+interface CanvasBurstParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  color: string;
+  age: number;
+  maxAge: number;
+}
+
+interface CanvasPopBadge {
   x: number;
   y: number;
   kind: 'fish' | 'gold' | 'snow';
+  age: number;
+  duration: number;
 }
 
 const INK = '#4A3525';
+
+function getWebAssetUri(asset: unknown): string | null {
+  if (!asset) return null;
+  if (typeof asset === 'string') return asset;
+  if (typeof asset === 'number') {
+    const resolved = Image.resolveAssetSource?.(asset);
+    if (resolved?.uri) return resolved.uri;
+  }
+  if (typeof asset === 'object') {
+    const obj = asset as { uri?: string; default?: string };
+    if (typeof obj.uri === 'string') return obj.uri;
+    if (typeof obj.default === 'string') return obj.default;
+  }
+  return null;
+}
 
 function getDifficultyConfig(difficulty: Difficulty) {
   if (difficulty === 1) {
@@ -114,13 +117,75 @@ function getDifficultyConfig(difficulty: Difficulty) {
   };
 }
 
-/** Hand-painted watercolor & gouache smiling arctic fish */
-const ArcticFishSvg: React.FC<{
-  kind: 'fishBlue' | 'fishCoral' | 'fishGold';
-  size: number;
-}> = ({ kind, size }) => {
-  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+function drawCoverBackdrop(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement | undefined,
+  w: number,
+  h: number
+) {
+  if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const boxRatio = w / h;
+    let drawW = w;
+    let drawH = h;
+    let ox = 0;
+    let oy = 0;
+    if (boxRatio > imgRatio) {
+      drawW = w;
+      drawH = w / imgRatio;
+      oy = (h - drawH) * 0.5;
+    } else {
+      drawH = h;
+      drawW = h * imgRatio;
+      ox = (w - drawW) * 0.5;
+    }
+    ctx.drawImage(img, ox, oy, drawW, drawH);
+  } else {
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#CBEBF7');
+    sky.addColorStop(0.58, '#EAF7FC');
+    sky.addColorStop(1, '#79C0DB');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+  }
 
+  // Soft upper sky readability veil
+  const veil = ctx.createLinearGradient(0, 0, 0, h);
+  veil.addColorStop(0, 'rgba(215, 239, 248, 0.44)');
+  veil.addColorStop(0.24, 'rgba(245, 250, 252, 0.08)');
+  veil.addColorStop(0.65, 'rgba(125, 198, 223, 0.04)');
+  veil.addColorStop(1, 'rgba(75, 159, 194, 0.26)');
+  ctx.fillStyle = veil;
+  ctx.fillRect(0, 0, w, h);
+}
+
+function drawStarPolygon(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  outerR: number,
+  innerR: number
+) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const ang = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 === 0 ? outerR : innerR;
+    const px = cx + Math.cos(ang) * r;
+    const py = cy + Math.sin(ang) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function drawArcticFish(
+  ctx: CanvasRenderingContext2D,
+  kind: 'fishBlue' | 'fishCoral' | 'fishGold',
+  cx: number,
+  cy: number,
+  size: number,
+  rotDeg: number
+) {
   const palette =
     kind === 'fishBlue'
       ? {
@@ -128,7 +193,7 @@ const ArcticFishSvg: React.FC<{
           mid: '#56B0D2',
           belly: '#ECF9FF',
           fin: '#EE8B6B',
-          glow: 'rgba(132, 212, 236, 0.3)',
+          glow: 'rgba(132, 212, 236, 0.30)',
         }
       : kind === 'fishCoral'
       ? {
@@ -136,7 +201,7 @@ const ArcticFishSvg: React.FC<{
           mid: '#E07554',
           belly: '#FFF5E0',
           fin: '#F8D459',
-          glow: 'rgba(245, 161, 126, 0.3)',
+          glow: 'rgba(245, 161, 126, 0.30)',
         }
       : {
           top: '#FFE985',
@@ -146,207 +211,273 @@ const ArcticFishSvg: React.FC<{
           glow: 'rgba(255, 226, 98, 0.56)',
         };
 
-  return (
-    <Svg width={size} height={size} viewBox="0 0 88 88">
-      <Defs>
-        <LinearGradient id={`fishBody-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={palette.top} />
-          <Stop offset="0.62" stopColor={palette.mid} />
-          <Stop offset="1" stopColor={palette.belly} />
-        </LinearGradient>
-      </Defs>
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((rotDeg * Math.PI) / 180);
+  const s = size / 88;
+  ctx.scale(s, s);
+  ctx.translate(-44, -44);
 
-      {/* Soft sunlit halo behind the fish (extra warm for golden fish) */}
-      <Circle cx="44" cy="44" r={kind === 'fishGold' ? 39 : 34} fill={palette.glow} />
+  // Soft sunlit halo behind the fish
+  ctx.fillStyle = palette.glow;
+  ctx.beginPath();
+  ctx.arc(44, 44, kind === 'fishGold' ? 39 : 34, 0, Math.PI * 2);
+  ctx.fill();
 
-      {/* Cute tail fin */}
-      <Path
-        d="M 22 44 L 8 30 Q 12 44 8 58 Z"
-        fill={palette.fin}
-        stroke={INK}
-        strokeWidth="2.8"
-        strokeLinejoin="round"
-      />
+  // Tail fin
+  ctx.fillStyle = palette.fin;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.8;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(22, 44);
+  ctx.lineTo(8, 30);
+  ctx.quadraticCurveTo(12, 44, 8, 58);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-      {/* Dorsal fin */}
-      <Path
-        d="M 38 26 Q 48 14 58 26 Z"
-        fill={palette.fin}
-        stroke={INK}
-        strokeWidth="2.6"
-        strokeLinejoin="round"
-      />
+  // Dorsal fin
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.moveTo(38, 26);
+  ctx.quadraticCurveTo(48, 14, 58, 26);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-      {/* Plump storybook fish body */}
-      <Path
-        d="M 20 44 C 24 25 56 21 74 41 C 77 44 77 46 74 49 C 56 67 24 63 20 44 Z"
-        fill={`url(#fishBody-${uid})`}
-        stroke={INK}
-        strokeWidth="3"
-        strokeLinejoin="round"
-      />
+  // Plump storybook fish body
+  const bodyGrad = ctx.createLinearGradient(0, 22, 0, 66);
+  bodyGrad.addColorStop(0, palette.top);
+  bodyGrad.addColorStop(0.62, palette.mid);
+  bodyGrad.addColorStop(1, palette.belly);
+  ctx.fillStyle = bodyGrad;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(20, 44);
+  ctx.bezierCurveTo(24, 25, 56, 21, 74, 41);
+  ctx.bezierCurveTo(77, 44, 77, 46, 74, 49);
+  ctx.bezierCurveTo(56, 67, 24, 63, 20, 44);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-      {/* Soft painted belly highlight */}
-      <Ellipse cx="48" cy="36" rx="14" ry="4.8" fill="#FFFFFF" opacity="0.34" />
+  // Soft belly sheen
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.34)';
+  ctx.beginPath();
+  ctx.ellipse(48, 36, 14, 4.8, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-      {/* Delicate scale arcs */}
-      <Path
-        d="M 38 40 Q 42 44 38 48 M 46 39 Q 50 44 46 49"
-        stroke="rgba(255, 255, 255, 0.52)"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-        fill="none"
-      />
+  // Delicate scale arcs
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.52)';
+  ctx.lineWidth = 2.1;
+  ctx.beginPath();
+  ctx.moveTo(38, 40);
+  ctx.quadraticCurveTo(42, 44, 38, 48);
+  ctx.moveTo(46, 39);
+  ctx.quadraticCurveTo(50, 44, 46, 49);
+  ctx.stroke();
 
-      {/* Side pectoral fin */}
-      <Path
-        d="M 44 49 Q 36 58 46 61 Q 53 55 44 49 Z"
-        fill={palette.fin}
-        stroke={INK}
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
+  // Side pectoral fin
+  ctx.fillStyle = palette.fin;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(44, 49);
+  ctx.quadraticCurveTo(36, 58, 46, 61);
+  ctx.quadraticCurveTo(53, 55, 44, 49);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-      {/* Happy eye + rosy cheek + tiny smile */}
-      <Circle cx="61" cy="41" r="4.2" fill={INK} />
-      <Circle cx="62.4" cy="39.5" r="1.5" fill="#FFFFFF" />
-      <Ellipse cx="57" cy="47.5" rx="3.4" ry="2" fill="#F4939E" opacity="0.72" />
-      <Path
-        d="M 65 48 Q 68.5 50 71 47.5"
-        stroke={INK}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        fill="none"
-      />
+  // Happy eye + rosy cheek + tiny smile
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.arc(61, 41, 4.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.arc(62.4, 39.5, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(244, 147, 158, 0.72)';
+  ctx.beginPath();
+  ctx.ellipse(57, 47.5, 3.4, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-      {/* Golden star sparkles for bonus golden fish */}
-      {kind === 'fishGold' && (
-        <G>
-          <Path
-            d="M 18 17 L 20 22 L 25 24 L 20 26 L 18 31 L 16 26 L 11 24 L 16 22 Z"
-            fill="#FFFDF0"
-            stroke="#C98A1A"
-            strokeWidth="1.2"
-          />
-          <Circle cx="72" cy="22" r="3" fill="#FFFDF0" opacity="0.92" />
-        </G>
-      )}
-    </Svg>
-  );
-};
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(65, 48);
+  ctx.quadraticCurveTo(68.5, 50, 71, 47.5);
+  ctx.stroke();
 
-/** Playful frosty snowball for Hard mode (never punishes, just makes buddy wiggle & giggle!) */
-const PlayfulSnowballSvg: React.FC<{ size: number }> = ({ size }) => {
-  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
-  return (
-    <Svg width={size} height={size} viewBox="0 0 80 80">
-      <Defs>
-        <RadialGradient id={`snow-${uid}`} cx="36%" cy="32%" r="68%">
-          <Stop offset="0" stopColor="#FFFFFF" />
-          <Stop offset="0.65" stopColor="#E4F4FC" />
-          <Stop offset="1" stopColor="#B6DCEB" />
-        </RadialGradient>
-      </Defs>
-      <Circle cx="40" cy="40" r="34" fill="rgba(182, 224, 245, 0.34)" />
-      <Circle
-        cx="40"
-        cy="40"
-        r="24"
-        fill={`url(#snow-${uid})`}
-        stroke="#5A7A8C"
-        strokeWidth="2.8"
-      />
-      {/* Cute mischievous frosty face */}
-      <Circle cx="32.5" cy="38" r="2.7" fill="#3B5566" />
-      <Circle cx="47.5" cy="38" r="2.7" fill="#3B5566" />
-      <Path
-        d="M 35 45 Q 40 49 45 45"
-        stroke="#3B5566"
-        strokeWidth="2.3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <Ellipse cx="28" cy="43" rx="3" ry="1.8" fill="#F29DB0" opacity="0.7" />
-      <Ellipse cx="52" cy="43" rx="3" ry="1.8" fill="#F29DB0" opacity="0.7" />
-      {/* Frosty highlight */}
-      <Ellipse cx="32" cy="27" rx="7" ry="3.5" fill="#FFFFFF" opacity="0.85" transform="rotate(-22 32 27)" />
-    </Svg>
-  );
-};
+  if (kind === 'fishGold') {
+    ctx.fillStyle = '#FFFDF0';
+    ctx.strokeStyle = '#C98A1A';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(18, 17);
+    ctx.lineTo(20, 22);
+    ctx.lineTo(25, 24);
+    ctx.lineTo(20, 26);
+    ctx.lineTo(18, 31);
+    ctx.lineTo(16, 26);
+    ctx.lineTo(11, 24);
+    ctx.lineTo(16, 22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
 
-/** Sculpted watercolor ice floe sled with gentle aqua water ripples */
-const IceFloeSledSvg: React.FC<{ width: number; height: number }> = ({
-  width,
-  height,
-}) => {
-  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
-  return (
-    <Svg width={width} height={height} viewBox="0 0 210 76">
-      <Defs>
-        <LinearGradient id={`iceTop-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#FFFFFF" />
-          <Stop offset="1" stopColor="#E5F6FC" />
-        </LinearGradient>
-        <LinearGradient id={`iceSide-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#A9DBEC" />
-          <Stop offset="1" stopColor="#77B9D1" />
-        </LinearGradient>
-      </Defs>
+    ctx.fillStyle = 'rgba(255, 253, 240, 0.92)';
+    ctx.beginPath();
+    ctx.arc(72, 22, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
-      {/* Shimmering aqua water reflection & side wake ripples */}
-      <Ellipse cx="105" cy="60" rx="96" ry="13" fill="rgba(42, 114, 148, 0.24)" />
-      <Path
-        d="M 12 58 Q 34 65 56 60 M 154 60 Q 176 65 198 58"
-        stroke="rgba(255, 255, 255, 0.62)"
-        strokeWidth="2.8"
-        strokeLinecap="round"
-        fill="none"
-      />
+  ctx.restore();
+}
 
-      {/* Chunky glacier-blue ice floe side wall */}
-      <Path
-        d="M 18 32 L 26 52 Q 105 66 184 52 L 192 32 Z"
-        fill={`url(#iceSide-${uid})`}
-        stroke={INK}
-        strokeWidth="3.2"
-        strokeLinejoin="round"
-      />
+function drawPlayfulSnowball(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  rotDeg: number
+) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((rotDeg * Math.PI) / 180);
+  const s = size / 80;
+  ctx.scale(s, s);
+  ctx.translate(-40, -40);
 
-      {/* Crisp snow-white faceted ice floe deck */}
-      <Path
-        d="M 16 32 Q 36 16 105 16 Q 174 16 194 32 Q 172 48 105 49 Q 38 48 16 32 Z"
-        fill={`url(#iceTop-${uid})`}
-        stroke={INK}
-        strokeWidth="3.2"
-        strokeLinejoin="round"
-      />
+  ctx.fillStyle = 'rgba(182, 224, 245, 0.34)';
+  ctx.beginPath();
+  ctx.arc(40, 40, 34, 0, Math.PI * 2);
+  ctx.fill();
 
-      {/* Subtle crystalline facet highlight lines */}
-      <Path
-        d="M 46 28 Q 76 22 108 24 M 134 25 Q 158 26 172 31"
-        stroke="#FFFFFF"
-        strokeWidth="3.2"
-        strokeLinecap="round"
-        opacity="0.9"
-        fill="none"
-      />
-      <Path
-        d="M 60 47 L 58 55 M 148 47 L 150 55"
-        stroke="rgba(255, 255, 255, 0.55)"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-};
+  const snowGrad = ctx.createLinearGradient(22, 18, 58, 62);
+  snowGrad.addColorStop(0, '#FFFFFF');
+  snowGrad.addColorStop(0.65, '#E4F4FC');
+  snowGrad.addColorStop(1, '#B6DCEB');
+  ctx.fillStyle = snowGrad;
+  ctx.strokeStyle = '#5A7A8C';
+  ctx.lineWidth = 2.8;
+  ctx.beginPath();
+  ctx.arc(40, 40, 24, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
 
-/** Woven wooden arctic fish basket that visually fills with colorful fish tails! */
-const FishBasketSvg: React.FC<{
-  width: number;
-  height: number;
-  caughtCount: number;
-}> = ({ width, height, caughtCount }) => {
-  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  // Mischievous frosty face
+  ctx.fillStyle = '#3B5566';
+  ctx.beginPath();
+  ctx.arc(32.5, 38, 2.7, 0, Math.PI * 2);
+  ctx.arc(47.5, 38, 2.7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#3B5566';
+  ctx.lineWidth = 2.3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(35, 45);
+  ctx.quadraticCurveTo(40, 49, 45, 45);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(242, 157, 176, 0.70)';
+  ctx.beginPath();
+  ctx.ellipse(28, 43, 3, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(52, 43, 3, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.beginPath();
+  ctx.ellipse(32, 27, 7, 3.5, (-22 * Math.PI) / 180, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawIceFloeSled(
+  ctx: CanvasRenderingContext2D,
+  sledW: number,
+  sledH: number
+) {
+  ctx.save();
+  const sx = sledW / 210;
+  const sy = sledH / 76;
+  ctx.scale(sx, sy);
+  ctx.translate(-105, -38);
+
+  // Shimmering aqua water reflection & side wake ripples
+  ctx.fillStyle = 'rgba(42, 114, 148, 0.24)';
+  ctx.beginPath();
+  ctx.ellipse(105, 60, 96, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.62)';
+  ctx.lineWidth = 2.8;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(12, 58);
+  ctx.quadraticCurveTo(34, 65, 56, 60);
+  ctx.moveTo(154, 60);
+  ctx.quadraticCurveTo(176, 65, 198, 58);
+  ctx.stroke();
+
+  // Glacier-blue side wall
+  const sideGrad = ctx.createLinearGradient(0, 32, 0, 62);
+  sideGrad.addColorStop(0, '#A9DBEC');
+  sideGrad.addColorStop(1, '#77B9D1');
+  ctx.fillStyle = sideGrad;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3.2;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(18, 32);
+  ctx.lineTo(26, 52);
+  ctx.quadraticCurveTo(105, 66, 184, 52);
+  ctx.lineTo(192, 32);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Snow-white faceted ice floe deck
+  const topGrad = ctx.createLinearGradient(0, 16, 0, 49);
+  topGrad.addColorStop(0, '#FFFFFF');
+  topGrad.addColorStop(1, '#E5F6FC');
+  ctx.fillStyle = topGrad;
+  ctx.beginPath();
+  ctx.moveTo(16, 32);
+  ctx.quadraticCurveTo(36, 16, 105, 16);
+  ctx.quadraticCurveTo(174, 16, 194, 32);
+  ctx.quadraticCurveTo(172, 48, 105, 49);
+  ctx.quadraticCurveTo(38, 48, 16, 32);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Crystalline facet highlight lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.90)';
+  ctx.lineWidth = 3.2;
+  ctx.beginPath();
+  ctx.moveTo(46, 28);
+  ctx.quadraticCurveTo(76, 22, 108, 24);
+  ctx.moveTo(134, 25);
+  ctx.quadraticCurveTo(158, 26, 172, 31);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawFishBasket(
+  ctx: CanvasRenderingContext2D,
+  basketW: number,
+  basketH: number,
+  caughtCount: number
+) {
   const visibleFishes = Math.min(caughtCount, 5);
   const tailSpecs = [
     { x: 30, y: 20, rot: -22, fill: '#6CC4DF', fin: '#EE8B6B' },
@@ -356,154 +487,121 @@ const FishBasketSvg: React.FC<{
     { x: 66, y: 15, rot: 12, fill: '#EC8766', fin: '#7ACAE3' },
   ];
 
-  return (
-    <Svg width={width} height={height} viewBox="0 0 108 66">
-      <Defs>
-        <LinearGradient id={`bask-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#E6B676" />
-          <Stop offset="0.6" stopColor="#CE9252" />
-          <Stop offset="1" stopColor="#B07237" />
-        </LinearGradient>
-      </Defs>
+  ctx.save();
+  const sx = basketW / 108;
+  const sy = basketH / 66;
+  ctx.scale(sx, sy);
+  ctx.translate(-54, -33);
 
-      {/* Dark basket interior cavity */}
-      <Ellipse cx="54" cy="24" rx="41" ry="10" fill="#6E4624" stroke={INK} strokeWidth="2.6" />
+  // Dark basket interior cavity
+  ctx.fillStyle = '#6E4624';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.ellipse(54, 24, 41, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
 
-      {/* Caught colorful fish peeking happily out of the basket */}
-      {tailSpecs.slice(0, visibleFishes).map((f, idx) => (
-        <G key={idx} transform={`translate(${f.x}, ${f.y}) rotate(${f.rot})`}>
-          <Path
-            d="M -9 7 C -9 -6 9 -6 9 7 Z"
-            fill={f.fill}
-            stroke={INK}
-            strokeWidth="2"
-            strokeLinejoin="round"
-          />
-          <Path
-            d="M 0 -5 L -7 -13 L 7 -13 Z"
-            fill={f.fin}
-            stroke={INK}
-            strokeWidth="1.9"
-            strokeLinejoin="round"
-          />
-        </G>
-      ))}
+  // Caught colorful fish peeking happily out of the basket
+  for (let i = 0; i < visibleFishes; i++) {
+    const f = tailSpecs[i];
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate((f.rot * Math.PI) / 180);
 
-      {/* Woven wooden basket body */}
-      <Path
-        d="M 14 25 L 24 56 Q 54 64 84 56 L 94 25 Q 54 34 14 25 Z"
-        fill={`url(#bask-${uid})`}
-        stroke={INK}
-        strokeWidth="3"
-        strokeLinejoin="round"
-      />
+    ctx.fillStyle = f.fill;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-9, 7);
+    ctx.bezierCurveTo(-9, -6, 9, -6, 9, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
 
-      {/* Woven wood slats & crosshatch details */}
-      <Path
-        d="M 19 37 Q 54 45 89 37 M 22 48 Q 54 55 86 48 M 36 30 L 40 58 M 54 31 L 54 60 M 72 30 L 68 58"
-        stroke="rgba(90, 54, 24, 0.36)"
-        strokeWidth="2.2"
-        fill="none"
-        strokeLinecap="round"
-      />
+    ctx.fillStyle = f.fin;
+    ctx.lineWidth = 1.9;
+    ctx.beginPath();
+    ctx.moveTo(0, -5);
+    ctx.lineTo(-7, -13);
+    ctx.lineTo(7, -13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
 
-      {/* Cozy curved wooden rim */}
-      <Path
-        d="M 11 24 Q 54 35 97 24"
-        fill="none"
-        stroke={INK}
-        strokeWidth="7.5"
-        strokeLinecap="round"
-      />
-      <Path
-        d="M 11 24 Q 54 35 97 24"
-        fill="none"
-        stroke="#F4D39B"
-        strokeWidth="3.8"
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-};
+  // Woven wooden basket body
+  const baskGrad = ctx.createLinearGradient(0, 25, 0, 62);
+  baskGrad.addColorStop(0, '#E6B676');
+  baskGrad.addColorStop(0.6, '#CE9252');
+  baskGrad.addColorStop(1, '#B07237');
+  ctx.fillStyle = baskGrad;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(14, 25);
+  ctx.lineTo(24, 56);
+  ctx.quadraticCurveTo(54, 64, 84, 56);
+  ctx.lineTo(94, 25);
+  ctx.quadraticCurveTo(54, 34, 14, 25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-/** Floating "+1" golden star pop or silly snow puff on catch */
-const CatchPopEffect: React.FC<{ pop: FloatingPop }> = ({ pop }) => {
-  const prog = useRef(new Animated.Value(0)).current;
+  // Woven wood slats & crosshatch details
+  ctx.strokeStyle = 'rgba(90, 54, 24, 0.36)';
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(19, 37);
+  ctx.quadraticCurveTo(54, 45, 89, 37);
+  ctx.moveTo(22, 48);
+  ctx.quadraticCurveTo(54, 55, 86, 48);
+  ctx.moveTo(36, 30);
+  ctx.lineTo(40, 58);
+  ctx.moveTo(54, 31);
+  ctx.lineTo(54, 60);
+  ctx.moveTo(72, 30);
+  ctx.lineTo(68, 58);
+  ctx.stroke();
 
-  useEffect(() => {
-    Animated.timing(prog, {
-      toValue: 1,
-      duration: 720,
-      useNativeDriver: true,
-    }).start();
-  }, [prog]);
+  // Cozy curved wooden rim
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 7.5;
+  ctx.beginPath();
+  ctx.moveTo(11, 24);
+  ctx.quadraticCurveTo(54, 35, 97, 24);
+  ctx.stroke();
 
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        left: pop.x - 26,
-        top: pop.y - 36,
-        opacity: prog.interpolate({
-          inputRange: [0, 0.2, 0.78, 1],
-          outputRange: [0, 1, 1, 0],
-        }),
-        transform: [
-          {
-            translateY: prog.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, -56],
-            }),
-          },
-          {
-            scale: prog.interpolate({
-              inputRange: [0, 0.25, 1],
-              outputRange: [0.55, 1.18, 0.96],
-            }),
-          },
-        ],
-        zIndex: 55,
-      }}
-    >
-      {pop.kind === 'snow' ? (
-        <View style={styles.snowGigglePill}>
-          <Text style={styles.snowGiggleText}>Brrr!</Text>
-        </View>
-      ) : (
-        <Svg width={52} height={52} viewBox="0 0 52 52">
-          <Path
-            d="M26 5 L31.2 17.5 L44.5 19.2 L34.6 28.4 L37.1 41.8 L26 35.4 L14.9 41.8 L17.4 28.4 L7.5 19.2 L20.8 17.5 Z"
-            fill={pop.kind === 'gold' ? '#FFE169' : '#FFF4B2'}
-            stroke="#8C5B20"
-            strokeWidth="2.4"
-            strokeLinejoin="round"
-          />
-        </Svg>
-      )}
-    </Animated.View>
-  );
-};
+  ctx.strokeStyle = '#F4D39B';
+  ctx.lineWidth = 3.8;
+  ctx.beginPath();
+  ctx.moveTo(11, 24);
+  ctx.quadraticCurveTo(54, 35, 97, 24);
+  ctx.stroke();
+
+  ctx.restore();
+}
 
 /**
- * Arctic Catch (Paid Tier — Snowy Arctic Bay):
- * - Full-bleed pastel watercolor Arctic Bay (`bg-arctic.png`) with shimmering waves & falling snow.
- * - Choose Penguin, Polar Bear, Seal, or Puffin riding a sculpted ice floe with a wooden fish basket!
- * - Slide anywhere OR tap anywhere to glide across the icy bay and catch smiling fish & golden stars!
- * - Zero frustration, tactile splash chimes, growing basket of fish tails, and Easy | Med | Hard scaling.
+ * Arctic Catch (60fps Single-Canvas 2D Renderer on Web):
+ * - Renders the entire Snowy Arctic Bay, snowflakes, glacial water ripples,
+ *   falling smiling fish & playful snowballs, gliding ice floe, animated buddy,
+ *   filling wooden fish basket, and sparkle bursts onto a single 60fps HTML5 <canvas>
+ *   with ZERO per-frame React state updates or SVG RadialGradients!
+ * - Direct non-passive touch & pointer sliding/tapping for 0ms tablet responsiveness.
  */
 export const ArcticCatchGame: React.FC = () => {
   const { addStar, collectSticker, goHome } = useApp();
   const { isTablet, width, height } = useResponsive();
-  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
   const [difficulty, setDifficulty] = useState<Difficulty>(2);
   const [buddyIdx, setBuddyIdx] = useState(0);
   const [caughtCount, setCaughtCount] = useState(0);
   const [won, setWon] = useState(false);
-  const [catchingAnim, setCatchingAnim] = useState(false);
-  const [burstPos, setBurstPos] = useState<{ x: number; y: number; tick: number } | null>(null);
-  const [pops, setPops] = useState<FloatingPop[]>([]);
 
   const [fieldSize, setFieldSize] = useState({
     w: Math.max(320, width),
@@ -513,10 +611,28 @@ export const ArcticCatchGame: React.FC = () => {
   const cfg = getDifficultyConfig(difficulty);
   const activeBuddy = ARCTIC_BUDDIES[buddyIdx % ARCTIC_BUDDIES.length];
 
-  const catchBounce = useRef(new Animated.Value(1)).current;
-  const wiggleAnim = useRef(new Animated.Value(0)).current;
+  // Preload hand-painted storybook PNGs into HTMLImageElement cache for 2D canvas drawing
+  const imgCacheRef = useRef<Record<string, HTMLImageElement>>({});
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const entries: [string, unknown][] = [
+      ['bgArctic', STORYBOOK_ASSETS.bgArctic],
+      ['penguin', STORYBOOK_ANIMALS.penguin],
+      ['polarbear', STORYBOOK_ANIMALS.polarbear],
+      ['seal', STORYBOOK_ANIMALS.seal],
+      ['puffin', STORYBOOK_ANIMALS.puffin],
+    ];
+    entries.forEach(([key, asset]) => {
+      if (imgCacheRef.current[key]) return;
+      const uri = getWebAssetUri(asset);
+      if (!uri) return;
+      const img = new window.Image();
+      img.src = uri;
+      imgCacheRef.current[key] = img;
+    });
+  }, []);
 
-  // Live 60fps simulation refs
+  // Live 60fps simulation state (mutated inside rAF — ZERO React re-renders!)
   const simRef = useRef({
     catcherX: Math.max(320, width) * 0.5,
     targetX: Math.max(320, width) * 0.5,
@@ -525,27 +641,19 @@ export const ArcticCatchGame: React.FC = () => {
     nextItemId: 1,
     spawnTimer: 0.35,
     lastSpawnXFrac: 0.5,
-    flakes: Array.from({ length: 12 }, (_, i): SnowFlake => ({
+    flakes: Array.from({ length: 16 }, (_, i): SnowFlake => ({
       xPct: ((i * 37 + 11) % 94) + 3,
       yPct: (i * 19) % 100,
-      r: 2.2 + (i % 3) * 1.1,
+      r: 2.2 + (i % 3) * 1.15,
       speedPct: 4.5 + (i % 4) * 1.4,
       phase: i * 0.9,
     })),
+    particles: [] as CanvasBurstParticle[],
+    pops: [] as CanvasPopBadge[],
+    catchBounceT: 99,
+    snowWiggleT: 99,
     elapsed: 0,
   });
-
-  const [frame, setFrame] = useState<{
-    catcherX: number;
-    tiltDeg: number;
-    items: FallingItem[];
-    flakes: SnowFlake[];
-  }>(() => ({
-    catcherX: Math.max(320, width) * 0.5,
-    tiltDeg: 0,
-    items: [],
-    flakes: simRef.current.flakes,
-  }));
 
   const fieldRef = useRef(fieldSize);
   fieldRef.current = fieldSize;
@@ -557,57 +665,61 @@ export const ArcticCatchGame: React.FC = () => {
   caughtRef.current = caughtCount;
   const buddyRef = useRef(activeBuddy);
   buddyRef.current = activeBuddy;
+  const isTabletRef = useRef(isTablet);
+  isTabletRef.current = isTablet;
 
-  const triggerCatchBounce = useCallback(() => {
-    setCatchingAnim(true);
-    catchBounce.setValue(0.86);
-    Animated.spring(catchBounce, {
-      toValue: 1,
-      friction: 3.4,
-      tension: 210,
-      useNativeDriver: true,
-    }).start();
-    setTimeout(() => setCatchingAnim(false), 380);
-  }, [catchBounce]);
-
-  const triggerSnowWiggle = useCallback(() => {
-    wiggleAnim.setValue(0);
-    Animated.sequence([
-      Animated.timing(wiggleAnim, { toValue: -1, duration: 75, useNativeDriver: true }),
-      Animated.timing(wiggleAnim, { toValue: 1, duration: 90, useNativeDriver: true }),
-      Animated.timing(wiggleAnim, { toValue: -0.7, duration: 85, useNativeDriver: true }),
-      Animated.timing(wiggleAnim, { toValue: 0, duration: 85, useNativeDriver: true }),
-    ]).start();
-  }, [wiggleAnim]);
-
-  const pushPop = useCallback((x: number, y: number, kind: 'fish' | 'gold' | 'snow') => {
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    setPops((prev) => [...prev.slice(-4), { id, x, y, kind }]);
-    setTimeout(() => {
-      setPops((prev) => prev.filter((p) => p.id !== id));
-    }, 760);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [canvasEl, setCanvasEl] = useState<HTMLCanvasElement | null>(null);
+  const handleCanvasRef = useCallback((el: HTMLCanvasElement | null) => {
+    canvasRef.current = el;
+    setCanvasEl(el);
   }, []);
 
-  const resetRound = useCallback(
-    (nextDiff: Difficulty, nextBuddyIdx: number) => {
-      const f = fieldRef.current;
-      setDifficulty(nextDiff);
-      setBuddyIdx(nextBuddyIdx % ARCTIC_BUDDIES.length);
-      setCaughtCount(0);
-      caughtRef.current = 0;
-      setWon(false);
-      wonRef.current = false;
-      setBurstPos(null);
-      setPops([]);
+  const spawnCatchSparkles = useCallback((x: number, y: number, isGold: boolean) => {
+    const palette = isGold
+      ? ['#FFE566', '#FFF8C4', '#FFB732', '#FFFFFF', '#FF9466']
+      : ['#FFF4B2', '#8BE0F8', '#FFB396', '#FFFFFF', '#FFE066'];
+    const count = isGold ? 16 : 11;
+    const list = simRef.current.particles;
+    for (let i = 0; i < count; i++) {
+      const ang = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.35;
+      const spd = 85 + Math.random() * 165;
+      list.push({
+        x,
+        y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 35,
+        r: 3.5 + Math.random() * 4,
+        color: palette[i % palette.length],
+        age: 0,
+        maxAge: 0.46 + Math.random() * 0.25,
+      });
+    }
+    if (list.length > 80) {
+      simRef.current.particles = list.slice(-80);
+    }
+  }, []);
 
-      simRef.current.catcherX = f.w * 0.5;
-      simRef.current.targetX = f.w * 0.5;
-      simRef.current.catcherVx = 0;
-      simRef.current.items = [];
-      simRef.current.spawnTimer = 0.35;
-    },
-    []
-  );
+  const resetRound = useCallback((nextDiff: Difficulty, nextBuddyIdx: number) => {
+    const f = fieldRef.current;
+    setDifficulty(nextDiff);
+    setBuddyIdx(nextBuddyIdx % ARCTIC_BUDDIES.length);
+    setCaughtCount(0);
+    caughtRef.current = 0;
+    setWon(false);
+    wonRef.current = false;
+
+    const s = simRef.current;
+    s.catcherX = f.w * 0.5;
+    s.targetX = f.w * 0.5;
+    s.catcherVx = 0;
+    s.items = [];
+    s.particles = [];
+    s.pops = [];
+    s.spawnTimer = 0.35;
+    s.catchBounceT = 99;
+    s.snowWiggleT = 99;
+  }, []);
 
   // Keep catcher inside bounds when screen resizes
   useEffect(() => {
@@ -622,219 +734,18 @@ export const ArcticCatchGame: React.FC = () => {
     );
   }, [fieldSize.w, isTablet]);
 
-  // 60fps smooth gliding, falling fish, snowflake drift & toddler-friendly catch detection
-  useEffect(() => {
-    let rafId = 0;
-    let lastTs = performance.now();
-
-    const step = (now: number) => {
-      const dt = Math.min(0.035, Math.max(0.008, (now - lastTs) / 1000));
-      lastTs = now;
-
-      const s = simRef.current;
-      const f = fieldRef.current;
-      const curCfg = getDifficultyConfig(diffRef.current);
-      s.elapsed += dt;
-
-      // Ambient gentle snow drift
-      const nextFlakes = s.flakes.map((fl) => {
-        let ny = fl.yPct + fl.speedPct * dt;
-        if (ny > 104) ny = -4;
-        return { ...fl, yPct: ny };
-      });
-      s.flakes = nextFlakes;
-
-      const edgePad = isTablet ? 86 : 64;
-      const clampedTarget = Math.max(edgePad, Math.min(f.w - edgePad, s.targetX));
-      const dx = clampedTarget - s.catcherX;
-      // Snappy finger tracking while sliding, smooth glide on tap
-      const glideRate = activeSlideRef.current ? 22 : 14;
-      const glideFactor = Math.min(1, dt * glideRate);
-      const prevX = s.catcherX;
-      s.catcherX += dx * glideFactor;
-      s.catcherVx = (s.catcherX - prevX) / dt;
-      const tiltDeg = Math.max(-8, Math.min(8, s.catcherVx * 0.011));
-
-      if (!wonRef.current) {
-        // Spawn new falling arctic treats
-        s.spawnTimer -= dt;
-        if (s.spawnTimer <= 0 && s.items.length < curCfg.maxConcurrent) {
-          s.spawnTimer = curCfg.spawnInterval * (0.85 + Math.random() * 0.32);
-
-          // Pick a well-spaced x fraction so treats spread pleasantly across the bay
-          let xFrac = 0.14 + Math.random() * 0.72;
-          if (Math.abs(xFrac - s.lastSpawnXFrac) < 0.2) {
-            xFrac = s.lastSpawnXFrac > 0.5 ? 0.18 + Math.random() * 0.24 : 0.58 + Math.random() * 0.24;
-          }
-          s.lastSpawnXFrac = xFrac;
-
-          const roll = Math.random();
-          let kind: FallingKind;
-          if (roll < curCfg.snowballChance) {
-            kind = 'snowball';
-          } else if (roll < curCfg.snowballChance + curCfg.goldChance) {
-            kind = 'fishGold';
-          } else if (Math.random() < 0.52) {
-            kind = 'fishBlue';
-          } else {
-            kind = 'fishCoral';
-          }
-
-          const itemSize =
-            kind === 'snowball'
-              ? isTablet
-                ? 60
-                : 48
-              : isTablet
-              ? 82
-              : 64;
-
-          const baseX = xFrac * f.w;
-          s.items.push({
-            id: s.nextItemId++,
-            kind,
-            x: baseX,
-            baseX,
-            y: -itemSize * 0.4,
-            vy:
-              curCfg.minVy +
-              Math.random() * (curCfg.maxVy - curCfg.minVy),
-            swayAmp: curCfg.swayAmp * (0.65 + Math.random() * 0.5),
-            swaySpeed: 1.5 + Math.random() * 1.1,
-            phase: Math.random() * Math.PI * 2,
-            rot: 0,
-            size: itemSize,
-          });
-        }
-
-        // Advance falling items & check generous basket catch zone
-        const catcherY = f.h * 0.78;
-        const catchHalfW = isTablet ? 84 : 64;
-        const catchTop = catcherY - (isTablet ? 58 : 44);
-        const catchBot = catcherY + (isTablet ? 30 : 24);
-
-        const surviving: FallingItem[] = [];
-
-        for (const item of s.items) {
-          const ny = item.y + item.vy * dt;
-          const swayOffset =
-            Math.sin(s.elapsed * item.swaySpeed + item.phase) * item.swayAmp;
-          const nx = Math.max(
-            item.size * 0.55,
-            Math.min(f.w - item.size * 0.55, item.baseX + swayOffset)
-          );
-          const nrot = Math.cos(s.elapsed * item.swaySpeed + item.phase) * 10;
-
-          const inX = Math.abs(nx - s.catcherX) <= catchHalfW + item.size * 0.24;
-          const inY = ny >= catchTop && ny <= catchBot;
-
-          if (inX && inY) {
-            if (item.kind === 'snowball') {
-              soundEngine.playBoing();
-              soundEngine.speakWord('Brrr!');
-              triggerSnowWiggle();
-              pushPop(nx, catcherY - 34, 'snow');
-            } else {
-              const nextCaught = caughtRef.current + 1;
-              caughtRef.current = nextCaught;
-              setCaughtCount(nextCaught);
-              triggerCatchBounce();
-              setBurstPos({ x: nx, y: catcherY - 18, tick: Date.now() });
-              pushPop(
-                nx,
-                catcherY - 30,
-                item.kind === 'fishGold' ? 'gold' : 'fish'
-              );
-
-              if (item.kind === 'fishGold') {
-                soundEngine.playStarCollect(nextCaught);
-                soundEngine.playAnimalSound(buddyRef.current.kind);
-                soundEngine.speakWord('Golden Fish!');
-              } else {
-                soundEngine.playWaterSplash(nextCaught);
-                if (nextCaught % 3 === 0) {
-                  soundEngine.playAnimalSound(buddyRef.current.kind);
-                }
-              }
-
-              if (nextCaught >= curCfg.goalCount) {
-                wonRef.current = true;
-                collectSticker(buddyRef.current.kind);
-                setTimeout(() => {
-                  soundEngine.playWin();
-                  addStar(1);
-                  setWon(true);
-                }, 460);
-              }
-            }
-            continue;
-          }
-
-          if (ny < f.h + item.size) {
-            surviving.push({
-              ...item,
-              x: nx,
-              y: ny,
-              rot: nrot,
-            });
-          }
-        }
-        s.items = surviving;
-      }
-
-      setFrame({
-        catcherX: s.catcherX,
-        tiltDeg,
-        items: s.items,
-        flakes: s.flakes,
-      });
-
-      rafId = requestAnimationFrame(step);
-    };
-
-    rafId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(rafId);
-  }, [
-    isTablet,
-    addStar,
-    collectSticker,
-    triggerCatchBounce,
-    triggerSnowWiggle,
-    pushPop,
-  ]);
-
-  // Unified Drag OR Tap anywhere on the bay to glide smoothly!
-  // Uses direct non-passive DOM touchstart/touchmove + window listeners on Web so iPad Safari
-  // NEVER steals drags for page scrolling or fires pointercancel mid-slide.
-  const fieldNodeRef = useRef<React.ComponentRef<typeof View> | null>(null);
+  // Direct non-passive touch & pointer engine on the single <canvas>
   const activeSlideRef = useRef<{ mode: 'touch' | 'pointer'; id: number } | null>(null);
   const lastTouchEndRef = useRef<number>(0);
   const winCleanupRef = useRef<(() => void) | null>(null);
 
-  const getFieldDomEl = useCallback(() => {
-    if (Platform.OS !== 'web' || !fieldNodeRef.current) return null;
-    const raw = fieldNodeRef.current as unknown as {
-      addEventListener?: HTMLElement['addEventListener'];
-      removeEventListener?: HTMLElement['removeEventListener'];
-      getBoundingClientRect?: () => DOMRect;
-      getNode?: () => HTMLElement;
-    };
-    if (typeof raw.getBoundingClientRect === 'function') return raw;
-    if (typeof raw.getNode === 'function') return raw.getNode();
-    return null;
+  const getLocalX = useCallback((clientX: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect?.();
+    if (rect) {
+      return clientX - rect.left;
+    }
+    return clientX;
   }, []);
-
-  const getLocalX = useCallback(
-    (clientX: number) => {
-      const el = getFieldDomEl();
-      const rect = el?.getBoundingClientRect?.();
-      if (rect) {
-        return clientX - rect.left;
-      }
-      return clientX;
-    },
-    [getFieldDomEl]
-  );
 
   const cleanupWinListeners = useCallback(() => {
     if (winCleanupRef.current) {
@@ -925,97 +836,474 @@ export const ArcticCatchGame: React.FC = () => {
     [cleanupWinListeners, getLocalX]
   );
 
-  // Direct non-passive touchstart listener on the bay for iPad / iPhone Safari
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const domEl = getFieldDomEl();
-    if (!domEl || typeof domEl.addEventListener !== 'function') return;
+    if (Platform.OS !== 'web' || !canvasEl) return;
 
-    const onDomTouchStart = (ev: TouchEvent) => {
+    const onTouchStart = (ev: TouchEvent) => {
       const t = ev.changedTouches[0];
       if (!t) return;
       if (ev.cancelable) ev.preventDefault();
       beginWebSlide('touch', t.identifier, t.clientX);
     };
 
-    domEl.addEventListener('touchstart', onDomTouchStart, { passive: false });
-    return () => {
-      domEl.removeEventListener?.('touchstart', onDomTouchStart);
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.pointerType === 'touch') return;
+      if (Date.now() - lastTouchEndRef.current < 500) return;
+      ev.preventDefault();
+      beginWebSlide('pointer', ev.pointerId, ev.clientX);
     };
-  }, [beginWebSlide, getFieldDomEl]);
 
-  const webFieldProps =
-    Platform.OS === 'web'
-      ? ({
-          onPointerDown: (e: {
-            pointerId: number;
-            pointerType?: string;
-            clientX: number;
-            preventDefault?: () => void;
-          }) => {
-            // Touch input is handled directly by our non-passive DOM touchstart listener
-            if (e.pointerType === 'touch') return;
-            if (Date.now() - lastTouchEndRef.current < 500) return;
-            e.preventDefault?.();
-            beginWebSlide('pointer', e.pointerId, e.clientX);
-          },
-        } as Record<string, unknown>)
-      : {};
+    canvasEl.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvasEl.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      canvasEl.removeEventListener('touchstart', onTouchStart);
+      canvasEl.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [beginWebSlide, canvasEl]);
 
-  const nativePan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        soundEngine.unlock();
-        simRef.current.targetX = evt.nativeEvent.locationX;
-      },
-      onPanResponderMove: (evt) => {
-        simRef.current.targetX = evt.nativeEvent.locationX;
-      },
-    })
-  ).current;
+  // 60fps simulation + single-canvas draw loop (ZERO React re-renders per frame!)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    let rafId = 0;
+    let lastTs = performance.now();
 
-  const sledW = isTablet ? 186 : 144;
-  const sledH = Math.round(sledW * 0.36);
-  const animalSz = isTablet ? 106 : 82;
-  const basketW = isTablet ? 92 : 72;
-  const basketH = Math.round(basketW * 0.61);
-  const catcherY = fieldSize.h * 0.78;
-  const waterLineY = fieldSize.h * 0.72;
+    const step = (now: number) => {
+      const dt = Math.min(0.035, Math.max(0.008, (now - lastTs) / 1000));
+      lastTs = now;
 
-  const wiggleRotate = wiggleAnim.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ['-10deg', '0deg', '10deg'],
-  });
+      const s = simRef.current;
+      const f = fieldRef.current;
+      const tab = isTabletRef.current;
+      const curCfg = getDifficultyConfig(diffRef.current);
+      s.elapsed += dt;
+      s.catchBounceT += dt;
+      s.snowWiggleT += dt;
+
+      // Ambient gentle snow drift
+      for (let i = 0; i < s.flakes.length; i++) {
+        const fl = s.flakes[i];
+        fl.yPct += fl.speedPct * dt;
+        if (fl.yPct > 104) fl.yPct = -4;
+      }
+
+      const edgePad = tab ? 86 : 64;
+      const clampedTarget = Math.max(edgePad, Math.min(f.w - edgePad, s.targetX));
+      const dx = clampedTarget - s.catcherX;
+      const glideRate = activeSlideRef.current ? 22 : 14;
+      const glideFactor = Math.min(1, dt * glideRate);
+      const prevX = s.catcherX;
+      s.catcherX += dx * glideFactor;
+      s.catcherVx = (s.catcherX - prevX) / dt;
+      const tiltDeg = Math.max(-8, Math.min(8, s.catcherVx * 0.011));
+
+      const catcherY = f.h * 0.78;
+      const waterLineY = f.h * 0.72;
+
+      if (!wonRef.current) {
+        s.spawnTimer -= dt;
+        if (s.spawnTimer <= 0 && s.items.length < curCfg.maxConcurrent) {
+          s.spawnTimer = curCfg.spawnInterval * (0.85 + Math.random() * 0.32);
+
+          let xFrac = 0.14 + Math.random() * 0.72;
+          if (Math.abs(xFrac - s.lastSpawnXFrac) < 0.2) {
+            xFrac =
+              s.lastSpawnXFrac > 0.5
+                ? 0.18 + Math.random() * 0.24
+                : 0.58 + Math.random() * 0.24;
+          }
+          s.lastSpawnXFrac = xFrac;
+
+          const roll = Math.random();
+          let kind: FallingKind;
+          if (roll < curCfg.snowballChance) {
+            kind = 'snowball';
+          } else if (roll < curCfg.snowballChance + curCfg.goldChance) {
+            kind = 'fishGold';
+          } else if (Math.random() < 0.52) {
+            kind = 'fishBlue';
+          } else {
+            kind = 'fishCoral';
+          }
+
+          const itemSize =
+            kind === 'snowball' ? (tab ? 60 : 48) : tab ? 82 : 64;
+          const baseX = xFrac * f.w;
+          s.items.push({
+            id: s.nextItemId++,
+            kind,
+            x: baseX,
+            baseX,
+            y: -itemSize * 0.4,
+            vy: curCfg.minVy + Math.random() * (curCfg.maxVy - curCfg.minVy),
+            swayAmp: curCfg.swayAmp * (0.65 + Math.random() * 0.5),
+            swaySpeed: 1.5 + Math.random() * 1.1,
+            phase: Math.random() * Math.PI * 2,
+            rot: 0,
+            size: itemSize,
+          });
+        }
+
+        const catchHalfW = tab ? 84 : 64;
+        const catchTop = catcherY - (tab ? 58 : 44);
+        const catchBot = catcherY + (tab ? 30 : 24);
+        const surviving: FallingItem[] = [];
+
+        for (let i = 0; i < s.items.length; i++) {
+          const item = s.items[i];
+          const ny = item.y + item.vy * dt;
+          const swayOffset =
+            Math.sin(s.elapsed * item.swaySpeed + item.phase) * item.swayAmp;
+          const nx = Math.max(
+            item.size * 0.55,
+            Math.min(f.w - item.size * 0.55, item.baseX + swayOffset)
+          );
+          const nrot = Math.cos(s.elapsed * item.swaySpeed + item.phase) * 10;
+
+          const inX = Math.abs(nx - s.catcherX) <= catchHalfW + item.size * 0.24;
+          const inY = ny >= catchTop && ny <= catchBot;
+
+          if (inX && inY) {
+            if (item.kind === 'snowball') {
+              soundEngine.playBoing();
+              soundEngine.speakWord('Brrr!');
+              s.snowWiggleT = 0;
+              s.pops.push({
+                x: nx,
+                y: catcherY - 34,
+                kind: 'snow',
+                age: 0,
+                duration: 0.72,
+              });
+            } else {
+              const nextCaught = caughtRef.current + 1;
+              caughtRef.current = nextCaught;
+              setCaughtCount(nextCaught);
+              s.catchBounceT = 0;
+              spawnCatchSparkles(nx, catcherY - 18, item.kind === 'fishGold');
+              s.pops.push({
+                x: nx,
+                y: catcherY - 30,
+                kind: item.kind === 'fishGold' ? 'gold' : 'fish',
+                age: 0,
+                duration: 0.72,
+              });
+
+              if (item.kind === 'fishGold') {
+                soundEngine.playStarCollect(nextCaught);
+                soundEngine.playAnimalSound(buddyRef.current.kind);
+                soundEngine.speakWord('Golden Fish!');
+              } else {
+                soundEngine.playWaterSplash(nextCaught);
+                if (nextCaught % 3 === 0) {
+                  soundEngine.playAnimalSound(buddyRef.current.kind);
+                }
+              }
+
+              if (nextCaught >= curCfg.goalCount) {
+                wonRef.current = true;
+                collectSticker(buddyRef.current.kind);
+                setTimeout(() => {
+                  soundEngine.playWin();
+                  addStar(1);
+                  setWon(true);
+                }, 460);
+              }
+            }
+            continue;
+          }
+
+          if (ny < f.h + item.size) {
+            item.x = nx;
+            item.y = ny;
+            item.rot = nrot;
+            surviving.push(item);
+          }
+        }
+        s.items = surviving;
+      }
+
+      // Advance burst particles & floating pop badges
+      const nextParticles: CanvasBurstParticle[] = [];
+      for (let i = 0; i < s.particles.length; i++) {
+        const p = s.particles[i];
+        p.age += dt;
+        if (p.age < p.maxAge) {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 260 * dt;
+          nextParticles.push(p);
+        }
+      }
+      s.particles = nextParticles;
+
+      const nextPops: CanvasPopBadge[] = [];
+      for (let i = 0; i < s.pops.length; i++) {
+        const pop = s.pops[i];
+        pop.age += dt;
+        if (pop.age < pop.duration) {
+          nextPops.push(pop);
+        }
+      }
+      s.pops = nextPops;
+
+      // Render frame onto single opaque 2D canvas
+      const canvas = canvasRef.current;
+      if (canvas && f.w > 0 && f.h > 0) {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const targetW = Math.round(f.w * dpr);
+        const targetH = Math.round(f.h * dpr);
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+        }
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (ctx) {
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+          // 1. Painterly Snowy Arctic Bay backdrop
+          drawCoverBackdrop(ctx, imgCacheRef.current.bgArctic, f.w, f.h);
+
+          // 2. Softly drifting snowflakes
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.76)';
+          for (let i = 0; i < s.flakes.length; i++) {
+            const fl = s.flakes[i];
+            const fx =
+              (fl.xPct / 100) * f.w +
+              Math.sin(fl.yPct * 0.08 + fl.phase) * 14;
+            const fy = (fl.yPct / 100) * f.h;
+            ctx.beginPath();
+            ctx.arc(fx, fy, fl.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // 3. Shimmering glacial bay foreground water band
+          const waterGrad = ctx.createLinearGradient(0, waterLineY - 12, 0, f.h);
+          waterGrad.addColorStop(0, 'rgba(148, 213, 234, 0.54)');
+          waterGrad.addColorStop(0.45, 'rgba(105, 185, 214, 0.78)');
+          waterGrad.addColorStop(1, 'rgba(75, 155, 192, 0.92)');
+          ctx.fillStyle = waterGrad;
+          ctx.beginPath();
+          ctx.moveTo(0, waterLineY);
+          ctx.quadraticCurveTo(f.w * 0.25, waterLineY - 12, f.w * 0.5, waterLineY);
+          ctx.quadraticCurveTo(f.w * 0.75, waterLineY + 12, f.w, waterLineY);
+          ctx.lineTo(f.w, f.h);
+          ctx.lineTo(0, f.h);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.74)';
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, waterLineY);
+          ctx.quadraticCurveTo(f.w * 0.25, waterLineY - 12, f.w * 0.5, waterLineY);
+          ctx.quadraticCurveTo(f.w * 0.75, waterLineY + 12, f.w, waterLineY);
+          ctx.stroke();
+
+          // Sparkling sunlit water ripple highlights
+          ctx.strokeStyle = 'rgba(255, 252, 234, 0.52)';
+          ctx.lineWidth = 2.8;
+          ctx.beginPath();
+          ctx.moveTo(f.w * 0.14, waterLineY + 26);
+          ctx.quadraticCurveTo(f.w * 0.22, waterLineY + 20, f.w * 0.3, waterLineY + 26);
+          ctx.moveTo(f.w * 0.64, waterLineY + 34);
+          ctx.quadraticCurveTo(f.w * 0.74, waterLineY + 28, f.w * 0.84, waterLineY + 34);
+          ctx.moveTo(f.w * 0.36, f.h - 24);
+          ctx.quadraticCurveTo(f.w * 0.5, f.h - 32, f.w * 0.64, f.h - 24);
+          ctx.stroke();
+
+          // 4. Landing shimmer reflections below each falling fish
+          for (let i = 0; i < s.items.length; i++) {
+            const item = s.items[i];
+            if (item.kind === 'snowball') continue;
+            const closeness = Math.max(0, Math.min(1, item.y / catcherY));
+            ctx.save();
+            ctx.globalAlpha = 0.25 + closeness * 0.6;
+            ctx.fillStyle =
+              item.kind === 'fishGold'
+                ? 'rgba(255, 238, 134, 0.54)'
+                : 'rgba(255, 255, 255, 0.38)';
+            ctx.beginPath();
+            ctx.ellipse(
+              item.x,
+              catcherY + 14,
+              12 + closeness * 16,
+              4 + closeness * 4,
+              0,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // 5. Falling Storybook Arctic Fish & Playful Snowballs
+          for (let i = 0; i < s.items.length; i++) {
+            const item = s.items[i];
+            if (item.kind === 'snowball') {
+              drawPlayfulSnowball(ctx, item.x, item.y, item.size, item.rot);
+            } else {
+              drawArcticFish(ctx, item.kind, item.x, item.y, item.size, item.rot);
+            }
+          }
+
+          // 6. Gliding Ice Floe + Smiling Arctic Buddy + Filling Wooden Fish Basket
+          const sledW = tab ? 186 : 144;
+          const sledH = Math.round(sledW * 0.36);
+          const animalSz = tab ? 110 : 86;
+          const basketW = tab ? 92 : 72;
+          const basketH = Math.round(basketW * 0.61);
+
+          // Damped spring bounce on fish catch + playful snow wiggle
+          let bounceScale = 1;
+          if (s.catchBounceT < 0.42) {
+            const u = s.catchBounceT / 0.42;
+            bounceScale = 1 + Math.sin(u * Math.PI * 2.5) * Math.exp(-u * 3.5) * 0.16;
+          }
+          let wiggleDeg = 0;
+          if (s.snowWiggleT < 0.36) {
+            const u = s.snowWiggleT / 0.36;
+            wiggleDeg = Math.sin(u * Math.PI * 4) * (1 - u) * 11;
+          }
+          const idleBobY = Math.sin(s.elapsed * 2.8) * 2.5;
+
+          ctx.save();
+          ctx.translate(s.catcherX, catcherY);
+          ctx.rotate(((tiltDeg + wiggleDeg) * Math.PI) / 180);
+          ctx.scale(bounceScale, bounceScale);
+
+          // Ice Floe Sled centered around (0, sledH * 0.18)
+          ctx.save();
+          ctx.translate(0, sledH * 0.18);
+          drawIceFloeSled(ctx, sledW, sledH);
+          ctx.restore();
+
+          // Smiling Arctic Buddy standing proudly on the ice floe
+          const buddyImg = imgCacheRef.current[buddyRef.current.kind];
+          if (buddyImg && buddyImg.complete && buddyImg.naturalWidth > 0) {
+            ctx.drawImage(
+              buddyImg,
+              -animalSz * 0.5,
+              -animalSz * 0.78 + idleBobY,
+              animalSz,
+              animalSz
+            );
+          }
+
+          // Woven Wooden Fish Basket mounted at the front of the ice floe
+          ctx.save();
+          ctx.translate(0, sledH * 0.12);
+          drawFishBasket(ctx, basketW, basketH, caughtRef.current);
+          ctx.restore();
+
+          ctx.restore();
+
+          // 7. Catch Sparkle Burst particles
+          for (let i = 0; i < s.particles.length; i++) {
+            const p = s.particles[i];
+            const alpha = Math.max(0, 1 - p.age / p.maxAge);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = p.color;
+            ctx.strokeStyle = 'rgba(74, 53, 37, 0.35)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r * (0.6 + 0.4 * alpha), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // 8. Floating Star / "Brrr!" Snow Giggle Pops
+          for (let i = 0; i < s.pops.length; i++) {
+            const pop = s.pops[i];
+            const u = pop.age / pop.duration;
+            const alpha =
+              u < 0.2 ? u / 0.2 : u > 0.78 ? Math.max(0, (1 - u) / 0.22) : 1;
+            const py = pop.y - u * 54;
+            const sc = u < 0.25 ? 0.55 + (u / 0.25) * 0.63 : 1.18 - ((u - 0.25) / 0.75) * 0.22;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(pop.x, py);
+            ctx.scale(sc, sc);
+
+            if (pop.kind === 'snow') {
+              ctx.fillStyle = '#EAF7FD';
+              ctx.strokeStyle = '#4E7D96';
+              ctx.lineWidth = 2.2;
+              ctx.beginPath();
+              ctx.roundRect?.(-28, -13, 56, 26, 13);
+              if (!ctx.roundRect) {
+                ctx.rect(-28, -13, 56, 26);
+              }
+              ctx.fill();
+              ctx.stroke();
+              ctx.fillStyle = '#2F5C75';
+              ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('Brrr!', 0, 1);
+            } else {
+              drawStarPolygon(ctx, 0, 0, 21, 9.5);
+              ctx.fillStyle = pop.kind === 'gold' ? '#FFE169' : '#FFF4B2';
+              ctx.strokeStyle = '#8C5B20';
+              ctx.lineWidth = 2.4;
+              ctx.lineJoin = 'round';
+              ctx.fill();
+              ctx.stroke();
+            }
+
+            ctx.restore();
+          }
+        }
+      }
+
+      rafId = requestAnimationFrame(step);
+    };
+
+    rafId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafId);
+  }, [addStar, collectSticker, spawnCatchSparkles]);
 
   return (
     <View style={styles.container}>
-      {/* Full-bleed Painterly Snowy Arctic Bay Backdrop */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Image
-          source={STORYBOOK_ASSETS.bgArctic}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-        />
-        {/* Soft upper sky readability veil behind header */}
-        <Svg
-          width="100%"
-          height="100%"
-          viewBox="0 0 800 600"
-          preserveAspectRatio="none"
-          style={StyleSheet.absoluteFill}
-        >
-          <Defs>
-            <LinearGradient id={`arcticTop-${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#D7EFF8" stopOpacity="0.46" />
-              <Stop offset="0.24" stopColor="#F5FAFC" stopOpacity="0.08" />
-              <Stop offset="0.65" stopColor="#7DC6DF" stopOpacity="0.04" />
-              <Stop offset="1" stopColor="#4B9FC2" stopOpacity="0.28" />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="800" height="600" fill={`url(#arcticTop-${uid})`} />
-        </Svg>
+      <View
+        style={StyleSheet.absoluteFill}
+        onLayout={(e) => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          if (w > 100 && h > 100) {
+            setFieldSize((prev) =>
+              Math.abs(prev.w - w) < 1 && Math.abs(prev.h - h) < 1
+                ? prev
+                : { w, h }
+            );
+          }
+        }}
+      >
+        {Platform.OS === 'web' ? (
+          <canvas
+            ref={handleCanvasRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              touchAction: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              cursor: 'pointer',
+            }}
+          />
+        ) : (
+          <View style={styles.nativeFallback}>
+            <Image
+              source={STORYBOOK_ASSETS.bgArctic}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
+            <Text style={styles.nativeFallbackText}>Arctic Catch</Text>
+          </View>
+        )}
       </View>
 
       <GameHeader
@@ -1025,247 +1313,39 @@ export const ArcticCatchGame: React.FC = () => {
         onDifficultyChange={(d) => resetRound(d, buddyIdx)}
       />
 
-      {/* Host wraps the draggable bay and the floating buddy switcher as siblings so buddy taps never collide with bay dragging */}
-      <View style={styles.fieldHost}>
-        {/* Interactive Arctic Bay Play Field */}
-        <View
-          ref={fieldNodeRef}
-          style={[
-            styles.field,
-            Platform.OS === 'web'
-              ? ({ touchAction: 'none', userSelect: 'none' } as unknown as object)
-              : null,
-          ]}
-          onLayout={(e) => {
-            const { width: w, height: h } = e.nativeEvent.layout;
-            if (w > 100 && h > 100) {
-              setFieldSize({ w, h });
-            }
-          }}
-          {...(Platform.OS === 'web' ? webFieldProps : nativePan.panHandlers)}
-        >
-        {/* Ambient drifting snowflakes & shimmering icy foreground bay waves */}
-        <Svg
-          width={fieldSize.w}
-          height={fieldSize.h}
-          viewBox={`0 0 ${fieldSize.w} ${fieldSize.h}`}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        >
-          <Defs>
-            <LinearGradient id={`bayWater-${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#94D5EA" stopOpacity="0.52" />
-              <Stop offset="0.45" stopColor="#69B9D6" stopOpacity="0.78" />
-              <Stop offset="1" stopColor="#4B9BC0" stopOpacity="0.9" />
-            </LinearGradient>
-          </Defs>
-
-          {/* Softly drifting snowflakes */}
-          {frame.flakes.map((fl, i) => {
-            const fx =
-              (fl.xPct / 100) * fieldSize.w +
-              Math.sin(fl.yPct * 0.08 + fl.phase) * 14;
-            const fy = (fl.yPct / 100) * fieldSize.h;
+      {/* Compact Frosted Arctic Buddy Switcher Pill (outside canvas so buddy taps never collide with bay sliding) */}
+      <View style={styles.buddyBarWrap} pointerEvents="box-none">
+        <View style={[styles.buddyPill, isTablet && styles.buddyPillTablet]}>
+          {ARCTIC_BUDDIES.map((b, idx) => {
+            const selected = idx === buddyIdx % ARCTIC_BUDDIES.length;
             return (
-              <Circle
-                key={i}
-                cx={fx}
-                cy={fy}
-                r={fl.r}
-                fill="#FFFFFF"
-                opacity={0.72}
-              />
-            );
-          })}
-
-          {/* Shimmering glacial bay foreground water band where the ice floe glides */}
-          <Path
-            d={`M 0 ${waterLineY} Q ${fieldSize.w * 0.25} ${waterLineY - 12} ${fieldSize.w * 0.5} ${waterLineY} T ${fieldSize.w} ${waterLineY} L ${fieldSize.w} ${fieldSize.h} L 0 ${fieldSize.h} Z`}
-            fill={`url(#bayWater-${uid})`}
-          />
-          <Path
-            d={`M 0 ${waterLineY} Q ${fieldSize.w * 0.25} ${waterLineY - 12} ${fieldSize.w * 0.5} ${waterLineY} T ${fieldSize.w} ${waterLineY}`}
-            fill="none"
-            stroke="rgba(255, 255, 255, 0.72)"
-            strokeWidth="3"
-          />
-
-          {/* Sparkling sunlit water ripple highlights */}
-          <Path
-            d={`M ${fieldSize.w * 0.14} ${waterLineY + 26} Q ${fieldSize.w * 0.22} ${waterLineY + 20} ${fieldSize.w * 0.3} ${waterLineY + 26}`}
-            stroke="rgba(255, 252, 234, 0.52)"
-            strokeWidth="2.8"
-            strokeLinecap="round"
-            fill="none"
-          />
-          <Path
-            d={`M ${fieldSize.w * 0.64} ${waterLineY + 34} Q ${fieldSize.w * 0.74} ${waterLineY + 28} ${fieldSize.w * 0.84} ${waterLineY + 34}`}
-            stroke="rgba(255, 252, 234, 0.48)"
-            strokeWidth="2.8"
-            strokeLinecap="round"
-            fill="none"
-          />
-          <Path
-            d={`M ${fieldSize.w * 0.36} ${fieldSize.h - 24} Q ${fieldSize.w * 0.5} ${fieldSize.h - 32} ${fieldSize.w * 0.64} ${fieldSize.h - 24}`}
-            stroke="rgba(255, 255, 255, 0.38)"
-            strokeWidth="2.6"
-            strokeLinecap="round"
-            fill="none"
-          />
-
-          {/* Subtle landing shimmer reflections on the water below each falling fish */}
-          {frame.items.map((item) => {
-            if (item.kind === 'snowball') return null;
-            const closeness = Math.max(0, Math.min(1, item.y / catcherY));
-            return (
-              <Ellipse
-                key={`ref-${item.id}`}
-                cx={item.x}
-                cy={catcherY + 14}
-                rx={12 + closeness * 16}
-                ry={4 + closeness * 4}
-                fill={
-                  item.kind === 'fishGold'
-                    ? 'rgba(255, 238, 134, 0.48)'
-                    : 'rgba(255, 255, 255, 0.34)'
-                }
-                opacity={0.25 + closeness * 0.6}
-              />
-            );
-          })}
-        </Svg>
-
-        {/* Falling Storybook Arctic Fish & Playful Snowballs */}
-        {frame.items.map((item) => (
-          <View
-            key={item.id}
-            pointerEvents="none"
-            style={[
-              styles.fallingItem,
-              {
-                left: item.x - item.size / 2,
-                top: item.y - item.size / 2,
-                width: item.size,
-                height: item.size,
-                transform: [{ rotate: `${Math.round(item.rot)}deg` }],
-              },
-            ]}
-          >
-            {item.kind === 'snowball' ? (
-              <PlayfulSnowballSvg size={item.size} />
-            ) : (
-              <ArcticFishSvg kind={item.kind} size={item.size} />
-            )}
-          </View>
-        ))}
-
-        {/* Catch Sparkle Burst */}
-        {burstPos && (
-          <View
-            key={burstPos.tick}
-            pointerEvents="none"
-            style={[
-              styles.burstAnchor,
-              { left: burstPos.x, top: burstPos.y },
-            ]}
-          >
-            <SnapBurst size={isTablet ? 136 : 108} />
-          </View>
-        )}
-
-        {/* Floating Star / Snow Giggle Pops */}
-        {pops.map((pop) => (
-          <CatchPopEffect key={pop.id} pop={pop} />
-        ))}
-
-        {/* Gliding Ice Floe + Smiling Arctic Buddy + Filling Wooden Fish Basket */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.catcherWrap,
-            {
-              left: frame.catcherX - sledW / 2,
-              top: catcherY - animalSz * 0.72,
-              width: sledW,
-              transform: [
-                { rotate: `${frame.tiltDeg.toFixed(1)}deg` },
-                { rotate: wiggleRotate },
-                { scale: catchBounce },
-              ],
-            },
-          ]}
-        >
-          {/* Smiling Arctic Buddy standing proudly on the ice floe */}
-          <View style={{ marginBottom: -Math.round(sledH * 0.42), zIndex: 2 }}>
-            <AnimatedZooAnimal
-              state={catchingAnim ? 'celebrate' : 'idle'}
-              size={animalSz}
-              seed={buddyIdx + 1}
-              weight={getAnimalWeight(activeBuddy.kind)}
-            >
-              <ZooExhibitAnimalSvg
-                animal={activeBuddy.kind}
-                size={animalSz}
-                highlighted={catchingAnim}
-              />
-            </AnimatedZooAnimal>
-          </View>
-
-          {/* Sculpted Watercolor Ice Floe Sled */}
-          <IceFloeSledSvg width={sledW} height={sledH} />
-
-          {/* Woven Wooden Fish Basket mounted at the front of the ice floe */}
-          <View
-            style={{
-              position: 'absolute',
-              bottom: Math.round(sledH * 0.16),
-              alignSelf: 'center',
-              zIndex: 4,
-            }}
-          >
-            <FishBasketSvg
-              width={basketW}
-              height={basketH}
-              caughtCount={caughtCount}
-            />
-          </View>
-        </Animated.View>
-        </View>
-
-        {/* Compact Frosted Arctic Buddy Switcher Pill (sibling outside field so buddy taps never collide with dragging) */}
-        <View style={styles.buddyBarWrap} pointerEvents="box-none">
-          <View style={[styles.buddyPill, isTablet && styles.buddyPillTablet]}>
-            {ARCTIC_BUDDIES.map((b, idx) => {
-              const selected = idx === buddyIdx % ARCTIC_BUDDIES.length;
-              return (
-                <TactileButton
-                  key={b.kind}
-                  onPress={() => {
-                    soundEngine.unlock();
-                    soundEngine.playAnimalSound(b.kind);
-                    soundEngine.speakWord(b.label);
-                    setBuddyIdx(idx);
-                  }}
-                  accessibilityLabel={`Play as ${b.label}`}
-                  style={{ width: isTablet ? 48 : 38 }}
+              <TactileButton
+                key={b.kind}
+                onPress={() => {
+                  soundEngine.unlock();
+                  soundEngine.playAnimalSound(b.kind);
+                  soundEngine.speakWord(b.label);
+                  setBuddyIdx(idx);
+                }}
+                accessibilityLabel={`Play as ${b.label}`}
+                style={{ width: isTablet ? 48 : 38 }}
+              >
+                <View
+                  style={[
+                    styles.buddyChip,
+                    isTablet && styles.buddyChipTablet,
+                    selected && styles.buddyChipActive,
+                  ]}
                 >
-                  <View
-                    style={[
-                      styles.buddyChip,
-                      isTablet && styles.buddyChipTablet,
-                      selected && styles.buddyChipActive,
-                    ]}
-                  >
-                    <ZooExhibitAnimalSvg
-                      animal={b.kind}
-                      size={isTablet ? 38 : 30}
-                      highlighted={selected}
-                    />
-                  </View>
-                </TactileButton>
-              );
-            })}
-          </View>
+                  <ZooExhibitAnimalSvg
+                    animal={b.kind}
+                    size={isTablet ? 38 : 30}
+                    highlighted={selected}
+                  />
+                </View>
+              </TactileButton>
+            );
+          })}
         </View>
       </View>
 
@@ -1281,23 +1361,10 @@ export const ArcticCatchGame: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  fieldHost: {
-    flex: 1,
-    width: '100%',
-    position: 'relative',
-  },
-  field: {
-    flex: 1,
-    width: '100%',
-    position: 'relative',
-    overflow: 'hidden',
+    backgroundColor: '#CBEBF7',
   },
   buddyBarWrap: {
-    position: 'absolute',
-    top: 8,
-    left: 0,
-    right: 0,
+    marginTop: 4,
     alignItems: 'center',
     zIndex: 35,
   },
@@ -1342,33 +1409,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.riverBorder,
     transform: [{ scale: 1.06 }],
   },
-  fallingItem: {
-    position: 'absolute',
-    zIndex: 20,
+  nativeFallback: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  catcherWrap: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    zIndex: 26,
-  },
-  burstAnchor: {
-    position: 'absolute',
-    zIndex: 50,
-  },
-  snowGigglePill: {
-    backgroundColor: '#EAF7FD',
-    borderRadius: 14,
-    borderWidth: 2.2,
-    borderColor: '#4E7D96',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  snowGiggleText: {
-    fontSize: 13,
+  nativeFallbackText: {
+    fontSize: 20,
     fontWeight: '900',
-    color: '#2F5C75',
+    color: COLORS.woodDark,
   },
 });

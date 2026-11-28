@@ -102,8 +102,17 @@ const RootNavigator: React.FC = () => {
     </SafeAreaView>
   );
 
-  if (activeGame === 'ball-pass') {
-    return <View style={styles.ballPassRoot}>{content}</View>;
+  if (activeGame === 'ball-pass' || activeGame === 'arctic-catch') {
+    return (
+      <View
+        style={[
+          styles.ballPassRoot,
+          activeGame === 'arctic-catch' && { backgroundColor: '#CBEBF7' },
+        ]}
+      >
+        {content}
+      </View>
+    );
   }
 
   return (

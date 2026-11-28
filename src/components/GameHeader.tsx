@@ -4,21 +4,15 @@ import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
 import { COLORS, Difficulty } from '../theme';
-import { GorillaMood } from './GorillaMascot';
 import { HomeIcon, SoundIcon, StarIcon } from './JungleArt';
 import { TactileButton } from './TactileButton';
 
 interface GameHeaderProps {
   totalSteps: number;
   completedSteps: number;
-  /** Kept optional for compatibility with game state, no longer cluttered into top bar */
-  mascotMood?: GorillaMood;
-  onMascotPress?: () => void;
   /** Standardized 3-level difficulty adjuster (1=Easy, 2=Med, 3=Hard) */
   difficulty?: Difficulty;
   onDifficultyChange?: (next: Difficulty) => void;
-  /** Optional inline scene/animal switcher slot */
-  extraCenterSlot?: React.ReactNode;
 }
 
 const DIFF_META: {
