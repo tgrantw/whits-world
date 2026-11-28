@@ -1308,45 +1308,75 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                 >
                   <View pointerEvents="none" style={styles.leftTextWrap}>
                     {topic === 'colors' ? (
-                      <View style={styles.colorWordRow}>
-                        <View
-                          style={[
-                            styles.colorSwatchDot,
-                            {
-                              width: cardH >= 110 ? 32 : 22,
-                              height: cardH >= 110 ? 32 : 22,
-                              borderRadius: 99,
-                              backgroundColor: item.lineColor,
-                            },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.colorWordText,
-                            {
-                              fontSize:
-                                cardW >= 200
-                                  ? item.leftMain.length >= 6
-                                    ? 28
-                                    : 33
-                                  : item.leftMain.length >= 6
-                                  ? 19
-                                  : 23,
-                              color: item.textColor,
-                            },
-                            item.id === 'yellow' && styles.yellowTextOutline,
-                          ]}
-                        >
-                          {item.leftMain}
-                        </Text>
-                      </View>
+                      (() => {
+                        const isNarrowCard = cardW < 170;
+                        const rowGap = isNarrowCard ? 3 : 7;
+                        const swatchSize = isNarrowCard
+                          ? Math.round(Math.min(22, Math.max(15, cardH * 0.23)))
+                          : Math.round(Math.min(26, Math.max(18, Math.min(cardW * 0.105, cardH * 0.26))));
+                        const textBudget = isNarrowCard
+                          ? Math.max(60, cardW - 38)
+                          : Math.max(60, cardW - 42 - swatchSize - rowGap);
+                        const charWidthFactor = 0.82;
+                        const maxFontByW = Math.floor(
+                          textBudget / (Math.max(3, item.leftMain.length) * charWidthFactor)
+                        );
+                        const maxFontByH = Math.floor(cardH * (isNarrowCard ? 0.27 : 0.34));
+                        const colorFontSize = Math.max(
+                          13,
+                          Math.min(isNarrowCard ? 21 : 27, maxFontByW, maxFontByH)
+                        );
+
+                        return (
+                          <View
+                            style={[
+                              styles.colorWordRow,
+                              {
+                                flexDirection: isNarrowCard ? 'column' : 'row',
+                                gap: rowGap,
+                              },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.colorSwatchDot,
+                                {
+                                  width: swatchSize,
+                                  height: swatchSize,
+                                  borderRadius: 99,
+                                  backgroundColor: item.lineColor,
+                                },
+                              ]}
+                            />
+                            <Text
+                              numberOfLines={1}
+                              adjustsFontSizeToFit
+                              style={[
+                                styles.colorWordText,
+                                {
+                                  fontSize: colorFontSize,
+                                  letterSpacing: cardW >= 200 ? 0.6 : 0.3,
+                                  color: item.textColor,
+                                },
+                                Platform.OS === 'web'
+                                  ? ({ whiteSpace: 'nowrap' } as unknown as object)
+                                  : null,
+                                item.id === 'yellow' && styles.yellowTextOutline,
+                              ]}
+                            >
+                              {item.leftMain}
+                            </Text>
+                          </View>
+                        );
+                      })()
                     ) : (
                       <View style={styles.symbolStack}>
                         <Text
+                          numberOfLines={1}
                           style={[
                             styles.bigSymbolText,
                             {
-                              fontSize: cardH >= 110 ? 54 : 42,
+                              fontSize: Math.min(54, Math.max(32, Math.round(cardH * 0.48))),
                               color: item.textColor,
                             },
                           ]}
@@ -1355,10 +1385,11 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                         </Text>
                         {item.leftSub && (
                           <Text
+                            numberOfLines={1}
                             style={[
                               styles.subSymbolText,
                               {
-                                fontSize: cardH >= 110 ? 20 : 15,
+                                fontSize: Math.min(20, Math.max(13, Math.round(cardH * 0.2))),
                                 color: item.textColor,
                               },
                             ]}
@@ -1574,24 +1605,28 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   leftTextWrap: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingLeft: 10,
+    paddingRight: 20,
   },
   colorWordRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    maxWidth: '100%',
   },
   colorSwatchDot: {
     borderWidth: 2.5,
     borderColor: INK,
+    flexShrink: 0,
   },
   colorWordText: {
     fontWeight: '900',
-    letterSpacing: 1.1,
+    letterSpacing: 0.6,
     textAlign: 'center',
+    flexShrink: 1,
   },
   yellowTextOutline: {
     textShadowColor: '#5C4400',
