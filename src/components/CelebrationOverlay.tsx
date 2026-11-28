@@ -3,13 +3,15 @@ import {
   Animated,
   Easing,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
+import { useOptionalApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
-import { COLORS } from '../theme';
-import { WhitMascot } from './WhitMascot';
-import { HomeIcon, PlayNextIcon, StarIcon } from './JungleArt';
+import { COLORS, GAMES } from '../theme';
+import { CrownIcon, HomeIcon, PlayNextIcon, StarIcon } from './JungleArt';
 import { TactileButton } from './TactileButton';
+import { WhitMascot } from './WhitMascot';
 
 interface CelebrationOverlayProps {
   visible: boolean;
@@ -42,10 +44,20 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   onPlayAgain,
   onHome,
 }) => {
+  const app = useOptionalApp();
   const { isTablet, height: screenH } = useResponsive();
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const cardScale = useRef(new Animated.Value(0.75)).current;
   const playPulse = useRef(new Animated.Value(1)).current;
+
+  const isSampleComplete = Boolean(
+    app && app.isSampleSession && !app.isUnlocked && app.activeGame
+  );
+  const sampleGameMeta = useMemo(
+    () =>
+      app?.activeGame ? GAMES.find((g) => g.id === app.activeGame) ?? null : null,
+    [app?.activeGame]
+  );
 
   const confettiPieces = useMemo<ConfettiPiece[]>(() => {
     return Array.from({ length: 28 }, (_, i) => ({
@@ -67,6 +79,10 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   useEffect(() => {
     if (!visible) return;
 
+    if (isSampleComplete && app) {
+      app.completeSampleSession();
+    }
+
     backdropOpacity.setValue(0);
     cardScale.setValue(0.75);
 
@@ -87,7 +103,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
     const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(playPulse, {
-          toValue: 1.07,
+          toValue: 1.06,
           duration: 550,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
@@ -123,15 +139,35 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       pulseLoop.stop();
       confettiLoops.forEach((l) => l.stop());
     };
-  }, [visible, backdropOpacity, cardScale, playPulse, fallAnims, confettiPieces]);
+  }, [
+    visible,
+    isSampleComplete,
+    app,
+    backdropOpacity,
+    cardScale,
+    playPulse,
+    fallAnims,
+    confettiPieces,
+  ]);
 
   if (!visible) return null;
 
   const sideStar = isTablet ? 52 : 42;
   const midStar = isTablet ? 72 : 58;
-  const homeBtnSize = isTablet ? 96 : 80;
+  const homeBtnSize = isTablet ? 92 : 76;
   const nextBtnW = isTablet ? 148 : 118;
   const nextBtnH = isTablet ? 98 : 82;
+
+  const handleAskGrownUp = () => {
+    if (!app) return;
+    const lockedId = app.activeGame;
+    app.goHome();
+    if (lockedId) {
+      app.openParentGate(lockedId);
+    } else {
+      app.openParentGate(null);
+    }
+  };
 
   return (
     <Animated.View
@@ -188,6 +224,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
         style={[
           styles.plaqueOuter,
           isTablet && styles.plaqueOuterTablet,
+          isSampleComplete && (isTablet ? { maxWidth: 500 } : { maxWidth: 368 }),
           { transform: [{ scale: cardScale }] },
         ]}
       >
@@ -200,9 +237,20 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
             <StarIcon size={sideStar} color="#FFD952" />
           </View>
 
-          <WhitMascot mood="cheer" size={isTablet ? 216 : 172} interactive />
+          <WhitMascot mood="cheer" size={isTablet ? 196 : 154} interactive />
 
-          <View style={[styles.actions, isTablet && { gap: 26, marginTop: 18 }]}>
+          {isSampleComplete && sampleGameMeta && (
+            <View style={styles.sampleCopyBox}>
+              <Text style={[styles.sampleHeadline, isTablet && { fontSize: 22 }]}>
+                Loved {sampleGameMeta.title}?
+              </Text>
+              <Text style={[styles.sampleSub, isTablet && { fontSize: 15 }]}>
+                Ask a grown-up to unlock {sampleGameMeta.title} & all {GAMES.length} zoo games forever!
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.actions, isTablet && { gap: 22, marginTop: 16 }]}>
             <TactileButton
               onPress={onHome}
               accessibilityLabel="Home"
@@ -214,34 +262,63 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
                   {
                     width: homeBtnSize,
                     height: homeBtnSize,
-                    borderRadius: isTablet ? 32 : 28,
+                    borderRadius: isTablet ? 30 : 26,
                   },
                 ]}
               >
-                <HomeIcon size={isTablet ? 42 : 34} color="#FFFDF5" />
+                <HomeIcon size={isTablet ? 40 : 32} color="#FFFDF5" />
               </View>
             </TactileButton>
 
-            <Animated.View style={{ transform: [{ scale: playPulse }] }}>
-              <TactileButton
-                onPress={onPlayAgain}
-                accessibilityLabel="Play next puzzle"
-                style={{ width: nextBtnW }}
-              >
-                <View
-                  style={[
-                    styles.nextBtn,
-                    {
-                      width: nextBtnW,
-                      height: nextBtnH,
-                      borderRadius: isTablet ? 34 : 30,
-                    },
-                  ]}
+            {isSampleComplete ? (
+              <Animated.View style={{ flex: 1, transform: [{ scale: playPulse }] }}>
+                <TactileButton
+                  onPress={handleAskGrownUp}
+                  accessibilityLabel={`Ask a grown-up to unlock ${sampleGameMeta?.title || 'all games'}`}
                 >
-                  <PlayNextIcon size={isTablet ? 52 : 42} color="#FFFFFF" />
-                </View>
-              </TactileButton>
-            </Animated.View>
+                  <View
+                    style={[
+                      styles.unlockSampleBtn,
+                      {
+                        height: homeBtnSize,
+                        borderRadius: isTablet ? 30 : 26,
+                      },
+                    ]}
+                  >
+                    <CrownIcon size={isTablet ? 26 : 22} color="#FFE578" />
+                    <Text
+                      style={[
+                        styles.unlockSampleBtnText,
+                        isTablet && { fontSize: 19 },
+                      ]}
+                    >
+                      Ask Grown-Up
+                    </Text>
+                  </View>
+                </TactileButton>
+              </Animated.View>
+            ) : (
+              <Animated.View style={{ transform: [{ scale: playPulse }] }}>
+                <TactileButton
+                  onPress={onPlayAgain}
+                  accessibilityLabel="Play next puzzle"
+                  style={{ width: nextBtnW }}
+                >
+                  <View
+                    style={[
+                      styles.nextBtn,
+                      {
+                        width: nextBtnW,
+                        height: nextBtnH,
+                        borderRadius: isTablet ? 34 : 30,
+                      },
+                    ]}
+                  >
+                    <PlayNextIcon size={isTablet ? 52 : 42} color="#FFFFFF" />
+                  </View>
+                </TactileButton>
+              </Animated.View>
+            )}
           </View>
         </View>
       </Animated.View>
@@ -295,27 +372,53 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     borderWidth: 2.5,
     borderColor: '#E8C589',
-    paddingVertical: 22,
+    paddingVertical: 20,
     paddingHorizontal: 18,
     alignItems: 'center',
   },
   plaqueInnerTablet: {
     borderRadius: 36,
-    paddingVertical: 30,
-    paddingHorizontal: 28,
+    paddingVertical: 26,
+    paddingHorizontal: 26,
   },
   starRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  sampleCopyBox: {
+    backgroundColor: '#FFF3CC',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#E0B046',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 6,
+    alignItems: 'center',
+    width: '100%',
+  },
+  sampleHeadline: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+    textAlign: 'center',
+    marginBottom: 3,
+  },
+  sampleSub: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.inkMuted,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
+    gap: 14,
     marginTop: 14,
+    width: '100%',
   },
   homeBtn: {
     backgroundColor: COLORS.sunGold,
@@ -332,5 +435,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  unlockSampleBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.emerald,
+    borderWidth: 3.5,
+    borderColor: '#195428',
+    borderBottomWidth: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unlockSampleBtnText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
 });

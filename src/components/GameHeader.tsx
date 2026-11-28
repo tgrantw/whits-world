@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
@@ -17,7 +17,7 @@ interface GameHeaderProps {
   /** Standardized 3-level difficulty adjuster (1=Easy, 2=Med, 3=Hard) */
   difficulty?: Difficulty;
   onDifficultyChange?: (next: Difficulty) => void;
-  /** Optional inline scene/animal switcher slot cleanly integrated inside the single top bar */
+  /** Optional inline scene/animal switcher slot */
   extraCenterSlot?: React.ReactNode;
 }
 
@@ -57,10 +57,9 @@ const DIFF_META: {
 
 /**
  * Clean, uncluttered single top bar across all Whit's World games:
- * - Generous horizontal safe-area padding so right-side audio button is never clipped
  * - Warm wooden Home button on left
- * - Stars + clearly labeled "Difficulty: Easy | Med | Hard" toggle in center
- * - Clean Audio toggle on right (no cluttered tiny mascot icon)
+ * - Stars + optional "Free Try" pill + persisted "Difficulty: Easy | Med | Hard" toggle in center
+ * - Clean Audio toggle on right
  */
 export const GameHeader: React.FC<GameHeaderProps> = ({
   totalSteps,
@@ -68,8 +67,30 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
   difficulty,
   onDifficultyChange,
 }) => {
-  const { goHome, isMuted, toggleMute } = useApp();
+  const {
+    goHome,
+    isMuted,
+    toggleMute,
+    activeGame,
+    isSampleSession,
+    isUnlocked,
+    getSavedDifficulty,
+    saveGameDifficulty,
+  } = useApp();
   const { isTablet } = useResponsive();
+
+  // Sync the child's persisted game/stage difficulty once when entering a game
+  const syncedGameRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeGame || difficulty === undefined || !onDifficultyChange) return;
+    if (syncedGameRef.current === activeGame) return;
+    syncedGameRef.current = activeGame;
+
+    const saved = getSavedDifficulty(activeGame);
+    if (saved !== difficulty) {
+      onDifficultyChange(saved);
+    }
+  }, [activeGame, difficulty, getSavedDifficulty, onDifficultyChange]);
 
   const btnSize = isTablet ? 58 : 46;
   const starSize = isTablet
@@ -79,6 +100,8 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
     : totalSteps > 5
     ? 15
     : 18;
+
+  const showSampleBadge = isSampleSession && !isUnlocked;
 
   return (
     <View style={[styles.header, isTablet && styles.headerTablet]}>
@@ -102,74 +125,87 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
         </View>
       </TactileButton>
 
-      {/* Center: Single Unified Translucent Top Pill (Stars + Labeled Difficulty) */}
+      {/* Center: Single Unified Translucent Top Pill (Sample Tag + Stars + Labeled Difficulty) */}
       <View
         style={[
           styles.unifiedBar,
           isTablet ? styles.unifiedBarTablet : styles.unifiedBarPhone,
         ]}
       >
+        {showSampleBadge && (
+          <View style={styles.samplePill}>
+            <Text style={[styles.samplePillText, isTablet && { fontSize: 12.5 }]}>
+              🎁 Free Try
+            </Text>
+          </View>
+        )}
+
         {/* Star Progress */}
-        <View style={[styles.starsRow, isTablet && { gap: 5 }]}>
-          {Array.from({ length: totalSteps }, (_, i) => (
-            <StarIcon key={i} size={starSize} filled={i < completedSteps} />
-          ))}
-        </View>
+        {totalSteps > 0 && (
+          <View style={[styles.starsRow, isTablet && { gap: 5 }]}>
+            {Array.from({ length: totalSteps }, (_, i) => (
+              <StarIcon key={i} size={starSize} filled={i < completedSteps} />
+            ))}
+          </View>
+        )}
 
         {difficulty !== undefined && onDifficultyChange && (
           <View style={[styles.diffGroup, isTablet && { gap: 7 }]}>
-              <Text
-                style={[
-                  styles.diffLabel,
-                  isTablet && styles.diffLabelTablet,
-                ]}
-              >
-                Difficulty:
-              </Text>
-              <View style={[styles.diffTrack, isTablet && styles.diffTrackTablet]}>
-                {DIFF_META.map((item) => {
-                  const active = difficulty === item.level;
-                  return (
-                    <TactileButton
-                      key={item.level}
-                      onPress={() => {
-                        if (difficulty !== item.level) {
-                          soundEngine.playPop();
-                          onDifficultyChange(item.level);
+            <Text
+              style={[
+                styles.diffLabel,
+                isTablet && styles.diffLabelTablet,
+              ]}
+            >
+              Difficulty:
+            </Text>
+            <View style={[styles.diffTrack, isTablet && styles.diffTrackTablet]}>
+              {DIFF_META.map((item) => {
+                const active = difficulty === item.level;
+                return (
+                  <TactileButton
+                    key={item.level}
+                    onPress={() => {
+                      if (difficulty !== item.level) {
+                        soundEngine.playPop();
+                        if (activeGame) {
+                          saveGameDifficulty(activeGame, item.level);
                         }
-                      }}
-                      accessibilityLabel={item.a11yLabel}
-                      style={{ minWidth: isTablet ? 58 : 42 }}
+                        onDifficultyChange(item.level);
+                      }
+                    }}
+                    accessibilityLabel={item.a11yLabel}
+                    style={{ minWidth: isTablet ? 58 : 42 }}
+                  >
+                    <View
+                      style={[
+                        styles.diffBtn,
+                        isTablet && styles.diffBtnTablet,
+                        active
+                          ? {
+                              backgroundColor: item.activeBg,
+                              borderColor: item.activeBorder,
+                            }
+                          : styles.diffBtnInactive,
+                      ]}
                     >
-                      <View
+                      <Text
                         style={[
-                          styles.diffBtn,
-                          isTablet && styles.diffBtnTablet,
-                          active
-                            ? {
-                                backgroundColor: item.activeBg,
-                                borderColor: item.activeBorder,
-                              }
-                            : styles.diffBtnInactive,
+                          styles.diffBtnText,
+                          isTablet && styles.diffBtnTextTablet,
+                          {
+                            color: active ? item.activeText : COLORS.inkMuted,
+                          },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.diffBtnText,
-                            isTablet && styles.diffBtnTextTablet,
-                            {
-                              color: active ? item.activeText : COLORS.inkMuted,
-                            },
-                          ]}
-                        >
-                          {item.shortLabel}
-                        </Text>
-                      </View>
-                    </TactileButton>
-                  );
-                })}
-              </View>
+                        {item.shortLabel}
+                      </Text>
+                    </View>
+                  </TactileButton>
+                );
+              })}
             </View>
+          </View>
         )}
       </View>
 
@@ -262,7 +298,20 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     paddingHorizontal: 20,
     paddingVertical: 8,
-    gap: 16,
+    gap: 14,
+  },
+  samplePill: {
+    backgroundColor: '#FFF0B3',
+    borderRadius: 999,
+    borderWidth: 1.8,
+    borderColor: '#C98A18',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+  },
+  samplePillText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#7A4800',
   },
   starsRow: {
     flexDirection: 'row',

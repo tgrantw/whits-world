@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { BedtimeModal } from './src/components/BedtimeModal';
 import { JungleBackground } from './src/components/JungleBackground';
 import { ParentalGateModal } from './src/components/ParentalGateModal';
 import { PaywallModal } from './src/components/PaywallModal';
@@ -87,7 +88,9 @@ const RootNavigator: React.FC = () => {
   const content = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar style="dark" />
-      <View style={styles.screenHost}>{renderScreen()}</View>
+      <View key={activeGame ?? 'home'} style={styles.screenHost}>
+        {renderScreen()}
+      </View>
       <ParentalGateModal
         visible={parentGateVisible}
         onClose={closeParentGate}
@@ -95,6 +98,7 @@ const RootNavigator: React.FC = () => {
       />
       <PaywallModal />
       <StarJarModal />
+      <BedtimeModal />
     </SafeAreaView>
   );
 

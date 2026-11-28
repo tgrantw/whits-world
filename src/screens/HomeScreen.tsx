@@ -32,7 +32,15 @@ import { ZooAnimalSvg } from '../components/ZooAnimalsArt';
 import { ZooExhibitAnimalSvg } from '../components/ZooExhibitAnimals';
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
-import { COLORS, GameId, GAMES, UNLOCK_PRICE_DISPLAY } from '../theme';
+import { soundEngine } from '../services/sound';
+import {
+  CategoryFilter,
+  COLORS,
+  GAME_CATEGORIES,
+  GameId,
+  GAMES,
+  UNLOCK_PRICE_DISPLAY,
+} from '../theme';
 
 /** Lightweight ambient firefly/sunlit sparkle drifting gently upward in the upper sky */
 const SkyFirefly: React.FC<{
@@ -636,10 +644,10 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
       return (
         <View style={[styles.previewRow, { alignItems: 'center', gap: 5 }]}>
           {[
-            { bg: '#E85A50', b: '#A6322B' },
-            { bg: '#FAD44A', b: '#B58912' },
-            { bg: '#5BB55E', b: '#317A35' },
-            { bg: '#4DAAD8', b: '#256E96' },
+            { bg: '#E51A1A', b: '#A60F0F' },
+            { bg: '#FFE01B', b: '#B89400' },
+            { bg: '#1FA838', b: '#126E22' },
+            { bg: '#1578E8', b: '#0C4F9E' },
           ].map((dot, i) => (
             <View
               key={i}
@@ -720,12 +728,12 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
               paddingHorizontal: s(6),
               paddingVertical: s(4),
               borderRadius: s(8),
-              backgroundColor: '#FFF0EE',
+              backgroundColor: '#FFFFFF',
               borderWidth: 2,
-              borderColor: '#C7423B',
+              borderColor: '#E51A1A',
             }}
           >
-            <Text style={{ fontSize: s(12), fontWeight: '900', color: '#D63830' }}>
+            <Text style={{ fontSize: s(12), fontWeight: '900', color: '#E51A1A' }}>
               RED
             </Text>
           </View>
@@ -733,21 +741,21 @@ const GameCardPreview: React.FC<{ id: GameId; scale?: number }> = ({
             <Path
               d="M 4 14 C 14 4, 22 24, 32 14"
               fill="none"
-              stroke="#E54B42"
+              stroke="#E51A1A"
               strokeWidth="4.5"
               strokeLinecap="round"
             />
-            <Circle cx="4" cy="14" r="3.5" fill="#E54B42" />
-            <Circle cx="32" cy="14" r="3.5" fill="#E54B42" />
+            <Circle cx="4" cy="14" r="3.5" fill="#E51A1A" />
+            <Circle cx="32" cy="14" r="3.5" fill="#E51A1A" />
           </Svg>
           <Svg width={s(34)} height={s(34)} viewBox="0 0 100 100">
             <Path
               d="M 50 28 C 34 22 18 36 20 56 C 22 76 38 88 50 84 C 62 88 78 76 80 56 C 82 36 66 22 50 28 Z"
-              fill="#E85A50"
+              fill="#E51A1A"
               stroke="#4A3525"
               strokeWidth="5"
             />
-            <Path d="M 52 22 Q 66 12 72 22 Q 62 30 52 22 Z" fill="#5BB55E" stroke="#4A3525" strokeWidth="4" />
+            <Path d="M 52 22 Q 66 12 72 22 Q 62 30 52 22 Z" fill="#1FA838" stroke="#4A3525" strokeWidth="4" />
           </Svg>
         </View>
       );
@@ -829,12 +837,17 @@ export const HomeScreen: React.FC = () => {
     isMuted,
     starsEarned,
     hasNewAccessory,
+    bedtimeSecondsLeft,
     toggleMute,
+    canPlayFreeSample,
     openGame,
     openParentGate,
     openStarJar,
   } = useApp();
   const { isTablet, isTabletLandscape } = useResponsive();
+
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const gridScrollRef = useRef<React.ComponentRef<typeof ScrollView> | null>(null);
 
   const canFullscreen =
     Platform.OS === 'web' &&
@@ -865,10 +878,62 @@ export const HomeScreen: React.FC = () => {
     }
   }, [canFullscreen]);
 
+  const handleSelectCategory = useCallback((cat: CategoryFilter) => {
+    soundEngine.unlock();
+    soundEngine.playPop();
+    setCategoryFilter(cat);
+    gridScrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, []);
+
+  const filteredGames =
+    categoryFilter === 'all'
+      ? GAMES
+      : GAMES.filter((g) => g.category === categoryFilter);
+
   const previewScale = isTabletLandscape ? 0.94 : isTablet ? 1.1 : 0.96;
   const mascotSize = isTabletLandscape ? 186 : isTablet ? 184 : 148;
   const signW = isTabletLandscape ? 278 : isTablet ? 310 : 268;
   const signH = isTabletLandscape ? 76 : isTablet ? 84 : 72;
+
+  const renderCategoryTabs = () => (
+    <View style={[styles.catBarWrap, isTablet && { marginBottom: 12 }]}>
+      <View style={[styles.catBar, isTablet && styles.catBarTablet]}>
+        {GAME_CATEGORIES.map((cat) => {
+          const active = categoryFilter === cat.id;
+          return (
+            <TactileButton
+              key={cat.id}
+              onPress={() => handleSelectCategory(cat.id)}
+              accessibilityLabel={`Filter ${cat.label} games`}
+            >
+              <View
+                style={[
+                  styles.catPill,
+                  isTablet && styles.catPillTablet,
+                  active && {
+                    backgroundColor: cat.activeBg,
+                    borderColor: cat.activeBorder,
+                    borderWidth: 2.5,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.catPillText,
+                    isTablet && styles.catPillTextTablet,
+                    active && styles.catPillTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {cat.emoji} {cat.label}
+                </Text>
+              </View>
+            </TactileButton>
+          );
+        })}
+      </View>
+    </View>
+  );
 
   const renderUnlockBanner = () =>
     !isUnlocked ? (
@@ -953,15 +1018,20 @@ export const HomeScreen: React.FC = () => {
           : null,
       ]}
     >
-      {GAMES.map((game) => {
+      {filteredGames.map((game) => {
         const locked = !game.isFree && !isUnlocked;
+        const hasFreeSample = locked && canPlayFreeSample(game.id);
 
         return (
           <TactileButton
             key={game.id}
             onPress={() => openGame(game.id, game.isFree)}
             accessibilityLabel={
-              locked ? `${game.title} (Locked)` : `Play ${game.title}`
+              hasFreeSample
+                ? `Try ${game.title} (1 Free Sample Round)`
+                : locked
+                ? `${game.title} (Locked)`
+                : `Play ${game.title}`
             }
             style={
               isTabletLandscape
@@ -979,15 +1049,31 @@ export const HomeScreen: React.FC = () => {
                   backgroundColor: game.plaqueBg,
                   borderColor: game.plaqueBorder,
                 },
-                locked && styles.plaqueLocked,
+                locked && !hasFreeSample && styles.plaqueLocked,
               ]}
             >
               {/* Brass wooden plaque pins */}
               <View style={[styles.pinDot, styles.pinTL]} />
               <View style={[styles.pinDot, styles.pinTR]} />
 
-              {/* Lock or Sparkle Star Badge */}
-              {locked ? (
+              {/* Daily Free Try Ribbon, Lock Badge, or Unlocked Sparkle */}
+              {hasFreeSample ? (
+                <View
+                  style={[
+                    styles.sampleTryBadge,
+                    isTablet && styles.sampleTryBadgeTablet,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sampleTryBadgeText,
+                      isTablet && { fontSize: 11.5 },
+                    ]}
+                  >
+                    🎁 Free Try
+                  </Text>
+                </View>
+              ) : locked ? (
                 <View
                   style={[
                     styles.lockBadge,
@@ -1012,7 +1098,7 @@ export const HomeScreen: React.FC = () => {
                     ? styles.plaqueInnerTablet
                     : null,
                   { backgroundColor: game.plaqueInner },
-                  locked && { opacity: 0.84 },
+                  locked && !hasFreeSample && { opacity: 0.84 },
                 ]}
               >
                 <GameCardPreview id={game.id} scale={previewScale} />
@@ -1082,6 +1168,19 @@ export const HomeScreen: React.FC = () => {
         </TactileButton>
 
         <View style={[styles.parentCorner, isTablet && { gap: 12 }]}>
+          {bedtimeSecondsLeft !== null && bedtimeSecondsLeft > 0 && (
+            <TactileButton
+              onPress={() => openParentGate(null)}
+              accessibilityLabel="Bedtime timer active"
+            >
+              <View style={styles.bedtimeTopChip}>
+                <Text style={styles.bedtimeTopChipText}>
+                  🌙 {Math.ceil(bedtimeSecondsLeft / 60)}m
+                </Text>
+              </View>
+            </TactileButton>
+          )}
+
           {canFullscreen && (
             <TactileButton
               onPress={toggleFullscreen}
@@ -1190,9 +1289,11 @@ export const HomeScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Right Zoo Exhibits Grid: Scrollable Storybook Wooden Plaques */}
+          {/* Right Zoo Exhibits Grid: Category Tabs + Scrollable Storybook Wooden Plaques */}
           <View style={styles.landscapeGridCol}>
+            {renderCategoryTabs()}
             <ScrollView
+              ref={gridScrollRef}
               style={{ flex: 1, width: '100%' }}
               contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 4 }}
               showsVerticalScrollIndicator={false}
@@ -1203,13 +1304,14 @@ export const HomeScreen: React.FC = () => {
         </View>
       ) : (
         <ScrollView
+          ref={gridScrollRef}
           contentContainerStyle={[
             styles.scrollContent,
             isTablet && styles.scrollContentTablet,
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.hero, isTablet && { marginBottom: 16 }]}>
+          <View style={[styles.hero, isTablet && { marginBottom: 14 }]}>
             <View style={styles.heroGlowWrap}>
               <Svg
                 width={isTablet ? 236 : 186}
@@ -1241,6 +1343,7 @@ export const HomeScreen: React.FC = () => {
             />
           </View>
 
+          {renderCategoryTabs()}
           {renderGameGrid()}
           {renderUnlockBanner()}
         </ScrollView>
@@ -1646,16 +1749,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   gameTitle: {
-    fontSize: 15.5,
+    fontSize: 15,
     fontWeight: '900',
     color: COLORS.ink,
     textAlign: 'center',
   },
   gameTitleTablet: {
-    fontSize: 18,
+    fontSize: 17.5,
   },
   gameTitleLandscape: {
-    fontSize: 16.5,
+    fontSize: 14.5,
   },
   unlockWrap: {
     marginTop: 18,
@@ -1740,5 +1843,88 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: COLORS.woodDark,
+  },
+  catBarWrap: {
+    alignItems: 'center',
+    marginBottom: 10,
+    zIndex: 12,
+  },
+  catBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 249, 236, 0.92)',
+    borderRadius: 999,
+    borderWidth: 2.5,
+    borderColor: COLORS.woodBorder,
+    borderBottomWidth: 5,
+    padding: 4,
+    gap: 4,
+  },
+  catBarTablet: {
+    padding: 5,
+    gap: 6,
+  },
+  catPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  catPillTablet: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  catPillText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: COLORS.inkMuted,
+  },
+  catPillTextTablet: {
+    fontSize: 14.5,
+  },
+  catPillTextActive: {
+    color: COLORS.woodDark,
+    fontWeight: '900',
+  },
+  sampleTryBadge: {
+    position: 'absolute',
+    top: -7,
+    right: -6,
+    backgroundColor: '#FFE066',
+    borderRadius: 999,
+    borderWidth: 2.5,
+    borderColor: COLORS.woodDark,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    zIndex: 8,
+  },
+  sampleTryBadgeTablet: {
+    top: -8,
+    right: -7,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  sampleTryBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+  },
+  bedtimeTopChip: {
+    backgroundColor: '#E5E8FF',
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: '#4E5BA6',
+    borderBottomWidth: 4.5,
+    paddingHorizontal: 10,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bedtimeTopChipText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#26306B',
   },
 });

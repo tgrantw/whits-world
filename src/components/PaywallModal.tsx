@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
   Image,
   Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -13,82 +12,63 @@ import {
 import { STORYBOOK_ASSETS } from '../assets/assetMap';
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
-import { COLORS, GAMES, UNLOCK_PRICE_DISPLAY, UNLOCK_PRODUCT_ID } from '../theme';
+import {
+  COLORS,
+  Difficulty,
+  FREE_GAMES_COUNT,
+  GameId,
+  GameMeta,
+  GAMES,
+  PAID_GAMES_COUNT,
+  UNLOCK_PRICE_DISPLAY,
+  UNLOCK_PRODUCT_ID,
+} from '../theme';
 import { CrownIcon, JungleBushCoverSvg, StarIcon } from './JungleArt';
+import { PicnicTreatSvg } from './PicnicTreats';
 import { TactileButton } from './TactileButton';
 import { WhitMascot } from './WhitMascot';
+import { ZooAnimalSvg } from './ZooAnimalsArt';
 import { ZooExhibitAnimalSvg } from './ZooExhibitAnimals';
 
-interface ShowcaseGame {
-  id: string;
-  title: string;
-  benefit: string;
-  bg: string;
-  border: string;
-  accent: string;
-}
+const TOTAL_ZOO_FRIENDS = 24;
 
-const SHOWCASE_GAMES: ShowcaseGame[] = [
-  {
-    id: 'ball-pass',
-    title: 'Jungle Ball Pass',
-    benefit: 'Aim, kick & score goals',
-    bg: '#FCE3D4',
-    border: '#D98E6B',
-    accent: '#C45B35',
-  },
-  {
-    id: 'animal-peekaboo',
-    title: 'Bush Peek-a-Boo',
-    benefit: 'Memory & surprise play',
-    bg: '#DDF1FB',
-    border: '#7AB8D9',
-    accent: '#2D779E',
-  },
-  {
-    id: 'size-sorter',
-    title: 'Zoo Parade',
-    benefit: 'Little-to-giant sorting',
-    bg: '#EAE1FA',
-    border: '#A78ED6',
-    accent: '#684AA1',
-  },
-  {
-    id: 'baby-match',
-    title: 'Mama & Baby',
-    benefit: 'Matching & gentle care',
-    bg: '#FCE2EC',
-    border: '#DC8EAC',
-    accent: '#B0466D',
-  },
-  {
-    id: 'jungle-music',
-    title: 'Zoo Band',
-    benefit: 'Rhythm & xylophone play',
-    bg: '#FCF0C8',
-    border: '#D9B159',
-    accent: '#A16E16',
-  },
-  {
-    id: 'arctic-catch',
-    title: 'Arctic Catch',
-    benefit: 'Glide & catch fish',
-    bg: '#DDF5F1',
-    border: '#6EBDB4',
-    accent: '#237A72',
-  },
+const STAGE_OPTIONS: { level: Difficulty; label: string; sub: string }[] = [
+  { level: 1, label: '🌱 Age 2', sub: 'Easy' },
+  { level: 2, label: '🌿 Age 3', sub: 'Med' },
+  { level: 3, label: '🌳 Age 4+', sub: 'Hard' },
 ];
 
-const ShowcaseArt: React.FC<{ id: string }> = ({ id }) => {
+const TIMER_OPTIONS: { mins: number | null; label: string }[] = [
+  { mins: null, label: 'Off' },
+  { mins: 5, label: '5m' },
+  { mins: 10, label: '10m' },
+  { mins: 15, label: '15m' },
+  { mins: 20, label: '20m' },
+];
+
+const PARENT_PROMISES = [
+  'One-time purchase · No subscriptions',
+  '100% ad-free & no data tracking',
+  'Works offline for flights & car rides',
+  '1 Free Try per day on locked games',
+];
+
+function formatCountdown(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+const ShowcaseArt: React.FC<{ id: GameId }> = ({ id }) => {
   switch (id) {
     case 'ball-pass':
       return (
         <View style={styles.artRow}>
-          <ZooExhibitAnimalSvg animal="lion" size={44} />
+          <ZooExhibitAnimalSvg animal="lion" size={40} />
           <View style={styles.miniBallClip}>
             <Image
               source={STORYBOOK_ASSETS.jungleBall}
-              style={{ width: 26, height: 26 }}
+              style={{ width: 24, height: 24 }}
               resizeMode="cover"
             />
           </View>
@@ -98,45 +78,87 @@ const ShowcaseArt: React.FC<{ id: string }> = ({ id }) => {
       return (
         <View style={styles.artStack}>
           <View style={{ marginBottom: -12 }}>
-            <ZooExhibitAnimalSvg animal="monkey" size={34} />
+            <ZooExhibitAnimalSvg animal="monkey" size={30} />
           </View>
-          <JungleBushCoverSvg size={44} />
+          <JungleBushCoverSvg size={40} />
         </View>
       );
     case 'size-sorter':
       return (
         <View style={styles.artBottomRow}>
-          <ZooExhibitAnimalSvg animal="frog" size={28} />
-          <ZooExhibitAnimalSvg animal="elephant" size={44} />
+          <ZooExhibitAnimalSvg animal="frog" size={24} />
+          <ZooExhibitAnimalSvg animal="elephant" size={40} />
         </View>
       );
     case 'baby-match':
       return (
         <View style={styles.artBottomRow}>
-          <ZooExhibitAnimalSvg animal="giraffe" size={46} />
-          <ZooExhibitAnimalSvg animal="panda" size={30} />
+          <ZooExhibitAnimalSvg animal="giraffe" size={42} />
+          <ZooExhibitAnimalSvg animal="panda" size={28} />
         </View>
       );
     case 'arctic-catch':
       return (
         <View style={styles.artBottomRow}>
-          <ZooExhibitAnimalSvg animal="penguin" size={42} />
-          <ZooExhibitAnimalSvg animal="seal" size={34} />
+          <ZooExhibitAnimalSvg animal="penguin" size={38} />
+          <ZooExhibitAnimalSvg animal="seal" size={30} />
+        </View>
+      );
+    case 'jungle-picnic':
+      return (
+        <View style={styles.artRow}>
+          <PicnicTreatSvg treat="banana" size={26} />
+          <ZooExhibitAnimalSvg animal="gorilla" size={38} />
+        </View>
+      );
+    case 'jungle-jigsaw':
+      return (
+        <View style={styles.artRow}>
+          <ZooAnimalSvg animal="giraffe" size={40} />
+        </View>
+      );
+    case 'letter-safari':
+      return (
+        <View style={styles.artRow}>
+          <View style={[styles.miniLetterTile, { backgroundColor: '#FFE5E2', borderColor: '#C94A42' }]}>
+            <Text style={[styles.miniLetterText, { color: '#A6322B' }]}>A</Text>
+          </View>
+          <View style={[styles.miniLetterTile, { backgroundColor: '#E1F7DE', borderColor: '#38823D' }]}>
+            <Text style={[styles.miniLetterText, { color: '#28642C' }]}>B</Text>
+          </View>
+        </View>
+      );
+    case 'number-line-match':
+      return (
+        <View style={styles.artRow}>
+          <View style={[styles.miniLetterTile, { backgroundColor: '#EEF9FF', borderColor: '#2A7CA8' }]}>
+            <Text style={[styles.miniLetterText, { color: '#1D6E9C' }]}>3</Text>
+          </View>
+          <ZooExhibitAnimalSvg animal="duck" size={30} />
+        </View>
+      );
+    case 'letter-line-match':
+      return (
+        <View style={styles.artRow}>
+          <View style={[styles.miniLetterTile, { backgroundColor: '#F5EFFF', borderColor: '#6A44A3' }]}>
+            <Text style={[styles.miniLetterText, { color: '#60389C' }]}>L</Text>
+          </View>
+          <ZooExhibitAnimalSvg animal="lion" size={32} />
         </View>
       );
     case 'jungle-music':
     default:
       return (
         <View style={styles.artStack}>
-          <ZooExhibitAnimalSvg animal="toucan" size={36} />
+          <ZooExhibitAnimalSvg animal="toucan" size={32} />
           <View style={styles.xyloMiniRow}>
             {['#DF5D56', '#DF7248', '#F2C34C', '#56A962', '#4DAAD8'].map(
               (c, i) => (
                 <View
                   key={i}
                   style={{
-                    width: 8,
-                    height: 15 - i * 1.5,
+                    width: 7,
+                    height: 14 - i * 1.4,
                     borderRadius: 3,
                     backgroundColor: c,
                   }}
@@ -149,19 +171,13 @@ const ShowcaseArt: React.FC<{ id: string }> = ({ id }) => {
   }
 };
 
-const PARENT_PROMISES = [
-  'One-time purchase · No subscriptions',
-  '100% ad-free & no data tracking',
-  'Works offline for flights & car rides',
-  'iPad & iPhone · Family Sharing',
-];
-
 /**
- * Parent-Only Upgrade Showcase & Testing Hub Modal.
+ * Parent Corner 2.0 & Full Zoo Pack Showcase Modal.
  * Only reachable after passing the Parental Gate.
- * - Visual storybook showcase of all 5 unlockable zoo games
- * - Clear parent trust signals (one-time purchase, offline, ad-free, Family Sharing)
- * - App Store compliant "Restore Purchases" button + local browser preview toggle
+ * - Personalized locked-game spotlight + 1-tap launch after unlock
+ * - Parent Progress & Learning Snapshot (stars, animals, favorite game, practiced skills)
+ * - Child Age Stage selector (persisted default difficulty) + Gentle Whit Bedtime Timer
+ * - Visual showcase of all 11 Full Zoo Pack games + Browser Preview Toggle
  */
 export const PaywallModal: React.FC = () => {
   const {
@@ -170,12 +186,76 @@ export const PaywallModal: React.FC = () => {
     isUnlocked,
     isPurchasing,
     starsEarned,
+    collectedStickers,
+    pendingLockedGame,
     statusMessage,
+    defaultDifficulty,
+    parentStats,
+    bedtimeMinutes,
+    bedtimeSecondsLeft,
     handlePurchaseUnlockAll,
     handleRestorePurchases,
     handleSetPreviewUnlocked,
+    launchPendingLockedGame,
+    setAgePresetDifficulty,
+    startBedtimeTimer,
   } = useApp();
   const { isTablet } = useResponsive();
+
+  const pendingMeta: GameMeta | null = useMemo(
+    () =>
+      pendingLockedGame
+        ? GAMES.find((g) => g.id === pendingLockedGame) ?? null
+        : null,
+    [pendingLockedGame]
+  );
+
+  const showcaseGames = useMemo(() => {
+    const lockedPool = GAMES.filter((g) => !g.isFree);
+    if (!pendingLockedGame) return lockedPool;
+    const pinned = lockedPool.filter((g) => g.id === pendingLockedGame);
+    const rest = lockedPool.filter((g) => g.id !== pendingLockedGame);
+    return [...pinned, ...rest];
+  }, [pendingLockedGame]);
+
+  const favoriteGameTitle = useMemo(() => {
+    let bestId: GameId | null = null;
+    let bestCount = 0;
+    for (const [id, count] of Object.entries(parentStats.byGame)) {
+      if ((count || 0) > bestCount) {
+        bestCount = count || 0;
+        bestId = id as GameId;
+      }
+    }
+    if (!bestId) return 'Ready to explore!';
+    return GAMES.find((g) => g.id === bestId)?.title || 'Zoo Coloring';
+  }, [parentStats.byGame]);
+
+  const skillPills = useMemo(() => {
+    const bg = parentStats.byGame;
+    return [
+      {
+        label: '🎨 Colors',
+        active: Boolean((bg['color-match'] || 0) + (bg['color-line-match'] || 0) + (bg['zoo-coloring'] || 0) > 0),
+      },
+      {
+        label: '🔢 Counting',
+        active: Boolean((bg['number-count'] || 0) + (bg['number-line-match'] || 0) > 0),
+      },
+      {
+        label: '🔤 ABCs',
+        active: Boolean((bg['letter-safari'] || 0) + (bg['letter-line-match'] || 0) > 0),
+      },
+      {
+        label: '🧩 Puzzles',
+        active: Boolean((bg['shape-sorter'] || 0) + (bg['jungle-jigsaw'] || 0) + (bg['size-sorter'] || 0) + (bg['baby-match'] || 0) > 0),
+      },
+      {
+        label: '🎵 Music & Play',
+        active: Boolean((bg['jungle-music'] || 0) + (bg['bubble-pop'] || 0) + (bg['ball-pass'] || 0) + (bg['jungle-picnic'] || 0) + (bg['arctic-catch'] || 0) > 0),
+      },
+    ];
+  }, [parentStats.byGame]);
 
   return (
     <Modal
@@ -193,11 +273,10 @@ export const PaywallModal: React.FC = () => {
                 <CrownIcon size={16} color="#D48A18" />
                 <Text style={styles.parentTagText}>PARENT CORNER</Text>
               </View>
-              {starsEarned > 0 && (
-                <View style={styles.starsEarnedTag}>
-                  <StarIcon size={14} color={COLORS.sunGold} />
-                  <Text style={styles.starsEarnedText}>
-                    {starsEarned} {starsEarned === 1 ? 'star' : 'stars'} earned
+              {bedtimeSecondsLeft !== null && bedtimeSecondsLeft > 0 && (
+                <View style={styles.timerLiveTag}>
+                  <Text style={styles.timerLiveText}>
+                    🌙 {formatCountdown(bedtimeSecondsLeft)} left
                   </Text>
                 </View>
               )}
@@ -216,24 +295,157 @@ export const PaywallModal: React.FC = () => {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Warm Hero Card */}
+            {/* Personalized Hero Card */}
             <View style={styles.heroCard}>
               <WhitMascot
-                mood={isUnlocked ? 'cheer' : 'idle'}
-                size={isTablet ? 104 : 88}
+                mood={isUnlocked ? 'cheer' : 'wave'}
+                size={isTablet ? 96 : 80}
                 interactive={false}
               />
               <View style={styles.heroCopy}>
                 <Text style={[styles.title, isTablet && styles.titleTablet]}>
                   {isUnlocked
                     ? `All ${GAMES.length} Zoo Games Unlocked!`
+                    : pendingMeta
+                    ? `Unlock ${pendingMeta.title} + All ${GAMES.length} Games`
                     : 'Unlock All of Whit’s World'}
                 </Text>
                 <Text style={styles.priceSubtitle}>
                   {isUnlocked
-                    ? 'Thank you for supporting calm, ad-free play.'
-                    : `All 6 extra games • ${UNLOCK_PRICE_DISPLAY} once, keep forever`}
+                    ? 'Thank you for supporting calm, ad-free toddler play.'
+                    : `${FREE_GAMES_COUNT} Starter Games + ${PAID_GAMES_COUNT} Full-Pack Games • ${UNLOCK_PRICE_DISPLAY} once`}
                 </Text>
+              </View>
+            </View>
+
+            {/* Parent Controls: Child Stage (Difficulty) + Calm Bedtime Timer */}
+            <View style={styles.controlsCard}>
+              <Text style={styles.cardSectionTitle}>
+                CHILD STAGE & CALM SCREEN-TIME TIMER
+              </Text>
+
+              <View style={styles.controlBlock}>
+                <Text style={styles.controlLabel}>
+                  Default Game Difficulty (remembered per game):
+                </Text>
+                <View style={styles.pillRow}>
+                  {STAGE_OPTIONS.map((opt) => {
+                    const active = defaultDifficulty === opt.level;
+                    return (
+                      <TactileButton
+                        key={opt.level}
+                        onPress={() => setAgePresetDifficulty(opt.level)}
+                        accessibilityLabel={`Set stage ${opt.label} (${opt.sub})`}
+                        style={{ flex: 1 }}
+                      >
+                        <View
+                          style={[
+                            styles.stagePill,
+                            active && styles.stagePillActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.stagePillMain,
+                              active && styles.stagePillTextActive,
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.stagePillSub,
+                              active && styles.stagePillTextActive,
+                            ]}
+                          >
+                            {opt.sub}
+                          </Text>
+                        </View>
+                      </TactileButton>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={[styles.controlBlock, { marginBottom: 0 }]}>
+                <Text style={styles.controlLabel}>
+                  Gentle Whit Bedtime Wind-Down Timer:
+                </Text>
+                <View style={styles.pillRow}>
+                  {TIMER_OPTIONS.map((opt) => {
+                    const active = bedtimeMinutes === opt.mins;
+                    return (
+                      <TactileButton
+                        key={String(opt.mins)}
+                        onPress={() => startBedtimeTimer(opt.mins)}
+                        accessibilityLabel={`Bedtime timer ${opt.label}`}
+                        style={{ flex: 1 }}
+                      >
+                        <View
+                          style={[
+                            styles.timerPill,
+                            active && styles.timerPillActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.timerPillText,
+                              active && styles.timerPillTextActive,
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </View>
+                      </TactileButton>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* Parent Learning & Progress Snapshot */}
+            <View style={styles.snapshotCard}>
+              <Text style={styles.cardSectionTitle}>
+                EXPLORER LEARNING SNAPSHOT
+              </Text>
+              <View style={styles.statsRow}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statNumber}>{starsEarned}</Text>
+                  <Text style={styles.statCaption}>Stars Earned</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statNumber}>
+                    {collectedStickers.length}/{TOTAL_ZOO_FRIENDS}
+                  </Text>
+                  <Text style={styles.statCaption}>Zoo Friends</Text>
+                </View>
+                <View style={[styles.statBox, { flex: 1.35 }]}>
+                  <Text style={styles.statFavorite} numberOfLines={1}>
+                    {favoriteGameTitle}
+                  </Text>
+                  <Text style={styles.statCaption}>Favorite Activity</Text>
+                </View>
+              </View>
+
+              <View style={styles.skillsWrap}>
+                {skillPills.map((sk) => (
+                  <View
+                    key={sk.label}
+                    style={[
+                      styles.skillBadge,
+                      sk.active && styles.skillBadgeActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.skillBadgeText,
+                        sk.active && styles.skillBadgeTextActive,
+                      ]}
+                    >
+                      {sk.active ? `✓ ${sk.label}` : sk.label}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </View>
 
@@ -247,39 +459,68 @@ export const PaywallModal: React.FC = () => {
               ))}
             </View>
 
-            {/* Visual 6-Game Storybook Showcase */}
+            {/* Visual 11-Game Full Zoo Pack Showcase */}
             <Text style={styles.sectionHeading}>
-              INCLUDED IN THE FULL ZOO PACK
+              {PAID_GAMES_COUNT} EXTRA GAMES IN THE FULL ZOO PACK
             </Text>
-            <View style={styles.showcaseGrid}>
-              {SHOWCASE_GAMES.map((game) => (
-                <View
-                  key={game.id}
-                  style={[
-                    styles.showcaseCard,
-                    isTablet && styles.showcaseCardTablet,
-                    { backgroundColor: game.bg, borderColor: game.border },
-                  ]}
-                >
-                  <View style={styles.showcaseArtBox}>
-                    <ShowcaseArt id={game.id} />
+            <View
+              style={[
+                styles.showcaseGrid,
+                isTablet && styles.showcaseGridTablet,
+              ]}
+            >
+              {showcaseGames.map((game) => {
+                const isPinned = pendingLockedGame === game.id && !isUnlocked;
+                return (
+                  <View
+                    key={game.id}
+                    style={[
+                      styles.showcaseCard,
+                      isTablet && styles.showcaseCardTablet,
+                      {
+                        backgroundColor: game.plaqueInner,
+                        borderColor: isPinned ? COLORS.sunGold : game.plaqueBorder,
+                        borderWidth: isPinned ? 3 : 1.8,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.showcaseArtBox,
+                        { backgroundColor: game.plaqueBg },
+                      ]}
+                    >
+                      <ShowcaseArt id={game.id} />
+                    </View>
+                    <View style={styles.showcaseCopy}>
+                      <View style={styles.showcaseTitleRow}>
+                        <Text style={styles.showcaseTitle} numberOfLines={1}>
+                          {game.title}
+                        </Text>
+                        {isPinned && (
+                          <View style={styles.requestedChip}>
+                            <Text style={styles.requestedChipText}>★ Tapped</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text
+                        style={[styles.showcaseBenefit, { color: game.accent }]}
+                        numberOfLines={1}
+                      >
+                        {game.benefit}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.showcaseCopy}>
-                    <Text style={styles.showcaseTitle}>{game.title}</Text>
-                    <Text style={[styles.showcaseBenefit, { color: game.accent }]}>
-                      {game.benefit}
-                    </Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
 
-            {/* Local Preview / Dev Toggle for immediate browser testing */}
+            {/* Local Preview / Dev Toggle kept visible until payment keys are wired */}
             <View style={styles.devBox}>
               <View style={styles.devTextCol}>
                 <Text style={styles.devTitle}>Browser Preview Toggle</Text>
                 <Text style={styles.devSubtitle}>
-                  Test Free Tier vs Unlocked All locally ({UNLOCK_PRODUCT_ID})
+                  Test Starter Pack ({FREE_GAMES_COUNT} free) vs Full Zoo Pack ({GAMES.length} games · {UNLOCK_PRODUCT_ID})
                 </Text>
               </View>
               <Switch
@@ -291,7 +532,7 @@ export const PaywallModal: React.FC = () => {
             </View>
           </ScrollView>
 
-          {/* Pinned Bottom Purchase Footer — always visible above the fold on iPhone & iPad */}
+          {/* Pinned Bottom Purchase Footer */}
           <View style={styles.stickyFooter}>
             {statusMessage && (
               <View style={styles.statusBanner}>
@@ -318,7 +559,9 @@ export const PaywallModal: React.FC = () => {
                       <View style={styles.buyBtnInner}>
                         <CrownIcon size={20} color="#FFE578" />
                         <Text style={styles.buyBtnText}>
-                          Unlock All {GAMES.length} Games — {UNLOCK_PRICE_DISPLAY}
+                          {pendingMeta
+                            ? `Unlock ${pendingMeta.title} + All ${GAMES.length} Games — ${UNLOCK_PRICE_DISPLAY}`
+                            : `Unlock All ${GAMES.length} Games — ${UNLOCK_PRICE_DISPLAY}`}
                         </Text>
                       </View>
                     )}
@@ -326,7 +569,7 @@ export const PaywallModal: React.FC = () => {
                 </TactileButton>
                 <View style={styles.footerMetaRow}>
                   <Text style={styles.ctaMicroCopy}>
-                    Pay once · Never billed again
+                    Pay once · Keep forever
                   </Text>
                   <Text style={styles.footerDot}>•</Text>
                   <TactileButton
@@ -340,11 +583,24 @@ export const PaywallModal: React.FC = () => {
               </View>
             ) : (
               <View>
-                <View style={styles.unlockedPill}>
-                  <Text style={styles.unlockedPillText}>
-                    ✓ Full Jungle Adventure Active
-                  </Text>
-                </View>
+                {pendingMeta ? (
+                  <TactileButton
+                    onPress={launchPendingLockedGame}
+                    accessibilityLabel={`Play ${pendingMeta.title} now`}
+                  >
+                    <View style={styles.buyBtn}>
+                      <Text style={styles.buyBtnText}>
+                        ▶ Play {pendingMeta.title} Now!
+                      </Text>
+                    </View>
+                  </TactileButton>
+                ) : (
+                  <View style={styles.unlockedPill}>
+                    <Text style={styles.unlockedPillText}>
+                      ✓ Full Jungle Adventure Active ({GAMES.length} Games)
+                    </Text>
+                  </View>
+                )}
                 <TactileButton
                   onPress={handleRestorePurchases}
                   disabled={isPurchasing}
@@ -369,17 +625,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 14,
+    padding: 12,
   },
   sheet: {
     width: '100%',
-    maxWidth: 440,
-    maxHeight: '92%',
+    maxWidth: 460,
+    maxHeight: '94%',
     backgroundColor: COLORS.cream,
     borderRadius: 30,
     borderWidth: 2.5,
     borderColor: '#DEC9A4',
-    padding: 18,
+    padding: 16,
     shadowColor: '#3A2818',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.28,
@@ -387,15 +643,15 @@ const styles = StyleSheet.create({
     elevation: 16,
   },
   sheetTablet: {
-    maxWidth: 580,
-    padding: 24,
+    maxWidth: 660,
+    padding: 22,
     borderRadius: 34,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   topLeftGroup: {
     flexDirection: 'row',
@@ -421,21 +677,18 @@ const styles = StyleSheet.create({
     color: '#8B5A00',
     letterSpacing: 0.7,
   },
-  starsEarnedTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#EEF8EA',
-    borderWidth: 1.2,
-    borderColor: '#C4E3BC',
-    paddingHorizontal: 9,
+  timerLiveTag: {
+    backgroundColor: '#E5E8FF',
+    borderWidth: 1.5,
+    borderColor: '#98A4EB',
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
   },
-  starsEarnedText: {
+  timerLiveText: {
     fontSize: 11.5,
-    fontWeight: '700',
-    color: COLORS.jungleDark,
+    fontWeight: '800',
+    color: '#2D3775',
   },
   closeBtn: {
     width: 36,
@@ -463,31 +716,171 @@ const styles = StyleSheet.create({
     borderColor: '#CFE8C6',
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   heroCopy: {
     flex: 1,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18.5,
     fontWeight: '800',
     color: COLORS.ink,
-    marginBottom: 3,
+    marginBottom: 2,
   },
   titleTablet: {
-    fontSize: 23,
+    fontSize: 21.5,
   },
   priceSubtitle: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '700',
     color: COLORS.jungleDeep,
-    lineHeight: 18,
+    lineHeight: 17,
+  },
+  controlsCard: {
+    backgroundColor: '#FFFDF7',
+    borderRadius: 20,
+    borderWidth: 1.6,
+    borderColor: '#E5D8BF',
+    padding: 12,
+    marginBottom: 10,
+  },
+  cardSectionTitle: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: COLORS.inkMuted,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  controlBlock: {
+    marginBottom: 10,
+  },
+  controlLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.ink,
+    marginBottom: 6,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  stagePill: {
+    borderRadius: 13,
+    borderWidth: 1.8,
+    borderColor: '#DFD2BA',
+    backgroundColor: '#FBF6EA',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+  },
+  stagePillActive: {
+    backgroundColor: '#E1F5DF',
+    borderColor: COLORS.emerald,
+  },
+  stagePillMain: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.ink,
+  },
+  stagePillSub: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: COLORS.inkMuted,
+  },
+  stagePillTextActive: {
+    color: COLORS.jungleDark,
+  },
+  timerPill: {
+    borderRadius: 12,
+    borderWidth: 1.8,
+    borderColor: '#DFD2BA',
+    backgroundColor: '#FBF6EA',
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  timerPillActive: {
+    backgroundColor: '#E4E8FF',
+    borderColor: '#5B6BC4',
+  },
+  timerPillText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.inkMuted,
+  },
+  timerPillTextActive: {
+    color: '#253070',
+  },
+  snapshotCard: {
+    backgroundColor: '#FBF5E6',
+    borderRadius: 20,
+    borderWidth: 1.6,
+    borderColor: '#E5D5B5',
+    padding: 12,
+    marginBottom: 10,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#FFFDF8',
+    borderRadius: 14,
+    borderWidth: 1.4,
+    borderColor: '#E8DBC2',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statNumber: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+  },
+  statFavorite: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: COLORS.jungleDeep,
+  },
+  statCaption: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: COLORS.inkMuted,
+    marginTop: 1,
+  },
+  skillsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  skillBadge: {
+    borderRadius: 999,
+    borderWidth: 1.3,
+    borderColor: '#DFD3BC',
+    backgroundColor: '#F6EFE1',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  skillBadgeActive: {
+    backgroundColor: '#E4F7E6',
+    borderColor: '#82CC8D',
+  },
+  skillBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.inkMuted,
+  },
+  skillBadgeTextActive: {
+    color: COLORS.jungleDark,
+    fontWeight: '800',
   },
   promiseGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 7,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   promisePill: {
     flexDirection: 'row',
@@ -508,41 +901,45 @@ const styles = StyleSheet.create({
   },
   promiseText: {
     flex: 1,
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
     color: COLORS.ink,
-    lineHeight: 15,
+    lineHeight: 14,
   },
   sectionHeading: {
     fontSize: 11,
     fontWeight: '800',
     color: COLORS.inkMuted,
-    letterSpacing: 0.9,
+    letterSpacing: 0.8,
     marginBottom: 8,
     marginLeft: 2,
   },
   showcaseGrid: {
+    gap: 7,
+    marginBottom: 12,
+  },
+  showcaseGridTablet: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 14,
   },
   showcaseCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 18,
-    borderWidth: 1.8,
+    gap: 10,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  showcaseCardTablet: {
+    width: '49%',
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  showcaseCardTablet: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
   showcaseArtBox: {
-    width: 78,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 253, 247, 0.84)',
+    width: 66,
+    height: 46,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -554,11 +951,11 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   miniBallClip: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     overflow: 'hidden',
-    marginTop: 12,
+    marginTop: 10,
     marginLeft: -4,
   },
   artStack: {
@@ -574,20 +971,49 @@ const styles = StyleSheet.create({
   xyloMiniRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 3,
-    marginTop: -4,
+    gap: 2.5,
+    marginTop: -3,
+  },
+  miniLetterTile: {
+    width: 24,
+    height: 28,
+    borderRadius: 7,
+    borderWidth: 1.8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniLetterText: {
+    fontSize: 15,
+    fontWeight: '900',
   },
   showcaseCopy: {
     flex: 1,
   },
+  showcaseTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 1,
+  },
   showcaseTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: COLORS.ink,
-    marginBottom: 2,
+    flexShrink: 1,
+  },
+  requestedChip: {
+    backgroundColor: '#FFE885',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+  },
+  requestedChipText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#6B4700',
   },
   showcaseBenefit: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   statusBanner: {
@@ -595,11 +1021,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#8FD698',
-    padding: 10,
-    marginBottom: 12,
+    padding: 9,
+    marginBottom: 10,
   },
   statusText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: COLORS.jungleDark,
     textAlign: 'center',
@@ -607,8 +1033,8 @@ const styles = StyleSheet.create({
   stickyFooter: {
     borderTopWidth: 1.5,
     borderTopColor: '#EAE0CD',
-    paddingTop: 12,
-    marginTop: 6,
+    paddingTop: 10,
+    marginTop: 4,
   },
   ctaWrap: {
     marginBottom: 2,
@@ -619,29 +1045,29 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: COLORS.emeraldBorder,
     borderBottomWidth: 6,
-    paddingVertical: 13,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 7,
+    marginBottom: 6,
     shadowColor: '#25592D',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.22,
     shadowRadius: 10,
     elevation: 5,
   },
-  buyBtnPressed: {
-    transform: [{ translateY: 2 }],
-    borderBottomWidth: 3,
-  },
   buyBtnInner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
   buyBtnText: {
-    fontSize: 16.5,
+    fontSize: 15.5,
     fontWeight: '800',
     color: '#FFFFFF',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   footerMetaRow: {
     flexDirection: 'row',
@@ -665,12 +1091,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 2,
     borderColor: COLORS.emerald,
-    paddingVertical: 12,
+    paddingVertical: 11,
     alignItems: 'center',
     marginBottom: 6,
   },
   unlockedPillText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: COLORS.jungleDark,
   },

@@ -20,7 +20,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { COLORS, Difficulty, GameId, GAMES } from '../theme';
 import { markWebTouchHandled } from '../utils/webTouch';
 
 export type LineMatchTopic = 'colors' | 'numbers' | 'letters';
@@ -565,12 +565,13 @@ function resolveDomElement(node: unknown): HTMLElement | null {
 
 const TOPIC_META: {
   id: LineMatchTopic;
+  gameId: GameId;
   label: string;
   backdrop: ImageSourcePropType;
 }[] = [
-  { id: 'colors', label: '🎨 Colors', backdrop: STORYBOOK_ASSETS.bgSavanna },
-  { id: 'numbers', label: '🔢 Numbers', backdrop: STORYBOOK_ASSETS.bgClearing },
-  { id: 'letters', label: '🔤 Letters', backdrop: STORYBOOK_ASSETS.bgSanctuary },
+  { id: 'colors', gameId: 'color-line-match', label: '🎨 Colors', backdrop: STORYBOOK_ASSETS.bgSavanna },
+  { id: 'numbers', gameId: 'number-line-match', label: '🔢 Numbers', backdrop: STORYBOOK_ASSETS.bgClearing },
+  { id: 'letters', gameId: 'letter-line-match', label: '🔤 Letters', backdrop: STORYBOOK_ASSETS.bgSanctuary },
 ];
 
 interface LineMatchGameProps {
@@ -578,14 +579,21 @@ interface LineMatchGameProps {
 }
 
 /**
- * Draw-a-Line Matching Game (Colors, Numbers, and Letters — Free Tier):
+ * Draw-a-Line Matching Game (Colors, Numbers, and Letters):
  * - Zero-React-render HTML5 <canvas> line overlay for locked 60fps tablet dragging
  * - Full-play-area non-passive touchstart/touchmove + generous 36px hitboxes + palm safety
  * - Auto-snaps the instant the child's finger reaches the matching card (left->right OR right->left)
  * - Fixed tap-to-connect fallback works from anywhere on any card!
  */
 export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) => {
-  const { addStar, collectSticker, goHome } = useApp();
+  const {
+    addStar,
+    collectSticker,
+    goHome,
+    isUnlocked,
+    canPlayFreeSample,
+    openGame,
+  } = useApp();
   const { isTablet, isTabletLandscape, width, height } = useResponsive();
 
   const [topic, setTopic] = useState<LineMatchTopic>(initialTopic);
@@ -1222,12 +1230,24 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
         <View style={styles.topicBar}>
           {TOPIC_META.map((tm) => {
             const active = tm.id === topic;
+            const meta = GAMES.find((g) => g.id === tm.gameId);
+            const isFreeTopic = meta?.isFree ?? tm.id === 'colors';
+            const lockedTopic = !isFreeTopic && !isUnlocked;
+            const sampleAvail = lockedTopic && canPlayFreeSample(tm.gameId);
+            const suffix = active
+              ? ''
+              : sampleAvail
+              ? ' 🎁'
+              : lockedTopic
+              ? ' 🔒'
+              : '';
+
             return (
               <TactileButton
                 key={tm.id}
                 onPress={() => {
-                  soundEngine.playPop();
-                  startNewBoard(tm.id, difficulty, 0);
+                  if (active) return;
+                  openGame(tm.gameId, isFreeTopic);
                 }}
                 accessibilityLabel={`Switch to ${tm.label} line matching`}
               >
@@ -1238,7 +1258,7 @@ export const LineMatchGame: React.FC<LineMatchGameProps> = ({ initialTopic }) =>
                       active && styles.topicPillTextActive,
                     ]}
                   >
-                    {tm.label}
+                    {tm.label}{suffix}
                   </Text>
                 </View>
               </TactileButton>

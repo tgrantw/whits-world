@@ -560,6 +560,21 @@ class SoundEngine {
     });
   }
 
+  /** Soft, sleepy music-box lullaby chime when Whit's Calm Timer gently finishes */
+  public playBedtimeLullaby(): void {
+    const notes = [
+      { f: 659.25, t: 0.0, d: 0.42 }, // E5
+      { f: 587.33, t: 0.34, d: 0.42 }, // D5
+      { f: 523.25, t: 0.68, d: 0.52 }, // C5
+      { f: 392.0, t: 1.08, d: 0.68 }, // G4
+      { f: 523.25, t: 1.48, d: 0.9 }, // C5 warm rest
+    ];
+    notes.forEach(({ f, t, d }) => {
+      this.playTone(f, t, d, 0.09, 'sine');
+      this.playTone(f * 2, t, d * 0.6, 0.025, 'triangle');
+    });
+  }
+
   /**
    * Picks the warmest, most natural-sounding English voice available if the
    * Web Speech API fallback is ever needed for an unrecorded phrase.
