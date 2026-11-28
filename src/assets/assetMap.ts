@@ -61,3 +61,16 @@ export const STORYBOOK_ANIMALS: Partial<Record<string, ImageSourcePropType>> = {
   duck: require('../../assets/images/duck.png') as ImageSourcePropType,
   sheep: require('../../assets/images/sheep.png') as ImageSourcePropType,
 };
+
+export const STORYBOOK_COLORING_PAGES: Record<string, ImageSourcePropType> = {
+  lion: require('../../assets/images/coloring-lion.png') as ImageSourcePropType,
+  elephant: require('../../assets/images/coloring-elephant.png') as ImageSourcePropType,
+  whale: require('../../assets/images/coloring-whale.png') as ImageSourcePropType,
+  penguin: require('../../assets/images/coloring-penguin.png') as ImageSourcePropType,
+  giraffe: require('../../assets/images/coloring-giraffe.png') as ImageSourcePropType,
+  gorilla: require('../../assets/images/coloring-gorilla.png') as ImageSourcePropType,
+  monkey: require('../../assets/images/coloring-monkey.png') as ImageSourcePropType,
+  frog: require('../../assets/images/coloring-frog.png') as ImageSourcePropType,
+  panda: require('../../assets/images/coloring-panda.png') as ImageSourcePropType,
+  turtle: require('../../assets/images/coloring-turtle.png') as ImageSourcePropType,
+};
