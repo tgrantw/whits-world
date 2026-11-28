@@ -51,14 +51,14 @@ interface CrayonColor {
 }
 
 const CRAYONS: CrayonColor[] = [
-  { id: 'red', name: 'Red', hex: '#E85A50', border: '#A8322B', noteFreq: 261.63 },
-  { id: 'orange', name: 'Orange', hex: '#F39237', border: '#B55D16', noteFreq: 293.66 },
-  { id: 'yellow', name: 'Yellow', hex: '#FAD44A', border: '#B89116', noteFreq: 329.63 },
-  { id: 'green', name: 'Green', hex: '#5BB55E', border: '#327A36', noteFreq: 349.23 },
-  { id: 'blue', name: 'Blue', hex: '#4DAAD8', border: '#257098', noteFreq: 392.0 },
-  { id: 'purple', name: 'Purple', hex: '#9B74D4', border: '#64429E', noteFreq: 440.0 },
-  { id: 'pink', name: 'Pink', hex: '#F082A8', border: '#B2496E', noteFreq: 493.88 },
-  { id: 'brown', name: 'Brown', hex: '#9C6844', border: '#663E23', noteFreq: 523.25 },
+  { id: 'red', name: 'Red', hex: '#E51A1A', border: '#A60F0F', noteFreq: 261.63 },
+  { id: 'orange', name: 'Orange', hex: '#FF7A00', border: '#BA5500', noteFreq: 293.66 },
+  { id: 'yellow', name: 'Yellow', hex: '#FFE01B', border: '#B89400', noteFreq: 329.63 },
+  { id: 'green', name: 'Green', hex: '#1FA838', border: '#126E22', noteFreq: 349.23 },
+  { id: 'blue', name: 'Blue', hex: '#1578E8', border: '#0C4F9E', noteFreq: 392.0 },
+  { id: 'purple', name: 'Purple', hex: '#7E2CE0', border: '#51149C', noteFreq: 440.0 },
+  { id: 'pink', name: 'Pink', hex: '#FF4FA3', border: '#B8216B', noteFreq: 493.88 },
+  { id: 'brown', name: 'Brown', hex: '#7A431D', border: '#4A250C', noteFreq: 523.25 },
   { id: 'white', name: 'White', hex: '#FFFDF7', border: '#A8957E', noteFreq: 587.33 },
   {
     id: 'rainbow',
@@ -71,13 +71,13 @@ const CRAYONS: CrayonColor[] = [
 ];
 
 const RAINBOW_CYCLE = [
-  '#E85A50',
-  '#F39237',
-  '#FAD44A',
-  '#5BB55E',
-  '#4DAAD8',
-  '#9B74D4',
-  '#F082A8',
+  '#E51A1A',
+  '#FF7A00',
+  '#FFE01B',
+  '#1FA838',
+  '#1578E8',
+  '#7E2CE0',
+  '#FF4FA3',
 ];
 
 const BRUSH_SIZES: { key: BrushSizeKey; label: string; width: number; dotPx: number }[] = [
@@ -2081,12 +2081,122 @@ export const ZooColoringGame: React.FC = () => {
     lastRegionId: string | null;
   } | null>(null);
 
+  const [savedToast, setSavedToast] = useState(false);
+  const saveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleCanvasRef = useCallback((node: React.ComponentRef<typeof View> | null) => {
     if (Platform.OS !== 'web') return;
     const el = resolveDomElement(node);
     canvasDomRef.current = el;
     setCanvasDomNode((prev) => (prev === el ? prev : el));
   }, []);
+
+  const handleSaveArtwork = useCallback(async () => {
+    soundEngine.unlock();
+    soundEngine.playStarCollect(3);
+    soundEngine.speakWord('Picture saved!');
+    bouncePageJoyfully();
+    setSavedToast(true);
+    if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current);
+    saveToastTimerRef.current = setTimeout(() => setSavedToast(false), 2300);
+
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const svgEl = canvasDomRef.current?.querySelector('svg');
+    if (!svgEl) return;
+
+    try {
+      const clone = svgEl.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      clone.setAttribute('width', '900');
+      clone.setAttribute('height', '900');
+      const svgXml = new XMLSerializer().serializeToString(clone);
+      const svgUrl =
+        'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgXml);
+
+      const img = new window.Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('SVG load failed'));
+        img.src = svgUrl;
+      });
+
+      const outW = 1024;
+      const outH = 1136;
+      const canvas = document.createElement('canvas');
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Warm storybook cream & wood keepsake frame
+      ctx.fillStyle = '#E3B97E';
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.strokeStyle = '#8C5B32';
+      ctx.lineWidth = 18;
+      ctx.strokeRect(9, 9, outW - 18, outH - 18);
+
+      // Inner white coloring paper
+      const pad = 62;
+      const artSz = outW - pad * 2;
+      ctx.fillStyle = '#FFFDF8';
+      ctx.fillRect(pad, pad, artSz, artSz);
+      ctx.strokeStyle = '#C68C52';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(pad, pad, artSz, artSz);
+
+      ctx.drawImage(img, pad, pad, artSz, artSz);
+
+      // Signature footer
+      ctx.fillStyle = '#4A3525';
+      ctx.font = '900 38px system-ui, -apple-system, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(page.title, pad, outH - 64);
+
+      ctx.fillStyle = '#7A542E';
+      ctx.font = '800 26px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText("★ Painted in Whit's World", outW - pad, outH - 64);
+
+      const fileName = `whits-world-${page.id}.png`;
+      const blob = await new Promise<Blob | null>((res) =>
+        canvas.toBlob((b) => res(b), 'image/png')
+      );
+      if (!blob) return;
+
+      // On iPad/iPhone Safari, offer native Share/Save-to-Photos sheet; everywhere else download PNG cleanly
+      const isAppleTouch =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const navShare = navigator as Navigator & {
+        canShare?: (data: { files: File[] }) => boolean;
+      };
+      if (isAppleTouch && typeof navShare.share === 'function' && typeof navShare.canShare === 'function') {
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navShare.canShare({ files: [file] })) {
+          try {
+            await navShare.share({
+              files: [file],
+              title: `${page.title} — Whit's World`,
+            });
+            return;
+          } catch {
+            // User dismissed share sheet or fallback to download
+          }
+        }
+      }
+
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = dlUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(dlUrl), 3000);
+    } catch {
+      // Ignore export error safely
+    }
+  }, [bouncePageJoyfully, page.id, page.title]);
 
   const cleanupWinListeners = useCallback(() => {
     if (winCleanupRef.current) {
@@ -2095,7 +2205,13 @@ export const ZooColoringGame: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => () => cleanupWinListeners(), [cleanupWinListeners]);
+  useEffect(
+    () => () => {
+      cleanupWinListeners();
+      if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current);
+    },
+    [cleanupWinListeners]
+  );
 
   const clientToViewBox = useCallback((clientX: number, clientY: number) => {
     const rect = canvasDomRef.current?.getBoundingClientRect?.();
@@ -2661,12 +2777,20 @@ export const ZooColoringGame: React.FC = () => {
             </View>
           </TactileButton>
         </View>
+
+        {savedToast && (
+          <View style={styles.savedToastWrap} pointerEvents="none">
+            <View style={styles.savedToastPill}>
+              <Text style={styles.savedToastText}>📸 Picture Saved!</Text>
+            </View>
+          </View>
+        )}
       </Animated.View>
     </View>
   );
 
   const crayonSize = isTabletLandscape ? 46 : isTablet ? 44 : 36;
-  const activeDotColor = selectedCrayon.isRainbow ? '#9B74D4' : selectedCrayon.hex;
+  const activeDotColor = selectedCrayon.isRainbow ? '#7E2CE0' : selectedCrayon.hex;
 
   const renderPaletteAndTools = () => (
     <View
@@ -2724,7 +2848,7 @@ export const ZooColoringGame: React.FC = () => {
         </TactileButton>
       </View>
 
-      {/* Row 2: Action Tools (Magic Wand | Undo | Clear) + Brush Sizes when in Draw mode */}
+      {/* Row 2: Action Tools (Magic Wand | Save Art | Undo | Clear) + Brush Sizes when in Draw mode */}
       <View style={styles.actionsRow}>
         <TactileButton
           onPress={handleMagicWand}
@@ -2734,6 +2858,17 @@ export const ZooColoringGame: React.FC = () => {
             <Text style={styles.magicBtnText}>🪄 Magic</Text>
           </View>
         </TactileButton>
+
+        {Platform.OS === 'web' && (
+          <TactileButton
+            onPress={handleSaveArtwork}
+            accessibilityLabel="Save coloring picture"
+          >
+            <View style={styles.saveArtBtn}>
+              <Text style={styles.saveArtBtnText}>📸 Save</Text>
+            </View>
+          </TactileButton>
+        )}
 
         <TactileButton
           onPress={handleUndo}
@@ -3101,16 +3236,48 @@ const styles = StyleSheet.create({
   },
   magicBtn: {
     paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     borderRadius: 999,
     backgroundColor: '#F6E2FF',
     borderWidth: 2,
     borderColor: '#7E57C2',
   },
   magicBtnText: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '900',
     color: '#512DA8',
+  },
+  saveArtBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    backgroundColor: '#DFF7E3',
+    borderWidth: 2,
+    borderColor: '#2E7D32',
+  },
+  saveArtBtnText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#1B5E20',
+  },
+  savedToastWrap: {
+    position: 'absolute',
+    bottom: 14,
+    right: 14,
+    zIndex: 28,
+  },
+  savedToastPill: {
+    backgroundColor: '#E2F7E5',
+    borderRadius: 999,
+    borderWidth: 2.2,
+    borderColor: '#2E7D32',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+  },
+  savedToastText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#1B5E20',
   },
   iconToolBtn: {
     width: 38,

@@ -22,7 +22,10 @@ export type WhitAccessoryId =
   | 'bowtie'
   | 'butterfly'
   | 'captain'
-  | 'rainbow';
+  | 'rainbow'
+  | 'chef'
+  | 'wizard'
+  | 'medal';
 
 export interface WhitAccessoryMeta {
   id: WhitAccessoryId;
@@ -102,6 +105,27 @@ export const WHIT_ACCESSORIES: WhitAccessoryMeta[] = [
     starsRequired: 24,
     cardBg: '#F6EAFB',
     cardBorder: '#BA85D9',
+  },
+  {
+    id: 'chef',
+    label: 'Chef Hat',
+    starsRequired: 34,
+    cardBg: '#FFF8EA',
+    cardBorder: '#C79F6D',
+  },
+  {
+    id: 'wizard',
+    label: 'Wizard Hat',
+    starsRequired: 46,
+    cardBg: '#E6E8FC',
+    cardBorder: '#636CCB',
+  },
+  {
+    id: 'medal',
+    label: 'Explorer Medal',
+    starsRequired: 60,
+    cardBg: '#FFF0C2',
+    cardBorder: '#D48D24',
   },
 ];
 
@@ -482,6 +506,60 @@ export const WhitAccessorySvg: React.FC<{
         </Svg>
       );
 
+    case 'chef':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 110 92">
+          <G fill="#FFFDF8" stroke={INK} strokeWidth="3" strokeLinejoin="round">
+            <Circle cx="32" cy="36" r="18" />
+            <Circle cx="78" cy="36" r="18" />
+            <Circle cx="55" cy="28" r="22" />
+            <Rect x="28" y="42" width="54" height="32" rx="8" />
+          </G>
+          <Path d="M 30 62 H 80" stroke="#E5D5BA" strokeWidth="4" />
+          <Path d="M 42 46 V 58 M 55 44 V 58 M 68 46 V 58" stroke="#E5D5BA" strokeWidth="2.4" strokeLinecap="round" />
+        </Svg>
+      );
+
+    case 'wizard':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 120 96">
+          <Ellipse cx="60" cy="74" rx="50" ry="13" fill="#4E58B8" stroke={INK} strokeWidth="3.2" />
+          <Path
+            d="M 26 70 L 58 8 L 70 18 L 94 70 Q 60 80 26 70 Z"
+            fill="#5D67CC"
+            stroke={INK}
+            strokeWidth="3.2"
+            strokeLinejoin="round"
+          />
+          <Path d="M 29 64 Q 60 72 91 64 L 93 71 Q 60 80 27 71 Z" fill="#F8D459" stroke={INK} strokeWidth="2.4" />
+          <Polygon
+            points="58,34 60.5,40 67,40.5 62,44.8 63.5,51 58,47.5 52.5,51 54,44.8 49,40.5 55.5,40"
+            fill="#FFE678"
+            stroke={INK}
+            strokeWidth="1.6"
+          />
+          <Circle cx="44" cy="54" r="3.2" fill="#FFF4B8" />
+          <Circle cx="72" cy="52" r="2.8" fill="#FFF4B8" />
+        </Svg>
+      );
+
+    case 'medal':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 100 92">
+          <Path d="M 26 10 L 46 46 L 36 52 L 16 14 Z" fill="#E51A1A" stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
+          <Path d="M 74 10 L 54 46 L 64 52 L 84 14 Z" fill="#1578E8" stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
+          <Circle cx="50" cy="58" r="23" fill="#FFD54F" stroke={INK} strokeWidth="3.2" />
+          <Circle cx="50" cy="58" r="17" fill="#FFE885" stroke="#C98A18" strokeWidth="2" />
+          <Polygon
+            points="50,45 53.5,53 62,54 55.5,59.5 57.5,68 50,63.5 42.5,68 44.5,59.5 38,54 46.5,53"
+            fill="#FF9800"
+            stroke={INK}
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+
     case 'none':
     default:
       return (
@@ -594,6 +672,24 @@ export const WhitAccessoryOverlay: React.FC<{
     case 'rainbow':
       width = mascotSize * 0.56;
       top = isCheering ? -mascotSize * 0.22 : -mascotSize * 0.2;
+      left = headCenterX - width / 2;
+      rotate = '0deg';
+      break;
+    case 'chef':
+      width = mascotSize * 0.42;
+      top = isCheering ? -mascotSize * 0.16 : -mascotSize * 0.14;
+      left = headCenterX - width / 2;
+      rotate = '-4deg';
+      break;
+    case 'wizard':
+      width = mascotSize * 0.46;
+      top = isCheering ? -mascotSize * 0.19 : -mascotSize * 0.17;
+      left = headCenterX - width / 2;
+      rotate = '5deg';
+      break;
+    case 'medal':
+      width = mascotSize * 0.3;
+      top = isCheering ? mascotSize * 0.39 : mascotSize * 0.41;
       left = headCenterX - width / 2;
       rotate = '0deg';
       break;

@@ -37,20 +37,28 @@ import { WhitMascot } from './WhitMascot';
 import { ExhibitAnimalKind, ZooExhibitAnimalSvg } from './ZooExhibitAnimals';
 
 const JAR_STAR_SLOTS = [
-  { x: 34, y: 76, r: 0.94 },
-  { x: 56, y: 80, r: 1.02 },
-  { x: 45, y: 68, r: 0.88 },
-  { x: 67, y: 70, r: 0.86 },
-  { x: 29, y: 60, r: 0.85 },
-  { x: 52, y: 57, r: 0.96 },
-  { x: 69, y: 56, r: 0.82 },
-  { x: 38, y: 46, r: 0.9 },
-  { x: 59, y: 45, r: 0.86 },
-  { x: 48, y: 36, r: 0.92 },
-  { x: 28, y: 43, r: 0.78 },
-  { x: 70, y: 42, r: 0.78 },
-  { x: 37, y: 33, r: 0.82 },
-  { x: 61, y: 33, r: 0.82 },
+  { x: 34, y: 78, r: 0.94 },
+  { x: 56, y: 81, r: 1.0 },
+  { x: 45, y: 70, r: 0.88 },
+  { x: 67, y: 72, r: 0.86 },
+  { x: 28, y: 63, r: 0.85 },
+  { x: 52, y: 59, r: 0.94 },
+  { x: 70, y: 58, r: 0.82 },
+  { x: 38, y: 49, r: 0.88 },
+  { x: 60, y: 47, r: 0.85 },
+  { x: 48, y: 39, r: 0.9 },
+  { x: 27, y: 46, r: 0.78 },
+  { x: 71, y: 44, r: 0.78 },
+  { x: 36, y: 36, r: 0.8 },
+  { x: 62, y: 35, r: 0.8 },
+  { x: 24, y: 74, r: 0.74 },
+  { x: 75, y: 68, r: 0.74 },
+  { x: 44, y: 84, r: 0.76 },
+  { x: 29, y: 54, r: 0.74 },
+  { x: 64, y: 65, r: 0.75 },
+  { x: 49, y: 49, r: 0.76 },
+  { x: 48, y: 29, r: 0.78 },
+  { x: 57, y: 28, r: 0.72 },
 ];
 
 interface StickerHabitatGroup {
@@ -487,17 +495,26 @@ export const StarJarModal: React.FC = () => {
     }
     setWhitAccessory(id);
     soundEngine.playGorillaGiggle();
+    const meta = WHIT_ACCESSORIES.find((a) => a.id === id);
+    if (meta) {
+      soundEngine.speakWord(meta.label);
+    }
     setEquipBurstKey(Date.now());
     triggerWhitCheer();
   };
 
-  const handleStickerTap = (animal: ExhibitAnimalKind, collected: boolean) => {
+  const handleStickerTap = (
+    animal: ExhibitAnimalKind,
+    label: string,
+    collected: boolean
+  ) => {
     soundEngine.unlock();
     if (!collected) {
       soundEngine.playGentleBounce();
       return;
     }
     soundEngine.playAnimalSound(animal);
+    soundEngine.speakWord(animal === 'gorilla' ? 'Whit' : label);
     setStickerBurstMap((prev) => ({ ...prev, [animal]: Date.now() }));
   };
 
@@ -638,7 +655,7 @@ export const StarJarModal: React.FC = () => {
                     </>
                   ) : (
                     <Text style={styles.progressText}>
-                      All 10 of Whit’s silly hats & props unlocked!
+                      All {WHIT_ACCESSORIES.length} of Whit’s silly hats & props unlocked!
                     </Text>
                   )}
                 </View>
@@ -754,7 +771,7 @@ export const StarJarModal: React.FC = () => {
                           <Pressable
                             key={entry.kind}
                             onPress={() =>
-                              handleStickerTap(entry.kind, collected)
+                              handleStickerTap(entry.kind, entry.label, collected)
                             }
                             accessibilityRole="button"
                             accessibilityLabel={

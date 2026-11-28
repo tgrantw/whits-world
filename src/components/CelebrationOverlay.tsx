@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -8,10 +8,14 @@ import {
 } from 'react-native';
 import { useOptionalApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
-import { COLORS, GAMES } from '../theme';
+import { soundEngine } from '../services/sound';
+import { COLORS, GAMES, getAnimalDisplayName } from '../theme';
 import { CrownIcon, HomeIcon, PlayNextIcon, StarIcon } from './JungleArt';
+import { SnapBurst } from './SnapBurst';
 import { TactileButton } from './TactileButton';
+import { WHIT_ACCESSORIES, WhitAccessorySvg } from './WhitAccessories';
 import { WhitMascot } from './WhitMascot';
+import { ExhibitAnimalKind, ZooExhibitAnimalSvg } from './ZooExhibitAnimals';
 
 interface CelebrationOverlayProps {
   visible: boolean;
@@ -49,6 +53,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const cardScale = useRef(new Animated.Value(0.75)).current;
   const playPulse = useRef(new Animated.Value(1)).current;
+  const [equipBurstTick, setEquipBurstTick] = useState<number | null>(null);
 
   const isSampleComplete = Boolean(
     app && app.isSampleSession && !app.isUnlocked && app.activeGame
@@ -58,6 +63,17 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
       app?.activeGame ? GAMES.find((g) => g.id === app.activeGame) ?? null : null,
     [app?.activeGame]
   );
+
+  const unlockedHatMeta = useMemo(() => {
+    if (!app?.latestUnlockedAccessory) return null;
+    return (
+      WHIT_ACCESSORIES.find((a) => a.id === app.latestUnlockedAccessory) ?? null
+    );
+  }, [app?.latestUnlockedAccessory]);
+
+  const newStickerKind = app?.latestCollectedSticker as ExhibitAnimalKind | null;
+  const wearingUnlockedHat =
+    Boolean(unlockedHatMeta) && app?.whitAccessory === unlockedHatMeta?.id;
 
   const confettiPieces = useMemo<ConfettiPiece[]>(() => {
     return Array.from({ length: 28 }, (_, i) => ({
@@ -77,11 +93,27 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
   ).current;
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setEquipBurstTick(null);
+      return;
+    }
 
     if (isSampleComplete && app) {
       app.completeSampleSession();
     }
+
+    // Warm neural voice celebration cheer right after the xylophone win chime sparkles
+    const praiseTimer = setTimeout(() => {
+      if (unlockedHatMeta) {
+        soundEngine.speakWord('New hat unlocked!');
+      } else if (newStickerKind) {
+        soundEngine.speakWord('New friend found!');
+      } else {
+        soundEngine.speakWord(
+          (app?.starsEarned ?? 0) % 2 === 1 ? 'Amazing job!' : 'You earned a star!'
+        );
+      }
+    }, 360);
 
     backdropOpacity.setValue(0);
     cardScale.setValue(0.75);
@@ -136,6 +168,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
     confettiLoops.forEach((l) => l.start());
 
     return () => {
+      clearTimeout(praiseTimer);
       pulseLoop.stop();
       confettiLoops.forEach((l) => l.stop());
     };
@@ -143,6 +176,8 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
     visible,
     isSampleComplete,
     app,
+    unlockedHatMeta,
+    newStickerKind,
     backdropOpacity,
     cardScale,
     playPulse,
@@ -167,6 +202,20 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
     } else {
       app.openParentGate(null);
     }
+  };
+
+  const handleWearNewHat = () => {
+    if (!app || !unlockedHatMeta) return;
+    soundEngine.unlock();
+    app.setWhitAccessory(unlockedHatMeta.id);
+    soundEngine.playGorillaGiggle();
+    soundEngine.speakWord(unlockedHatMeta.label);
+    setEquipBurstTick(Date.now());
+  };
+
+  const handlePlayNext = () => {
+    app?.clearCelebrationUnlocks();
+    onPlayAgain();
   };
 
   return (
@@ -224,7 +273,8 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
         style={[
           styles.plaqueOuter,
           isTablet && styles.plaqueOuterTablet,
-          isSampleComplete && (isTablet ? { maxWidth: 500 } : { maxWidth: 368 }),
+          (isSampleComplete || unlockedHatMeta || newStickerKind) &&
+            (isTablet ? { maxWidth: 500 } : { maxWidth: 372 }),
           { transform: [{ scale: cardScale }] },
         ]}
       >
@@ -237,7 +287,69 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
             <StarIcon size={sideStar} color="#FFD952" />
           </View>
 
-          <WhitMascot mood="cheer" size={isTablet ? 196 : 154} interactive />
+          <View style={styles.whitWrap}>
+            <WhitMascot mood="cheer" size={isTablet ? 186 : 148} interactive />
+            {equipBurstTick && (
+              <View style={styles.burstCenter} pointerEvents="none">
+                <SnapBurst key={equipBurstTick} size={isTablet ? 168 : 132} />
+              </View>
+            )}
+          </View>
+
+          {/* Joyful Hat and/or Zoo Sticker Discovery Callouts */}
+          {!isSampleComplete && unlockedHatMeta && (
+            <View style={styles.unlockRewardCard}>
+              <View style={styles.unlockRewardArt}>
+                <WhitAccessorySvg
+                  accessory={unlockedHatMeta.id}
+                  size={isTablet ? 48 : 40}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.unlockRewardEyebrow}>🎁 NEW SURPRISE!</Text>
+                <Text style={styles.unlockRewardTitle} numberOfLines={1}>
+                  {unlockedHatMeta.label}
+                </Text>
+              </View>
+              <TactileButton
+                onPress={handleWearNewHat}
+                accessibilityLabel={`Put ${unlockedHatMeta.label} on Whit`}
+              >
+                <View
+                  style={[
+                    styles.wearBtn,
+                    wearingUnlockedHat && styles.wearBtnEquipped,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.wearBtnText,
+                      wearingUnlockedHat && { color: '#195428' },
+                    ]}
+                  >
+                    {wearingUnlockedHat ? '✓ On!' : 'Wear It!'}
+                  </Text>
+                </View>
+              </TactileButton>
+            </View>
+          )}
+
+          {!isSampleComplete && newStickerKind && (
+            <View style={styles.stickerRewardCard}>
+              <ZooExhibitAnimalSvg
+                animal={newStickerKind}
+                size={isTablet ? 44 : 36}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stickerRewardEyebrow}>
+                  🌟 NEW ZOO STICKER!
+                </Text>
+                <Text style={styles.unlockRewardTitle} numberOfLines={1}>
+                  {getAnimalDisplayName(newStickerKind)} Joined Your Album!
+                </Text>
+              </View>
+            </View>
+          )}
 
           {isSampleComplete && sampleGameMeta && (
             <View style={styles.sampleCopyBox}>
@@ -250,7 +362,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
             </View>
           )}
 
-          <View style={[styles.actions, isTablet && { gap: 22, marginTop: 16 }]}>
+          <View style={[styles.actions, isTablet && { gap: 22, marginTop: 14 }]}>
             <TactileButton
               onPress={onHome}
               accessibilityLabel="Home"
@@ -300,7 +412,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({
             ) : (
               <Animated.View style={{ transform: [{ scale: playPulse }] }}>
                 <TactileButton
-                  onPress={onPlayAgain}
+                  onPress={handlePlayNext}
                   accessibilityLabel="Play next puzzle"
                   style={{ width: nextBtnW }}
                 >
@@ -372,20 +484,105 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     borderWidth: 2.5,
     borderColor: '#E8C589',
-    paddingVertical: 20,
-    paddingHorizontal: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
   plaqueInnerTablet: {
     borderRadius: 36,
-    paddingVertical: 26,
-    paddingHorizontal: 26,
+    paddingVertical: 24,
+    paddingHorizontal: 24,
   },
   starRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 2,
+  },
+  whitWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  burstCenter: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unlockRewardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF5CC',
+    borderRadius: 20,
+    borderWidth: 2.2,
+    borderColor: '#DDA428',
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    marginTop: 6,
+    width: '100%',
+  },
+  unlockRewardArt: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FFFDF7',
+    borderWidth: 1.5,
+    borderColor: '#EBD394',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unlockRewardEyebrow: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#9C6200',
+    letterSpacing: 0.6,
+  },
+  unlockRewardTitle: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: COLORS.woodDark,
+  },
+  wearBtn: {
+    backgroundColor: COLORS.emerald,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#1E5E2B',
+    borderBottomWidth: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  wearBtnEquipped: {
+    backgroundColor: '#E0F5E4',
+    borderColor: COLORS.emerald,
+  },
+  wearBtnText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  stickerRewardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#EAF8EE',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#8CD19A',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 6,
+    width: '100%',
+  },
+  stickerRewardEyebrow: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: COLORS.jungleDeep,
+    letterSpacing: 0.6,
   },
   sampleCopyBox: {
     backgroundColor: '#FFF3CC',
@@ -417,7 +614,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 14,
-    marginTop: 14,
+    marginTop: 12,
     width: '100%',
   },
   homeBtn: {

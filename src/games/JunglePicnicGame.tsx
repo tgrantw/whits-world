@@ -413,6 +413,7 @@ export const JunglePicnicGame: React.FC = () => {
       setTimeout(() => {
         soundEngine.playYumSparkle();
         soundEngine.playAnimalSound(recipientAnimal);
+        soundEngine.speakWord(`Yum! ${treat.label}!`);
       }, 210);
 
       const nextCompleted = ordersCompleted + 1;
@@ -600,6 +601,7 @@ export const JunglePicnicGame: React.FC = () => {
     const nextGuest = PICNIC_GUESTS[idx % PICNIC_GUESTS.length];
     soundEngine.unlock();
     soundEngine.playPop();
+    soundEngine.speakWord(nextGuest.name);
     setTimeout(() => soundEngine.playAnimalSound(nextGuest.animal), 100);
     setGuestIdx(idx);
     collectSticker(nextGuest.animal);

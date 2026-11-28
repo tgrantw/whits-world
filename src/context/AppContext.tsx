@@ -41,6 +41,8 @@ interface AppContextValue {
   collectedStickers: string[];
   starJarVisible: boolean;
   hasNewAccessory: boolean;
+  latestUnlockedAccessory: WhitAccessoryId | null;
+  latestCollectedSticker: string | null;
   isPurchasing: boolean;
   activeGame: GameId | null;
   isSampleSession: boolean;
@@ -56,6 +58,7 @@ interface AppContextValue {
   toggleMute: () => void;
   addStar: (count?: number) => void;
   collectSticker: (animal: string) => void;
+  clearCelebrationUnlocks: () => void;
   setWhitAccessory: (id: WhitAccessoryId) => void;
   cycleWhitAccessory: () => void;
   openStarJar: () => void;
@@ -226,6 +229,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     useState<string[]>(readStoredStickers);
   const [starJarVisible, setStarJarVisible] = useState(false);
   const [hasNewAccessory, setHasNewAccessory] = useState(false);
+  const [latestUnlockedAccessory, setLatestUnlockedAccessory] =
+    useState<WhitAccessoryId | null>(null);
+  const [latestCollectedSticker, setLatestCollectedSticker] =
+    useState<string | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [isSampleSession, setIsSampleSession] = useState(false);
@@ -347,11 +354,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             // Ignore storage error
           }
         }
-        const unlockedNew = WHIT_ACCESSORIES.some(
+        const newlyUnlocked = WHIT_ACCESSORIES.find(
           (a) => a.starsRequired > prev && a.starsRequired <= next
         );
-        if (unlockedNew) {
+        if (newlyUnlocked) {
           setHasNewAccessory(true);
+          setLatestUnlockedAccessory(newlyUnlocked.id);
         }
         return next;
       });
@@ -366,8 +374,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       const next = [...prev, animal];
       writeStoredStickers(next);
       setHasNewAccessory(true);
+      setLatestCollectedSticker(animal);
       return next;
     });
+  }, []);
+
+  const clearCelebrationUnlocks = useCallback(() => {
+    setLatestUnlockedAccessory(null);
+    setLatestCollectedSticker(null);
   }, []);
 
   const setWhitAccessory = useCallback(
@@ -453,6 +467,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (isFree || isUnlocked) {
         soundEngine.playPop();
         setIsSampleSession(false);
+        setLatestUnlockedAccessory(null);
+        setLatestCollectedSticker(null);
         setActiveGame(id);
         recordGameLaunch(id);
       } else if (canPlayFreeSample(id)) {
@@ -460,6 +476,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         soundEngine.playStarCollect(1);
         sampleStartedAtRef.current = Date.now();
         setIsSampleSession(true);
+        setLatestUnlockedAccessory(null);
+        setLatestCollectedSticker(null);
         setActiveGame(id);
         recordGameLaunch(id);
       } else {
@@ -477,6 +495,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setPendingLockedGame(null);
     setStatusMessage(null);
     setIsSampleSession(false);
+    setLatestUnlockedAccessory(null);
+    setLatestCollectedSticker(null);
     setActiveGame(target);
     recordGameLaunch(target);
   }, [isUnlocked, pendingLockedGame, recordGameLaunch]);
@@ -494,6 +514,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
     soundEngine.playCardFlip();
     setIsSampleSession(false);
+    setLatestUnlockedAccessory(null);
+    setLatestCollectedSticker(null);
     setActiveGame(null);
   }, [markSampleUsedFor]);
 
@@ -622,6 +644,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         collectedStickers,
         starJarVisible,
         hasNewAccessory,
+        latestUnlockedAccessory,
+        latestCollectedSticker,
         isPurchasing,
         activeGame,
         isSampleSession,
@@ -637,6 +661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         toggleMute,
         addStar,
         collectSticker,
+        clearCelebrationUnlocks,
         setWhitAccessory,
         cycleWhitAccessory,
         openStarJar,

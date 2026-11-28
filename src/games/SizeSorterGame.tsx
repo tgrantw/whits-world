@@ -22,10 +22,17 @@ import {
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { COLORS, Difficulty, getAnimalDisplayName } from '../theme';
 import { makeInstantTapProps } from '../utils/webTouch';
 
 type SizeTier = 'tiny' | 'small' | 'medium' | 'big';
+
+const TIER_LABELS: Record<SizeTier, string> = {
+  tiny: 'Tiny',
+  small: 'Small',
+  medium: 'Medium',
+  big: 'Big',
+};
 
 interface ParadeAnimal {
   tier: SizeTier;
@@ -219,6 +226,9 @@ export const SizeSorterGame: React.FC = () => {
       const matchedSlot = currentSet.find((s) => s.tier === tier);
       if (matchedSlot) {
         soundEngine.playAnimalSound(matchedSlot.animal);
+        soundEngine.speakWord(
+          `${TIER_LABELS[tier]} ${getAnimalDisplayName(matchedSlot.animal)}!`
+        );
         collectSticker(matchedSlot.animal);
       }
       setSelectedTier(null);

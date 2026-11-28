@@ -21,7 +21,7 @@ import { ZooAnimalKind, ZooAnimalSvg } from '../components/ZooAnimalsArt';
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { COLORS, Difficulty, getAnimalDisplayName } from '../theme';
 import { makeInstantTapProps } from '../utils/webTouch';
 
 interface PeekCard {
@@ -353,6 +353,9 @@ export const AnimalPeekabooGame: React.FC = () => {
             matchLockRef.current = false;
             soundEngine.playMatch();
             soundEngine.playAnimalSound(first.animal);
+            soundEngine.speakWord(
+              `Peek-a-boo! ${getAnimalDisplayName(first.animal)}!`
+            );
             collectSticker(first.animal);
             const nextMatched = matchedRef.current.includes(first.animal)
               ? matchedRef.current

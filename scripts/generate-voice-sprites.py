@@ -197,6 +197,100 @@ TOOLS_AND_STICKERS = [
     "Crown",
     "Paw",
     "White",
+    "Saved!",
+    "Picture saved!",
+]
+
+WHIT_HATS = [
+    "Natural Whit",
+    "Jungle Flower",
+    "Safari Sun Hat",
+    "Party Hat",
+    "Golden Crown",
+    "Star Shades",
+    "Polka Bowtie",
+    "Nose Butterfly",
+    "Captain Hat",
+    "Rainbow Crown",
+    "Chef Hat",
+    "Wizard Hat",
+    "Explorer Medal",
+]
+
+PICNIC_PHRASES = [
+    "Watermelon",
+    "Bamboo",
+    "Berries",
+    "Fish Treat",
+    "Star Cupcake",
+    "Yum! Banana!",
+    "Yum! Watermelon!",
+    "Yum! Bamboo!",
+    "Yum! Berries!",
+    "Yum! Fish Treat!",
+    "Yum! Star Cupcake!",
+]
+
+PARADE_SIZE_PHRASES = [
+    "Tiny Frog!",
+    "Small Toucan!",
+    "Medium Monkey!",
+    "Big Elephant!",
+    "Tiny Puffin!",
+    "Small Penguin!",
+    "Medium Seal!",
+    "Big Polar Bear!",
+    "Tiny Duck!",
+    "Small Pig!",
+    "Medium Sheep!",
+    "Big Cow!",
+    "Tiny Clownfish!",
+    "Small Panda!",
+    "Medium Zebra!",
+    "Big Giraffe!",
+    "Medium Lion!",
+    "Big Hippo!",
+]
+
+NURSERY_ANIMALS = [
+    "Elephant",
+    "Giraffe",
+    "Monkey",
+    "Lion",
+    "Panda",
+    "Whale",
+    "Hippo",
+    "Tiger",
+    "Zebra",
+    "Turtle",
+    "Gorilla",
+    "Flamingo",
+]
+
+BUBBLE_AND_ACTION_PHRASES = [
+    "Pop the bubbles!",
+    "Pop the Whale bubbles!",
+    "Pop the Turtle bubbles!",
+    "Pop the Octopus bubbles!",
+    "Pop the Clownfish bubbles!",
+    "Pop the Frog bubbles!",
+    "Rainbow bubble!",
+    "Golden star!",
+    "Peek-a-boo!",
+    "Goal!",
+    "Golden Fish!",
+    "Brrr!",
+    "Twinkle Twinkle!",
+    "Row Your Boat!",
+    "Little Lamb!",
+    "Free Jam!",
+    "Whit",
+    "Hi friend!",
+    "Let's play!",
+    "Amazing job!",
+    "You earned a star!",
+    "New hat unlocked!",
+    "New friend found!",
 ]
 
 
@@ -211,7 +305,7 @@ def build_sprite_specs() -> dict[str, list[tuple[str, str]]]:
         "letters": [],
     }
 
-    # --- CORE: animals, colors, numbers, coloring pages/tools/stickers, UI ---
+    # --- CORE: animals, colors, numbers, coloring pages/tools/stickers, hats, games, UI ---
     for c in COLORS:
         sprites["core"].append((c, f"{c}!"))
     for _, w in NUMBER_WORDS:
@@ -221,7 +315,18 @@ def build_sprite_specs() -> dict[str, list[tuple[str, str]]]:
     for t in COLORING_TITLES:
         sprites["core"].append((t, f"{t}!"))
     for item in TOOLS_AND_STICKERS:
-        sprites["core"].append((item, f"{item}!"))
+        sprites["core"].append((item, item if item.endswith("!") else f"{item}!"))
+    for hat in WHIT_HATS:
+        sprites["core"].append((hat, f"{hat}!"))
+    for pp in PICNIC_PHRASES:
+        sprites["core"].append((pp, pp if pp.endswith("!") else f"{pp}!"))
+    for sp in PARADE_SIZE_PHRASES:
+        sprites["core"].append((sp, sp))
+    for na in NURSERY_ANIMALS:
+        sprites["core"].append((f"Baby {na}!", f"Baby {na}!"))
+        sprites["core"].append((f"Mama and Baby {na}!", f"Mama and Baby {na}!"))
+    for bp in BUBBLE_AND_ACTION_PHRASES:
+        sprites["core"].append((bp, bp if bp.endswith("!") else f"{bp}!"))
     sprites["core"].extend([
         ("Great job!", "Great job!"),
         ("Yes!", "Yes!"),

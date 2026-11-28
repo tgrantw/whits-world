@@ -458,6 +458,7 @@ export const WhitMascot: React.FC<WhitMascotProps> = ({
     runFloatingStars(false);
     if (cycleAccessoryOnTap) {
       app?.cycleWhitAccessory();
+      soundEngine.speakWord(Math.random() < 0.5 ? 'Hi friend!' : "Let's play!");
     }
     onPress?.();
   }, [

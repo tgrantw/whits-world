@@ -10,7 +10,6 @@ import {
   measureNodeRect,
 } from '../components/DraggablePiece';
 import { GameHeader } from '../components/GameHeader';
-import { GorillaMood } from '../components/GorillaMascot';
 import { StarIcon } from '../components/JungleArt';
 import {
   ExhibitAnimalKind,
@@ -19,7 +18,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { COLORS, Difficulty, getAnimalDisplayName } from '../theme';
 import { makeInstantTapProps } from '../utils/webTouch';
 
 interface NurserySet {
@@ -61,6 +60,23 @@ const HeartSvg: React.FC<{ size: number }> = ({ size }) => (
   </Svg>
 );
 
+/** Adorable little nursery heart bib badge so Baby vs. Mama is unmistakable at a glance */
+const BabyBibBadgeSvg: React.FC<{ size: number }> = ({ size }) => (
+  <Svg width={size} height={Math.round(size * 0.78)} viewBox="0 0 44 34">
+    <Path
+      d="M 8 6 Q 22 14 36 6 C 40 16 34 30 22 31 C 10 30 4 16 8 6 Z"
+      fill="#FFFDF7"
+      stroke="#5E4028"
+      strokeWidth="2.6"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M 22 25 C 21 24 14 19 14 14.5 C 14 12 16 10.5 18.2 10.5 C 19.8 10.5 21 11.4 22 12.6 C 23 11.4 24.2 10.5 25.8 10.5 C 28 10.5 30 12 30 14.5 C 30 19 23 24 22 25 Z"
+      fill="#FF6699"
+    />
+  </Svg>
+);
+
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -88,13 +104,13 @@ const SnuggleHeartPop: React.FC<{ size: number }> = ({ size }) => {
 };
 
 /**
- * Mama & Baby Zoo Nursery (Paid Tier):
- * Reunite tiny baby zoo animals with their big smiling Mamas on cozy leafy cushions!
- * - Supports pointer-captured drag-and-drop AND tap-baby -> tap-mama.
- * - Difficulty Adjuster: Easy (2 pairs), Medium (3 pairs), Challenge (4 pairs).
+ * Mama & Baby Zoo Nursery (Full Zoo Pack):
+ * Reunite tiny baby zoo animals (wearing adorable heart bibs!) with their smiling Mamas!
+ * - Awards animal stickers to the Zoo Sticker Album on every match.
+ * - Warm studio neural voice ("Baby Elephant!" -> "Mama and Baby Elephant!").
  */
 export const BabyMatchGame: React.FC = () => {
-  const { addStar, goHome } = useApp();
+  const { addStar, collectSticker, goHome } = useApp();
   const { isTablet, isTabletLandscape } = useResponsive();
 
   const [difficulty, setDifficulty] = useState<Difficulty>(2);
@@ -106,7 +122,6 @@ export const BabyMatchGame: React.FC = () => {
   const [selectedBaby, setSelectedBaby] = useState<ExhibitAnimalKind | null>(null);
   const [hoveredMama, setHoveredMama] = useState<ExhibitAnimalKind | null>(null);
   const [hintMama, setHintMama] = useState<ExhibitAnimalKind | null>(null);
-  const [mascotMood, setMascotMood] = useState<GorillaMood>('idle');
   const [won, setWon] = useState(false);
 
   const mamaRefs = useRef<Record<string, MeasurableNode>>({});
@@ -126,7 +141,6 @@ export const BabyMatchGame: React.FC = () => {
       setSelectedBaby(null);
       setHoveredMama(null);
       setHintMama(null);
-      setMascotMood('idle');
       setWon(false);
     },
     [difficulty]
@@ -145,22 +159,25 @@ export const BabyMatchGame: React.FC = () => {
       const t = setTimeout(() => {
         soundEngine.playWin();
         addStar(1);
-        setMascotMood('cheer');
         setWon(true);
-      }, 480);
+      }, 620);
       return () => clearTimeout(t);
     }
   }, [matched.length, activeAnimals.length, addStar]);
 
-  const reuniteBaby = useCallback((animal: ExhibitAnimalKind) => {
-    soundEngine.playMatch();
-    setSelectedBaby(null);
-    setHoveredMama(null);
-    setHintMama(null);
-    setMatched((prev) => (prev.includes(animal) ? prev : [...prev, animal]));
-    setMascotMood('happy');
-    setTimeout(() => setMascotMood('idle'), 850);
-  }, []);
+  const reuniteBaby = useCallback(
+    (animal: ExhibitAnimalKind) => {
+      soundEngine.playMatch();
+      soundEngine.playAnimalSound(animal);
+      soundEngine.speakWord(`Mama and Baby ${getAnimalDisplayName(animal)}!`);
+      collectSticker(animal);
+      setSelectedBaby(null);
+      setHoveredMama(null);
+      setHintMama(null);
+      setMatched((prev) => (prev.includes(animal) ? prev : [...prev, animal]));
+    },
+    [collectSticker]
+  );
 
   const handleDragMove = useCallback(
     async (animal: ExhibitAnimalKind, attempt: DropAttempt) => {
@@ -213,12 +230,12 @@ export const BabyMatchGame: React.FC = () => {
   );
 
   const handleBabyTap = useCallback((animal: ExhibitAnimalKind) => {
+    soundEngine.unlock();
+    soundEngine.speakWord(`Baby ${getAnimalDisplayName(animal)}!`);
     setSelectedBaby((prev) => (prev === animal ? null : animal));
     setHintMama(animal);
-    setMascotMood('encourage');
     setTimeout(() => {
       setHintMama((prev) => (prev === animal ? null : prev));
-      setMascotMood('idle');
     }, 1100);
   }, []);
 
@@ -227,6 +244,7 @@ export const BabyMatchGame: React.FC = () => {
       soundEngine.unlock();
       if (matched.includes(animal)) {
         soundEngine.playAnimalSound(animal);
+        soundEngine.speakWord(`Mama and Baby ${getAnimalDisplayName(animal)}!`);
         return;
       }
       if (selectedBaby === animal) {
@@ -234,28 +252,16 @@ export const BabyMatchGame: React.FC = () => {
       } else if (selectedBaby) {
         soundEngine.playGentleBounce();
         setHintMama(selectedBaby);
-        setMascotMood('encourage');
         setTimeout(() => {
           setHintMama((prev) => (prev === selectedBaby ? null : prev));
-          setMascotMood('idle');
         }, 900);
       } else {
         soundEngine.playAnimalSound(animal);
+        soundEngine.speakWord(getAnimalDisplayName(animal));
       }
     },
     [matched, selectedBaby, reuniteBaby]
   );
-
-  const triggerHint = useCallback(() => {
-    const next = activeAnimals.find((a) => !matched.includes(a));
-    if (!next) return;
-    setHintMama(next);
-    setMascotMood('encourage');
-    setTimeout(() => {
-      setHintMama((prev) => (prev === next ? null : prev));
-      setMascotMood('idle');
-    }, 1200);
-  }, [activeAnimals, matched]);
 
   const isFour = pairCount === 4;
   const mamaSize = isFour
@@ -271,14 +277,13 @@ export const BabyMatchGame: React.FC = () => {
     : 98;
   const babySize = Math.round(mamaSize * 0.64);
   const babyTrayTile = babySize + (isTablet ? 26 : 16);
+  const bibSize = Math.max(20, Math.round(babySize * 0.36));
 
   return (
     <View style={styles.container}>
       <GameHeader
         totalSteps={activeAnimals.length}
         completedSteps={matched.length}
-        mascotMood={mascotMood}
-        onMascotPress={triggerHint}
         difficulty={difficulty}
         onDifficultyChange={handleDifficultyChange}
       />
@@ -336,6 +341,9 @@ export const BabyMatchGame: React.FC = () => {
                           animal={animal}
                           size={Math.round(babySize * 0.92)}
                         />
+                        <View style={styles.snuggledBib} pointerEvents="none">
+                          <BabyBibBadgeSvg size={Math.round(bibSize * 0.85)} />
+                        </View>
                       </View>
                     )}
                   </View>
@@ -356,7 +364,7 @@ export const BabyMatchGame: React.FC = () => {
           })}
         </View>
 
-        {/* Warm Curved Wooden Nursery Shelf — babies sit directly on the dock (NO white cards!) */}
+        {/* Warm Curved Wooden Nursery Shelf — babies wear adorable heart bibs! */}
         <View
           style={[
             styles.babyDock,
@@ -388,6 +396,9 @@ export const BabyMatchGame: React.FC = () => {
                         stickerRim
                         highlighted={isSelected}
                       />
+                      <View style={styles.babyBibOverlay} pointerEvents="none">
+                        <BabyBibBadgeSvg size={bibSize} />
+                      </View>
                     </View>
                   </DraggablePiece>
                 )}
@@ -470,6 +481,12 @@ const styles = StyleSheet.create({
   snuggledBaby: {
     marginLeft: -22,
     marginBottom: -4,
+    position: 'relative',
+    alignItems: 'center',
+  },
+  snuggledBib: {
+    position: 'absolute',
+    bottom: 4,
   },
   heartBadge: {
     position: 'absolute',
@@ -515,12 +532,12 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   babyPieceWrap: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4A3525',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.26,
-    shadowRadius: 8,
-    elevation: 6,
+  },
+  babyBibOverlay: {
+    position: 'absolute',
+    bottom: 2,
   },
 });

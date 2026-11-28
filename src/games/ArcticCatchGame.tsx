@@ -731,6 +731,7 @@ export const ArcticCatchGame: React.FC = () => {
           if (inX && inY) {
             if (item.kind === 'snowball') {
               soundEngine.playBoing();
+              soundEngine.speakWord('Brrr!');
               triggerSnowWiggle();
               pushPop(nx, catcherY - 34, 'snow');
             } else {
@@ -748,6 +749,7 @@ export const ArcticCatchGame: React.FC = () => {
               if (item.kind === 'fishGold') {
                 soundEngine.playStarCollect(nextCaught);
                 soundEngine.playAnimalSound(buddyRef.current.kind);
+                soundEngine.speakWord('Golden Fish!');
               } else {
                 soundEngine.playWaterSplash(nextCaught);
                 if (nextCaught % 3 === 0) {
@@ -1241,6 +1243,7 @@ export const ArcticCatchGame: React.FC = () => {
                   onPress={() => {
                     soundEngine.unlock();
                     soundEngine.playAnimalSound(b.kind);
+                    soundEngine.speakWord(b.label);
                     setBuddyIdx(idx);
                   }}
                   accessibilityLabel={`Play as ${b.label}`}

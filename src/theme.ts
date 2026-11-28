@@ -349,6 +349,37 @@ export const GAMES: GameMeta[] = [
   },
 ];
 
+export const ANIMAL_DISPLAY_NAMES: Record<string, string> = {
+  monkey: 'Monkey',
+  toucan: 'Toucan',
+  gorilla: 'Gorilla',
+  frog: 'Frog',
+  whale: 'Whale',
+  turtle: 'Turtle',
+  octopus: 'Octopus',
+  clownfish: 'Clownfish',
+  giraffe: 'Giraffe',
+  zebra: 'Zebra',
+  elephant: 'Elephant',
+  lion: 'Lion',
+  panda: 'Panda',
+  flamingo: 'Flamingo',
+  hippo: 'Hippo',
+  tiger: 'Tiger',
+  penguin: 'Penguin',
+  seal: 'Seal',
+  polarbear: 'Polar Bear',
+  puffin: 'Puffin',
+  cow: 'Cow',
+  sheep: 'Sheep',
+  duck: 'Duck',
+  pig: 'Pig',
+};
+
+export function getAnimalDisplayName(animal: string): string {
+  return ANIMAL_DISPLAY_NAMES[animal] || animal.charAt(0).toUpperCase() + animal.slice(1);
+}
+
 export const FREE_GAMES_COUNT = GAMES.filter((g) => g.isFree).length;
 export const PAID_GAMES_COUNT = GAMES.filter((g) => !g.isFree).length;
 

@@ -6,7 +6,7 @@ import { GameHeader } from '../components/GameHeader';
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { Difficulty } from '../theme';
+import { Difficulty, getAnimalDisplayName } from '../theme';
 import { ExhibitAnimalKind } from '../components/ZooExhibitAnimals';
 
 const GOAL_ANIMALS: ExhibitAnimalKind[] = ['lion', 'elephant', 'giraffe', 'panda'];
@@ -729,6 +729,7 @@ export const BallPassGame: React.FC = () => {
       const goalId = activeGoalRef.current.id;
 
       soundEngine.playGoalCheer();
+      soundEngine.speakWord(`Goal! ${getAnimalDisplayName(animal)}!`);
       setTimeout(() => soundEngine.playAnimalSound(animal), 160);
       collectSticker(animal);
 

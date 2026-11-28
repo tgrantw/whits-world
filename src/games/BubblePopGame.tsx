@@ -33,7 +33,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { COLORS, Difficulty, getAnimalDisplayName } from '../theme';
 
 const SEA_FRIENDS: ExhibitAnimalKind[] = [
   'whale',
@@ -619,9 +619,23 @@ export const BubblePopGame: React.FC = () => {
     }
   }, [poppedCount, goalCount, won, addStar]);
 
+  // Speak warm guiding prompt when a Med/Hard target animal round starts (or Easy round 0)
+  useEffect(() => {
+    if (won) return;
+    const t = setTimeout(() => {
+      if (difficulty > 1) {
+        soundEngine.speakWord(`Pop the ${getAnimalDisplayName(targetAnimal)} bubbles!`);
+      } else if (roundIdx === 0) {
+        soundEngine.speakWord('Pop the bubbles!');
+      }
+    }, 240);
+    return () => clearTimeout(t);
+  }, [difficulty, roundIdx, targetAnimal, won]);
+
   const handlePortholeTap = useCallback(() => {
     soundEngine.unlock();
     soundEngine.playAnimalSound(targetAnimal);
+    soundEngine.speakWord(`Pop the ${getAnimalDisplayName(targetAnimal)} bubbles!`);
     setHintActive(true);
     setTimeout(() => setHintActive(false), 1200);
   }, [targetAnimal]);
@@ -637,6 +651,7 @@ export const BubblePopGame: React.FC = () => {
 
       if (!isMatch) {
         soundEngine.playGentleBounce();
+        soundEngine.speakWord(`Pop the ${getAnimalDisplayName(targetAnimal)} bubbles!`);
         setHintActive(true);
         setTimeout(() => {
           setHintActive(false);
@@ -650,9 +665,11 @@ export const BubblePopGame: React.FC = () => {
 
       if (bubble.special === 'rainbow') {
         soundEngine.playMatch();
+        soundEngine.speakWord('Rainbow bubble!');
         collectSticker(bubble.animal);
       } else if (bubble.special === 'golden') {
         soundEngine.playStarCollect(4);
+        soundEngine.speakWord('Golden star!');
         collectSticker(bubble.animal);
         if (!goldenBonusAwarded) {
           setGoldenBonusAwarded(true);

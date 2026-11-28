@@ -24,7 +24,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { COLORS, Difficulty, getAnimalDisplayName } from '../theme';
 import { makeInstantTapProps } from '../utils/webTouch';
 
 interface BandBar {
@@ -405,6 +405,7 @@ export const JungleMusicGame: React.FC = () => {
     (bar: BandBar) => {
       soundEngine.unlock();
       soundEngine.playAnimalSound(bar.animal);
+      soundEngine.speakWord(getAnimalDisplayName(bar.animal));
       setTimeout(() => soundEngine.playNote(bar.freq), 90);
       collectSticker(bar.animal);
       setMusicianBursts((prev) => ({ ...prev, [bar.index]: Date.now() }));
@@ -524,7 +525,17 @@ export const JungleMusicGame: React.FC = () => {
                 <TactileButton
                   key={song.id}
                   onPress={() => {
+                    soundEngine.unlock();
                     soundEngine.playPop();
+                    const spokenSong =
+                      song.id === 'twinkle'
+                        ? 'Twinkle Twinkle!'
+                        : song.id === 'rowboat'
+                        ? 'Row Your Boat!'
+                        : song.id === 'lamb'
+                        ? 'Little Lamb!'
+                        : 'Free Jam!';
+                    soundEngine.speakWord(spokenSong);
                     selectSong(song.id);
                   }}
                   accessibilityLabel={`Select ${song.title} mode`}

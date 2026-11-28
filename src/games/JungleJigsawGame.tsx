@@ -32,7 +32,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { useResponsive } from '../hooks/useResponsive';
 import { soundEngine } from '../services/sound';
-import { COLORS, Difficulty } from '../theme';
+import { COLORS, Difficulty, getAnimalDisplayName } from '../theme';
 import { makeInstantTapProps } from '../utils/webTouch';
 
 /** All 24 storybook zoo, aquarium, arctic & farm animals interleaved across all 6 watercolor worlds */
@@ -250,12 +250,13 @@ export const JungleJigsawGame: React.FC = () => {
       collectSticker(animal);
       const voiceTimer = setTimeout(() => {
         soundEngine.playAnimalSound(animal);
+        soundEngine.speakWord(`Great job! ${getAnimalDisplayName(animal)}!`);
       }, 150);
       const winTimer = setTimeout(() => {
         soundEngine.playWin();
         addStar(1);
         setWon(true);
-      }, 920);
+      }, 980);
       return () => {
         clearTimeout(voiceTimer);
         clearTimeout(winTimer);
@@ -322,6 +323,7 @@ export const JungleJigsawGame: React.FC = () => {
     (tileIdx: number) => {
       if (allComplete) {
         soundEngine.playAnimalSound(animal);
+        soundEngine.speakWord(getAnimalDisplayName(animal));
         setBoardBurstKey(Date.now());
         return;
       }
@@ -370,7 +372,9 @@ export const JungleJigsawGame: React.FC = () => {
             <TactileButton
               key={a}
               onPress={() => {
+                soundEngine.unlock();
                 soundEngine.playPop();
+                soundEngine.speakWord(getAnimalDisplayName(a));
                 loadAnimal(idx);
               }}
               accessibilityLabel={`Play ${a} jigsaw puzzle`}
