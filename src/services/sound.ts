@@ -1,18 +1,130 @@
 import { Platform } from 'react-native';
+import {
+  VOICE_CLIPS,
+  VOICE_SPRITE_URLS,
+  VoiceClipRef,
+  VoiceSpriteId,
+} from './voiceManifest';
 
 /**
- * Pure Web Audio API synthesized sound engine for Whit's World.
- * - Zero external audio assets needed (no broken URLs).
+ * Pure Web Audio API sound & warm neural voice engine for Whit's World.
+ * - Studio-quality neural voice sprites (en-US-AvaNeural) decoded into Web Audio
+ *   AudioBuffers for instant 0ms, natural human speech across all 17 games.
  * - Gentle, warm marimba/xylophone tones designed specifically for 3-year-olds.
  * - No harsh buzzers or error sounds.
- * - Safe no-op fallback on native platforms (hook point for expo-av / expo-audio later).
+ * - Automatic natural-voice Web Speech API fallback if an unrecorded phrase is spoken.
  */
 
 type AudioCtx = AudioContext;
 
+const DIGIT_TO_WORD: Record<string, string> = {
+  '1': 'one',
+  '2': 'two',
+  '3': 'three',
+  '4': 'four',
+  '5': 'five',
+  '6': 'six',
+  '7': 'seven',
+  '8': 'eight',
+  '9': 'nine',
+  '10': 'ten',
+};
+
+function normalizeSpeechKey(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/\u2019/g, "'")
+    .replace(/[^a-z0-9' ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+interface ScheduledClip {
+  ref: VoiceClipRef;
+  gapAfter: number;
+}
+
+/**
+ * Resolves any spoken game prompt into one or more studio neural voice clips.
+ * Returns null only if a phrase cannot be fully satisfied by our bundled sprites.
+ */
+function resolveVoiceClips(phrase: string): ScheduledClip[] | null {
+  const fullKey = normalizeSpeechKey(phrase);
+  if (!fullKey) return null;
+
+  const exact = VOICE_CLIPS[fullKey];
+  if (exact) {
+    return [{ ref: exact, gapAfter: 0 }];
+  }
+
+  // Split multi-sentence prompts (e.g. "That's Blue! Find Red!" or "Three! 3 Monkeys!")
+  const rawParts = phrase
+    .split(/[.!?]+/)
+    .map((p) => normalizeSpeechKey(p))
+    .filter(Boolean);
+
+  if (rawParts.length === 0) return null;
+
+  const clips: ScheduledClip[] = [];
+
+  for (let i = 0; i < rawParts.length; i++) {
+    const part = rawParts[i];
+    const isLastPart = i === rawParts.length - 1;
+    const sentenceGap = isLastPart ? 0 : 0.085;
+
+    // Direct match for this sentence
+    const direct = VOICE_CLIPS[part];
+    if (direct) {
+      clips.push({ ref: direct, gapAfter: sentenceGap });
+      continue;
+    }
+
+    // Standalone digit -> number word ("3" -> "three")
+    if (DIGIT_TO_WORD[part] && VOICE_CLIPS[DIGIT_TO_WORD[part]]) {
+      clips.push({ ref: VOICE_CLIPS[DIGIT_TO_WORD[part]], gapAfter: sentenceGap });
+      continue;
+    }
+
+    // "match 3" -> "match three"
+    const matchNum = part.match(/^match (\d+)$/);
+    if (matchNum) {
+      const w = DIGIT_TO_WORD[matchNum[1]];
+      if (w && VOICE_CLIPS[`match ${w}`]) {
+        clips.push({ ref: VOICE_CLIPS[`match ${w}`], gapAfter: sentenceGap });
+        continue;
+      }
+    }
+
+    // "<count> <animal>" e.g. "3 monkeys" or "1 lion"
+    const countNoun = part.match(/^(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(.+)$/);
+    if (countNoun) {
+      const numWord = DIGIT_TO_WORD[countNoun[1]] || countNoun[1];
+      const nounKey = countNoun[2];
+      const numClip = VOICE_CLIPS[numWord];
+      const nounClip = VOICE_CLIPS[nounKey];
+      if (numClip && nounClip) {
+        clips.push({ ref: numClip, gapAfter: 0.025 });
+        clips.push({ ref: nounClip, gapAfter: sentenceGap });
+        continue;
+      }
+    }
+
+    // Unknown segment -> fall back cleanly
+    return null;
+  }
+
+  return clips.length > 0 ? clips : null;
+}
+
 class SoundEngine {
   private ctx: AudioCtx | null = null;
   private muted = false;
+  private spriteBytes = new Map<VoiceSpriteId, Promise<ArrayBuffer | null>>();
+  private spriteBuffers = new Map<VoiceSpriteId, AudioBuffer>();
+  private spriteDecoding = new Map<VoiceSpriteId, Promise<AudioBuffer | null>>();
+  private activeVoiceNodes: { source: AudioBufferSourceNode; gain: GainNode }[] = [];
+  private speechToken = 0;
 
   constructor() {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -24,6 +136,84 @@ class SoundEngine {
       } catch {
         // Ignore storage errors in private browsing
       }
+      // Quietly prefetch compressed voice sprite bytes into RAM (no gesture needed)
+      this.prefetchAllSprites();
+    }
+  }
+
+  private prefetchAllSprites(): void {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof fetch !== 'function') {
+      return;
+    }
+    const order: VoiceSpriteId[] = ['core', 'colors', 'numbers', 'letters'];
+    order.forEach((id) => {
+      this.fetchSpriteBytes(id);
+    });
+  }
+
+  private fetchSpriteBytes(id: VoiceSpriteId): Promise<ArrayBuffer | null> {
+    const existing = this.spriteBytes.get(id);
+    if (existing) return existing;
+
+    const url = VOICE_SPRITE_URLS[id];
+    const req = fetch(url)
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .catch(() => null);
+    this.spriteBytes.set(id, req);
+    return req;
+  }
+
+  private async getSpriteBuffer(id: VoiceSpriteId, ctx: AudioCtx): Promise<AudioBuffer | null> {
+    const cached = this.spriteBuffers.get(id);
+    if (cached) return cached;
+
+    const inFlight = this.spriteDecoding.get(id);
+    if (inFlight) return inFlight;
+
+    const decodePromise = (async () => {
+      const raw = await this.fetchSpriteBytes(id);
+      if (!raw) return null;
+      try {
+        // Always copy the ArrayBuffer because decodeAudioData detaches its input
+        const buf = await ctx.decodeAudioData(raw.slice(0));
+        this.spriteBuffers.set(id, buf);
+        return buf;
+      } catch {
+        return null;
+      } finally {
+        this.spriteDecoding.delete(id);
+      }
+    })();
+
+    this.spriteDecoding.set(id, decodePromise);
+    return decodePromise;
+  }
+
+  private stopActiveVoice(): void {
+    const ctx = this.ctx;
+    const now = ctx ? ctx.currentTime : 0;
+    for (const item of this.activeVoiceNodes) {
+      try {
+        if (ctx) {
+          item.gain.gain.cancelScheduledValues(now);
+          item.gain.gain.setValueAtTime(Math.max(0.0001, item.gain.gain.value), now);
+          item.gain.gain.linearRampToValueAtTime(0.0001, now + 0.015);
+          item.source.stop(now + 0.02);
+        } else {
+          item.source.stop();
+        }
+      } catch {
+        // Ignore already-stopped AudioBufferSourceNodes
+      }
+    }
+    this.activeVoiceNodes = [];
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // Ignore
+      }
     }
   }
 
@@ -33,6 +223,10 @@ class SoundEngine {
 
   public setMuted(muted: boolean): void {
     this.muted = muted;
+    if (muted) {
+      this.speechToken += 1;
+      this.stopActiveVoice();
+    }
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       try {
         window.localStorage.setItem('whits_world_muted', String(muted));
@@ -63,10 +257,17 @@ class SoundEngine {
   }
 
   /**
-   * Call on first user touch/tap to unlock iOS Safari Web Audio cleanly.
+   * Call on first user touch/tap to unlock iOS/Android Web Audio cleanly
+   * and warm up all 4 neural voice sprites for instant 0ms playback.
    */
   public unlock(): void {
-    this.getContext();
+    const ctx = this.getContext();
+    if (ctx) {
+      const ids: VoiceSpriteId[] = ['core', 'colors', 'numbers', 'letters'];
+      ids.forEach((id) => {
+        void this.getSpriteBuffer(id, ctx);
+      });
+    }
   }
 
   private playTone(
@@ -360,13 +561,50 @@ class SoundEngine {
   }
 
   /**
-   * Warm, cheerful spoken animal name via Web Speech API (respects mute setting).
-   * Safe no-op on platforms or browsers without SpeechSynthesis support.
+   * Picks the warmest, most natural-sounding English voice available if the
+   * Web Speech API fallback is ever needed for an unrecorded phrase.
    */
-  public speakWord(word: string): void {
-    if (this.muted || Platform.OS !== 'web' || typeof window === 'undefined') {
-      return;
+  private pickBestFallbackVoice(): SpeechSynthesisVoice | null {
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth || typeof synth.getVoices !== 'function') return null;
+      const voices = synth.getVoices();
+      if (!voices || voices.length === 0) return null;
+
+      const enVoices = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith('en'));
+      const pool = enVoices.length > 0 ? enVoices : voices;
+
+      const scoreVoice = (v: SpeechSynthesisVoice): number => {
+        const name = (v.name || '').toLowerCase();
+        const lang = (v.lang || '').toLowerCase();
+        let score = 0;
+        if (lang === 'en-us' || lang === 'en_us') score += 20;
+        if (name.includes('natural') || name.includes('neural')) score += 60;
+        if (name.includes('ava') || name.includes('emma') || name.includes('aria') || name.includes('jenny')) score += 45;
+        if (name.includes('enhanced') || name.includes('premium')) score += 35;
+        if (name.includes('samantha') || name.includes('karen') || name.includes('google us english')) score += 30;
+        if (name.includes('espeak') || name.includes('compact') || name.includes('fred') || name.includes('albert') || name.includes('bells') || name.includes('zarvox')) {
+          score -= 100;
+        }
+        return score;
+      };
+
+      let best = pool[0];
+      let bestScore = scoreVoice(best);
+      for (let i = 1; i < pool.length; i++) {
+        const sc = scoreVoice(pool[i]);
+        if (sc > bestScore) {
+          best = pool[i];
+          bestScore = sc;
+        }
+      }
+      return best;
+    } catch {
+      return null;
     }
+  }
+
+  private speakFallback(word: string): void {
     try {
       const synth = window.speechSynthesis;
       if (!synth || typeof window.SpeechSynthesisUtterance !== 'function') {
@@ -374,14 +612,121 @@ class SoundEngine {
       }
       synth.cancel();
       const utter = new window.SpeechSynthesisUtterance(word);
-      utter.lang = 'en-US';
-      utter.rate = 0.94;
-      utter.pitch = 1.12;
-      utter.volume = 0.9;
+      const voice = this.pickBestFallbackVoice();
+      if (voice) {
+        utter.voice = voice;
+        utter.lang = voice.lang;
+      } else {
+        utter.lang = 'en-US';
+      }
+      utter.rate = 0.96;
+      utter.pitch = 1.0;
+      utter.volume = 0.92;
       synth.speak(utter);
     } catch {
       // Ignore Web Speech API restrictions on unsupported browsers
     }
+  }
+
+  private scheduleVoiceClips(
+    ctx: AudioCtx,
+    clips: ScheduledClip[],
+    buffers: Map<VoiceSpriteId, AudioBuffer>,
+    token: number
+  ): void {
+    if (token !== this.speechToken || this.muted) return;
+
+    let cursor = ctx.currentTime + 0.01;
+    const nodes: { source: AudioBufferSourceNode; gain: GainNode }[] = [];
+
+    for (const item of clips) {
+      const [spriteId, startSec, rawDur] = item.ref;
+      const buf = buffers.get(spriteId);
+      if (!buf) continue;
+
+      const safeStart = Math.max(0, Math.min(startSec, Math.max(0, buf.duration - 0.02)));
+      const safeDur = Math.max(0.04, Math.min(rawDur, buf.duration - safeStart));
+
+      const source = ctx.createBufferSource();
+      source.buffer = buf;
+
+      const gain = ctx.createGain();
+      const fadeIn = Math.min(0.008, safeDur * 0.15);
+      const fadeOut = Math.min(0.015, safeDur * 0.2);
+
+      gain.gain.setValueAtTime(0.0001, cursor);
+      gain.gain.linearRampToValueAtTime(0.95, cursor + fadeIn);
+      gain.gain.setValueAtTime(0.95, cursor + Math.max(fadeIn, safeDur - fadeOut));
+      gain.gain.linearRampToValueAtTime(0.0001, cursor + safeDur);
+
+      source.connect(gain);
+      gain.connect(ctx.destination);
+
+      source.start(cursor, safeStart, safeDur);
+      nodes.push({ source, gain });
+
+      cursor += safeDur + item.gapAfter;
+    }
+
+    this.activeVoiceNodes = nodes;
+  }
+
+  /**
+   * Warm, natural human neural voice (en-US-AvaNeural) via bundled Web Audio sprites.
+   * Falls back cleanly to the best available natural browser voice only if unrecorded.
+   */
+  public speakWord(word: string): void {
+    if (this.muted || Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
+    const token = ++this.speechToken;
+    this.stopActiveVoice();
+
+    const clips = resolveVoiceClips(word);
+    const ctx = this.getContext();
+
+    if (!clips || !ctx) {
+      this.speakFallback(word);
+      return;
+    }
+
+    // Collect unique sprite IDs needed for this phrase
+    const needed = new Set<VoiceSpriteId>();
+    for (const c of clips) {
+      needed.add(c.ref[0]);
+    }
+
+    // Fast path: if all needed sprites are already decoded, schedule synchronously (0ms!)
+    let allReady = true;
+    for (const id of needed) {
+      if (!this.spriteBuffers.has(id)) {
+        allReady = false;
+        break;
+      }
+    }
+
+    if (allReady) {
+      this.scheduleVoiceClips(ctx, clips, this.spriteBuffers, token);
+      return;
+    }
+
+    // Async decode path (first time a topic sprite is played)
+    void Promise.all(
+      Array.from(needed).map(async (id) => {
+        const buf = await this.getSpriteBuffer(id, ctx);
+        return [id, buf] as const;
+      })
+    ).then((pairs) => {
+      if (token !== this.speechToken || this.muted) return;
+      for (const [, buf] of pairs) {
+        if (!buf) {
+          this.speakFallback(word);
+          return;
+        }
+      }
+      this.scheduleVoiceClips(ctx, clips, this.spriteBuffers, token);
+    });
   }
 }
 
